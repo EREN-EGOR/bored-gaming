@@ -17,6 +17,10 @@ body{background:#000;overflow:hidden;font-family:'Courier New',monospace}
 #xh-r{width:8px;height:2px;right:0;top:11px}
 #xh-dot{width:3px;height:3px;top:10.5px;left:10.5px;border-radius:50%;background:red;opacity:.8;position:absolute}
 .spread #xh-t{top:-5px}.spread #xh-b{bottom:-5px}.spread #xh-l{left:-5px}.spread #xh-r{right:-5px}
+#xhair.headshot .xh{background:#ffd700;opacity:1;box-shadow:0 0 5px #ffd700}
+#xhair.headshot #xh-dot{background:#ffd700;opacity:1;box-shadow:0 0 8px #ffd700;width:5px;height:5px;top:9.5px;left:9.5px}
+#xhair.kill .xh{background:#e94560;opacity:1;box-shadow:0 0 6px #e94560}
+#xhair.kill #xh-dot{background:#fff;opacity:1;transform:scale(2.2);box-shadow:0 0 10px #fff}
 
 #hp-wrap{position:absolute;bottom:40px;left:40px}
 #hp-bg{width:180px;height:10px;background:rgba(255,255,255,.15);border-radius:2px}
@@ -53,6 +57,11 @@ body{background:#000;overflow:hidden;font-family:'Courier New',monospace}
 #restartBtn{padding:12px 50px;background:#e94560;color:#fff;border:none;border-radius:4px;font-size:16px;letter-spacing:4px;cursor:pointer;font-family:inherit}
 
 .dmgnum{position:absolute;font-size:18px;font-weight:bold;color:#ff4444;pointer-events:none;text-shadow:1px 1px 2px #000;animation:floatup .8s ease-out forwards}
+.dmgnum.headshot{color:#ffd700;font-size:22px;text-shadow:0 0 8px #ffd700,1px 1px 2px #000}
+.kill-banner{position:absolute;top:38%;left:50%;transform:translateX(-50%);font-size:20px;font-weight:bold;color:#e94560;letter-spacing:3px;text-shadow:0 0 14px #e94560;pointer-events:none;animation:killpop .9s ease-out forwards;font-family:'Courier New',monospace}
+.kill-banner.headshot-kill{color:#ffd700;text-shadow:0 0 14px #ffd700,0 0 28px #e94560}
+.headshot-tag{position:absolute;top:calc(50% + 18px);left:50%;transform:translateX(-50%);font-size:11px;font-weight:bold;color:#ffd700;letter-spacing:3px;text-shadow:0 0 6px #ffd700;pointer-events:none;animation:killpop .7s ease-out forwards}
+@keyframes killpop{0%{opacity:0;transform:translateX(-50%) scale(.7)}18%{opacity:1;transform:translateX(-50%) scale(1.05)}72%{opacity:1;transform:translateX(-50%) scale(1)}100%{opacity:0;transform:translateX(-50%) translateY(-18px)}}
 /* 暂停界面 */
 #pause{display:none;position:absolute;inset:0;background:rgba(0,0,0,.75);flex-direction:column;align-items:center;justify-content:center;pointer-events:all}
 #pause h1{font-size:42px;letter-spacing:8px;color:#f0a500;margin-bottom:28px}
@@ -312,6 +321,7 @@ const OX=(MC*CELL)/2, OZ=(MR*CELL)/2;
 const wallMat=new THREE.MeshLambertMaterial({map:wallTex});
 const floorMat=new THREE.MeshLambertMaterial({map:floorTex});
 const ceilMat=new THREE.MeshLambertMaterial({map:ceilTex});
+const wallObjs=[];
 
 MAP.forEach((row,rz)=>row.forEach((cell,cx)=>{
   const wx=cx*CELL-OX, wz=rz*CELL-OZ;
@@ -322,6 +332,7 @@ MAP.forEach((row,rz)=>row.forEach((cell,cx)=>{
   if(cell===1){
     const wm=new THREE.Mesh(new THREE.BoxGeometry(CELL,4,CELL),wallMat);
     wm.position.set(wx+CELL/2,2,wz+CELL/2); scene.add(wm);
+    wallObjs.push(wm);
   }
 }));
 
@@ -341,6 +352,15 @@ scene.add(new THREE.AmbientLight(0xffffff,0.7));
 // 碰撞
 // ═══════════════════════════════════════════════
 const PR=0.4;
+
+// 性能优化：复用 Raycaster / Vector3，避免每帧分配
+const tmp={
+  ray:new THREE.Raycaster(),
+  v3a:new THREE.Vector3(),
+  v3b:new THREE.Vector3(),
+  v3c:new THREE.Vector3(),
+};
+
 function isWall(x,z){
   const cx=Math.floor((x+OX)/CELL), cz=Math.floor((z+OZ)/CELL);
   if(cz<0||cz>=MR||cx<0||cx>=MC) return true;
@@ -350,8 +370,9 @@ function canMove(x,z){
   return !isWall(x-PR,z-PR)&&!isWall(x+PR,z-PR)&&!isWall(x-PR,z+PR)&&!isWall(x+PR,z+PR);
 }
 function moveEntity(ep,dx,dz,spd,dt){
-  const dist=Math.sqrt(dx*dx+dz*dz);
-  if(dist<0.01) return;
+  const distSq=dx*dx+dz*dz;
+  if(distSq<0.0001) return;
+  const dist=Math.sqrt(distSq);
   const nx=ep.x+dx/dist*spd*dt, nz=ep.z+dz/dist*spd*dt;
   if(canMove(nx,nz)){ep.x=nx;ep.z=nz;}
   else if(canMove(nx,ep.z)){ep.x=nx;}
@@ -429,7 +450,8 @@ function spawnHole(pos,normal){
     new THREE.CircleGeometry(0.06,8),
     new THREE.MeshBasicMaterial({color:0x080808,depthWrite:false,polygonOffset:true,polygonOffsetFactor:-1}));
   m.position.copy(pos).addScaledVector(normal,0.01);
-  m.lookAt(pos.clone().add(normal));
+  tmp.v3c.copy(pos).add(normal);
+  m.lookAt(tmp.v3c);
   scene.add(m); holes.push(m);
   if(holes.length>40) scene.remove(holes.shift());
 }
@@ -517,7 +539,7 @@ function updateDrops(dt){
     d.box.material.emissiveIntensity=Math.sin(d.bobPhase*4)>0?0.6:0.2;
     const dx=camera.position.x-d.group.position.x;
     const dz=camera.position.z-d.group.position.z;
-    if(Math.sqrt(dx*dx+dz*dz)<1.2) pickupDrop(d,i);
+    if(dx*dx+dz*dz<1.44) pickupDrop(d,i);
   }
 }
 
@@ -553,9 +575,13 @@ function makeLimbs(g,bodyColor,legColor,armColor,bw,bh){
   const legL=new THREE.Mesh(new THREE.BoxGeometry(0.25,0.7,0.3),m3(legColor));
   legL.position.set(-0.2,-0.35,0); g.add(legL);
   const legR=legL.clone(); legR.position.x=0.2; g.add(legR);
+  const armHalf=0.1, shoulderY=-0.15, armInset=0.05;
   const armL=new THREE.Mesh(new THREE.BoxGeometry(0.2,0.7,0.3),m3(armColor));
-  armL.position.set(-bw/2-0.12,bh/2-0.2,0); g.add(armL);
-  const armR=armL.clone(); armR.position.x=(bw/2+0.12+0.2)*2-armL.position.x; g.add(armR);
+  armL.position.set(-bw/2-armHalf+armInset,shoulderY,0);
+  body.add(armL);
+  const armR=armL.clone();
+  armR.position.set(bw/2+armHalf-armInset,shoulderY,0);
+  body.add(armR);
   return {body,legL,legR,armL,armR};
 }
 
@@ -642,9 +668,9 @@ function buildNormal(x,z){
   const refreshHp=makeHpBar(g,2.2); refreshHp(100,100);
   return Object.assign(baseEnemy(x,z),{
     group:g,kind:'normal',hp:100,maxHp:100,
-    legL,legR,armL,armR,refreshHp,
+    head,legL,legR,armL,armR,refreshHp,
     meshes:[body,head,legL,legR,armL,armR],
-    speed:2.8,attackRange:1.8,attackDmg:6,attackRate:1.2,fleeHp:0.3,score:100,
+    speed:2.8,attackRange:1.8,attackDmg:4,attackRate:1.2,fleeHp:0.3,score:100,
   });
 }
 
@@ -654,15 +680,16 @@ function buildBerserker(x,z){
   const head=new THREE.Mesh(new THREE.BoxGeometry(0.55,0.55,0.55),makeHead(TEX_BERSERK,0.55,0xcc4400));
   head.position.y=1.3; g.add(head);
   const knife=makeKnife();
-  knife.position.set(0.18,0.3,-0.1); knife.rotation.set(-0.5,0,0.3);
+  knife.position.set(0.02,-0.27,0.06);
+  knife.rotation.set(-0.9,0,0.25);
   armR.add(knife);
   g.position.set(x,0.35,z); scene.add(g);
   const refreshHp=makeHpBar(g,2.1); refreshHp(60,60);
   return Object.assign(baseEnemy(x,z),{
     group:g,kind:'berserker',hp:60,maxHp:60,
-    legL,legR,armL,armR,refreshHp,
+    head,legL,legR,armL,armR,refreshHp,
     meshes:[body,head,legL,legR,armL,armR],
-    speed:5.0,attackRange:1.5,attackDmg:12,attackRate:0.6,fleeHp:0,score:150,
+    speed:5.0,attackRange:1.5,attackDmg:10,attackRate:0.6,fleeHp:0,score:150,
   });
 }
 
@@ -671,7 +698,9 @@ function buildHeavy(x,z){
   const {body,legL,legR,armL,armR}=makeLimbs(g,0x444444,0x333333,0x444444,0.9,1.3);
   const head=new THREE.Mesh(new THREE.BoxGeometry(0.7,0.65,0.65),makeHead(TEX_HEAVY,0.7,0x555555));
   head.position.y=1.65; g.add(head);
-  const hgun=makeHeavyGun(); hgun.position.set(0,0.65,-0.45); g.add(hgun);
+  const hgun=makeHeavyGun();
+  hgun.position.set(0,-0.30,-0.22);
+  armR.add(hgun);
   [-0.6,0.6].forEach(ox=>{
     const pad=new THREE.Mesh(new THREE.BoxGeometry(0.25,0.2,0.25),m3(0x333333));
     pad.position.set(ox,1.2,0); g.add(pad);
@@ -680,7 +709,7 @@ function buildHeavy(x,z){
   const refreshHp=makeHpBar(g,2.5); refreshHp(300,300);
   return Object.assign(baseEnemy(x,z),{
     group:g,kind:'heavy',hp:300,maxHp:300,
-    legL,legR,armL,armR,refreshHp,
+    head,legL,legR,armL,armR,refreshHp,
     meshes:[body,head,legL,legR,armL,armR],
     speed:1.6,attackRange:10,attackDmg:4,attackRate:0.3,fleeHp:0,score:300,
   });
@@ -692,14 +721,16 @@ function buildSniper(x,z){
   const head=new THREE.Mesh(new THREE.BoxGeometry(0.55,0.55,0.55),makeHead(TEX_SNIPER,0.55,0x111122));
   head.position.y=1.35; g.add(head);
   const srifle=makeSniperRifle();
-  srifle.position.set(0.4,0.65,-0.1); srifle.rotation.y=-0.2; g.add(srifle);
+  srifle.position.set(0.04,-0.28,-0.18);
+  srifle.rotation.y=-0.15;
+  armR.add(srifle);
   g.position.set(x,0.35,z); scene.add(g);
   const refreshHp=makeHpBar(g,2.1); refreshHp(80,80);
   return Object.assign(baseEnemy(x,z),{
     group:g,kind:'sniper',hp:80,maxHp:80,
-    legL,legR,armL,armR,refreshHp,
+    head,legL,legR,armL,armR,refreshHp,
     meshes:[body,head,legL,legR,armL,armR],
-    speed:2.0,attackRange:18,attackDmg:18,attackRate:2.5,fleeHp:0.3,score:200,
+    speed:2.0,attackRange:18,attackDmg:15,attackRate:2.5,fleeHp:0.3,score:200,
     preferDist:10,
   });
 }
@@ -739,13 +770,9 @@ const P={
 };
 
 // ═══════════════════════════════════════════════
-// 射线
-// ═══════════════════════════════════════════════
-const ray=new THREE.Raycaster();
-
-// ═══════════════════════════════════════════════
 // UI
 // ═══════════════════════════════════════════════
+const xhair=document.getElementById('xhair');
 function updateHpUI(){
   const pct=P.hp/P.maxHp;
   document.getElementById('hp-fill').style.width=(pct*100)+'%';
@@ -763,23 +790,102 @@ function updateAmmoUI(){
 function updateScoreUI(){
   document.getElementById('score-num').textContent=P.score;
 }
-function showDmgNum(worldPos,dmg){
+function showDmgNum(worldPos,dmg,headshot){
   const v=worldPos.clone().project(camera);
   if(v.z>1) return;
   const el=document.createElement('div');
-  el.className='dmgnum';
-  el.textContent=dmg;
+  el.className='dmgnum'+(headshot?' headshot':'');
+  el.textContent=headshot?dmg+' 爆头':dmg;
   el.style.left=((v.x*0.5+0.5)*innerWidth)+'px';
   el.style.top=((-v.y*0.5+0.5)*innerHeight)+'px';
   document.getElementById('ui').appendChild(el);
   setTimeout(()=>el.remove(),800);
 }
 
+const HEADSHOT_MULT=1.5;
+const ENEMY_NAMES={normal:'士兵',berserker:'狂战士',heavy:'重装兵',sniper:'狙击手'};
+let xhairFlashTimer=0;
+
+function flashXhair(type,ms){
+  xhair.classList.remove('headshot','kill');
+  void xhair.offsetWidth;
+  xhair.classList.add(type);
+  clearTimeout(xhairFlashTimer);
+  xhairFlashTimer=setTimeout(()=>xhair.classList.remove('headshot','kill'),ms);
+}
+
+function showHeadshotTag(){
+  const el=document.createElement('div');
+  el.className='headshot-tag';
+  el.textContent='爆头';
+  document.getElementById('ui').appendChild(el);
+  setTimeout(()=>el.remove(),700);
+}
+
+function showKillBanner(kind,headshot){
+  const el=document.createElement('div');
+  el.className='kill-banner'+(headshot?' headshot-kill':'');
+  const name=ENEMY_NAMES[kind]||'敌人';
+  el.textContent=headshot?'爆头击杀 · '+name:'击杀 · '+name;
+  document.getElementById('ui').appendChild(el);
+  setTimeout(()=>el.remove(),900);
+}
+
+function applyHitToEnemy(e,hit,baseDmg){
+  const headshot=hit.object===e.head;
+  const dmg=Math.round(baseDmg*(headshot?HEADSHOT_MULT:1));
+  e.hp-=dmg;
+  e.refreshHp(Math.max(0,e.hp),e.maxHp);
+  spawnBlood(hit.point);
+  showDmgNum(hit.point,dmg,headshot);
+  e.stunTimer=0.28;
+  if(headshot){
+    flashXhair('headshot',180);
+    showHeadshotTag();
+  } else {
+    document.getElementById('xh-dot').style.transform='scale(2)';
+    setTimeout(()=>document.getElementById('xh-dot').style.transform='',100);
+  }
+  playHit();
+  if(e.hp<=0) killEnemy(e,headshot);
+  return headshot;
+}
+
+// ═══════════════════════════════════════════════
+// 检查玩家是否被墙阻挡
+// ═══════════════════════════════════════════════
+function isPlayerObstructed(enemyPos){
+  const v3a=tmp.v3a, v3b=tmp.v3b;
+  v3a.set(camera.position.x-enemyPos.x,0,camera.position.z-enemyPos.z);
+  const distSq=v3a.x*v3a.x+v3a.z*v3a.z;
+  if(distSq<0.0001) return false;
+  const dist=Math.sqrt(distSq);
+  v3a.normalize();
+  v3b.set(enemyPos.x,1.5,enemyPos.z);
+  tmp.ray.set(v3b,v3a);
+  const hits=tmp.ray.intersectObjects(wallObjs,false);
+  return hits.length>0 && hits[0].distance<dist-0.1;
+}
+
+const PATROL_ARRIVE_SQ=0.09;
+
+function doPatrol(ep,e,dt,radius,timerBase){
+  e.state='patrol';
+  e.patrolTimer-=dt;
+  if(!e.patrolTarget||e.patrolTimer<=0){
+    e.patrolTimer=timerBase+Math.random()*3;
+    const a=Math.random()*Math.PI*2;
+    e.patrolTarget={x:ep.x+Math.cos(a)*radius,z:ep.z+Math.sin(a)*radius};
+  }
+  const pdx=e.patrolTarget.x-ep.x, pdz=e.patrolTarget.z-ep.z;
+  if(pdx*pdx+pdz*pdz>PATROL_ARRIVE_SQ) moveEntity(ep,pdx,pdz,e.speed,dt);
+  else e.patrolTarget=null;
+}
+
 // ═══════════════════════════════════════════════
 // 射击
 // ═══════════════════════════════════════════════
 let muzzleTimer=0;
-const xhair=document.getElementById('xhair');
 
 function shoot(){
   if(P.reloading||P.meleeing||P.ammo<=0) return;
@@ -797,34 +903,34 @@ function shoot(){
   xhair.classList.add('spread');
   setTimeout(()=>xhair.classList.remove('spread'),100);
 
-  ray.setFromCamera({x:0,y:0},camera);
+  tmp.ray.setFromCamera({x:0,y:0},camera);
   const eMeshes=enemies.flatMap(e=>e.meshes);
-  const eHits=ray.intersectObjects(eMeshes,false);
+  const eHits=tmp.ray.intersectObjects(eMeshes,false);
   if(eHits.length>0){
-    const dmg=15+Math.floor(Math.random()*12);
-    for(const e of enemies){
-      if(e.meshes.includes(eHits[0].object)){
-        e.hp-=dmg;
-        e.refreshHp(Math.max(0,e.hp),e.maxHp);
-        spawnBlood(eHits[0].point);
-        showDmgNum(eHits[0].point,dmg);
-        e.stunTimer=0.28;
-        document.getElementById('xh-dot').style.transform='scale(2)';
-        setTimeout(()=>document.getElementById('xh-dot').style.transform='',100);
-        playHit();
-        if(e.hp<=0) killEnemy(e);
-        break;
+    // 检查射线是否先击中墙（敌人被遮挡）
+    const wHits=tmp.ray.intersectObjects(wallObjs,false);
+    
+    // 如果有墙且墙更近，则敌人被遮挡
+    if(wHits.length>0 && wHits[0].distance < eHits[0].distance){
+      spawnHole(wHits[0].point,wHits[0].face.normal);
+    } else {
+      const hit=eHits[0];
+      const baseDmg=15+Math.floor(Math.random()*12);
+      for(const e of enemies){
+        if(e.meshes.includes(hit.object)){
+          applyHitToEnemy(e,hit,baseDmg);
+          break;
+        }
       }
     }
   } else {
-    const wObjs=scene.children.filter(c=>c.isMesh&&c.material===wallMat);
-    const wHits=ray.intersectObjects(wObjs,false);
+    const wHits=tmp.ray.intersectObjects(wallObjs,false);
     if(wHits.length>0) spawnHole(wHits[0].point,wHits[0].face.normal);
   }
   if(P.ammo===0&&P.reserve>0) startReload();
 }
 
-function killEnemy(e){
+function killEnemy(e,headshot){
   if(e.dying) return;
   e.dying=true; e.state='dying'; e.dyingTimer=0.6;
   e.meshes=[];
@@ -833,6 +939,8 @@ function killEnemy(e){
   P.score+=(e.score||100)*(P.streak>=3?2:1);
   updateScoreUI();
   document.getElementById('kill-streak').textContent=P.streak>=3?P.streak+' KILL STREAK!':'';
+  showKillBanner(e.kind,!!headshot);
+  flashXhair('kill',420);
   setTimeout(()=>{
     const pt=SPAWN_PTS[Math.floor(Math.random()*SPAWN_PTS.length)];
     trySpawn(pt[0],pt[1]);
@@ -852,17 +960,19 @@ function finishReload(){
 function doMelee(){
   if(P.meleeing) return;
   P.meleeing=true; P.meleeTimer=0.4; playMelee();
-  ray.setFromCamera({x:0,y:0},camera);
-  const hits=ray.intersectObjects(enemies.flatMap(e=>e.meshes),false);
+  tmp.ray.setFromCamera({x:0,y:0},camera);
+  const hits=tmp.ray.intersectObjects(enemies.flatMap(e=>e.meshes),false);
   if(hits.length>0&&hits[0].distance<2.5){
-    for(const e of enemies){
-      if(e.meshes.includes(hits[0].object)){
-        const dmg=60+Math.floor(Math.random()*20);
-        e.hp-=dmg; e.refreshHp(Math.max(0,e.hp),e.maxHp);
-        e.stunTimer=0.4;
-        showDmgNum(hits[0].point,dmg); spawnBlood(hits[0].point);
-        if(e.hp<=0) killEnemy(e);
-        break;
+    // 检查射线是否先击中墙（敌人被遮挡）
+    const wHits=tmp.ray.intersectObjects(wallObjs,false);
+    
+    // 如果有墙且墙更近，则敌人被遮挡
+    if(!(wHits.length>0 && wHits[0].distance < hits[0].distance)){
+      for(const e of enemies){
+        if(e.meshes.includes(hits[0].object)){
+          applyHitToEnemy(e,hits[0],60+Math.floor(Math.random()*20));
+          break;
+        }
       }
     }
   }
@@ -1030,7 +1140,8 @@ function loop(now){
     const ep=e.group.position;
     const dx=camera.position.x-ep.x;
     const dz=camera.position.z-ep.z;
-    const dist=Math.sqrt(dx*dx+dz*dz);
+    const distSq=dx*dx+dz*dz;
+    const attackRangeSq=e.attackRange*e.attackRange;
 
     // 倒地
     if(e.dying){
@@ -1071,25 +1182,32 @@ function loop(now){
     // 逃跑
     if(e.state==='flee'){
       moveEntity(ep,-dx,-dz,e.speed*1.2,dt);
-      if(dist>20) e.state='patrol';
+      if(distSq>400) e.state='patrol';
       continue;
     }
 
     // 残血逃跑
-    if(e.fleeHp>0&&e.hp/e.maxHp<e.fleeHp&&dist<16){e.state='flee';continue;}
+    if(e.fleeHp>0&&e.hp/e.maxHp<e.fleeHp&&distSq<256){e.state='flee';continue;}
 
     // 重装兵：中距离停下射击
     if(e.kind==='heavy'){
-      if(dist>e.attackRange){
+      if(distSq>attackRangeSq){
         e.state='chase'; moveEntity(ep,dx,dz,e.speed,dt);
       } else {
-        e.state='attack'; e.attackTimer+=dt;
-        if(e.attackTimer>=e.attackRate){
-          e.attackTimer=0;
-          P.hp=Math.max(0,P.hp-e.attackDmg); updateHpUI();
-          document.getElementById('pain').style.background='rgba(233,69,96,0.35)';
-          setTimeout(()=>document.getElementById('pain').style.background='rgba(233,69,96,0)',100);
-          playHit(); if(P.hp<=0) die();
+        // 检查是否有墙阻挡敌人和玩家之间的直线
+        const wallObstructed=isPlayerObstructed(ep);
+        if(wallObstructed){
+          e.state='chase'; moveEntity(ep,dx,dz,e.speed,dt);
+        } else {
+          e.state='attack'; e.attackTimer+=dt;
+          if(e.attackTimer>=e.attackRate){
+            e.attackTimer=0;
+            const dmg=e.attackDmg+Math.floor(Math.random()*3);
+            P.hp=Math.max(0,P.hp-dmg); updateHpUI();
+            document.getElementById('pain').style.background='rgba(233,69,96,0.35)';
+            setTimeout(()=>document.getElementById('pain').style.background='rgba(233,69,96,0)',100);
+            playHit(); if(P.hp<=0) die();
+          }
         }
       }
       continue;
@@ -1097,57 +1215,49 @@ function loop(now){
 
     // 狙击手：保持距离，远程扣血
     if(e.kind==='sniper'){
-      if(dist<e.preferDist-1){
+      const preferMinSq=(e.preferDist-1)*(e.preferDist-1);
+      if(distSq<preferMinSq){
         moveEntity(ep,-dx,-dz,e.speed,dt);
-      } else if(dist<=e.attackRange){
-        e.state='attack'; e.attackTimer+=dt;
-        if(e.attackTimer>=e.attackRate){
-          e.attackTimer=0;
-          P.hp=Math.max(0,P.hp-e.attackDmg); updateHpUI();
-          document.getElementById('pain').style.background='rgba(233,69,96,0.5)';
-          setTimeout(()=>document.getElementById('pain').style.background='rgba(233,69,96,0)',120);
-          playHit(); if(P.hp<=0) die();
+      } else if(distSq<=attackRangeSq){
+        if(isPlayerObstructed(ep)) doPatrol(ep,e,dt,3,2);
+        else {
+          e.state='attack'; e.attackTimer+=dt;
+          if(e.attackTimer>=e.attackRate){
+            e.attackTimer=0;
+            P.hp=Math.max(0,P.hp-e.attackDmg); updateHpUI();
+            document.getElementById('pain').style.background='rgba(233,69,96,0.5)';
+            setTimeout(()=>document.getElementById('pain').style.background='rgba(233,69,96,0)',120);
+            playHit(); if(P.hp<=0) die();
+          }
         }
       } else {
-        e.state='patrol';
-        e.patrolTimer-=dt;
-        if(!e.patrolTarget||e.patrolTimer<=0){
-          e.patrolTimer=2+Math.random()*3;
-          const a=Math.random()*Math.PI*2;
-          e.patrolTarget={x:ep.x+Math.cos(a)*3,z:ep.z+Math.sin(a)*3};
-        }
-        const pdx=e.patrolTarget.x-ep.x,pdz=e.patrolTarget.z-ep.z;
-        if(Math.sqrt(pdx*pdx+pdz*pdz)>0.3) moveEntity(ep,pdx,pdz,e.speed,dt);
-        else e.patrolTarget=null;
+        doPatrol(ep,e,dt,3,2);
       }
       continue;
     }
 
     // 普通兵 & 狂战士：近身
-    if(dist<e.attackRange){
-      e.state='attack'; e.attackTimer+=dt;
-      if(e.attackTimer>=e.attackRate){
-        e.attackTimer=0;
-        const dmg=e.attackDmg+Math.floor(Math.random()*5);
-        P.hp=Math.max(0,P.hp-dmg); P.streak=0; updateHpUI();
-        document.getElementById('kill-streak').textContent='';
-        document.getElementById('pain').style.background='rgba(233,69,96,0.45)';
-        setTimeout(()=>document.getElementById('pain').style.background='rgba(233,69,96,0)',120);
-        playHit(); if(P.hp<=0) die();
+    if(distSq<attackRangeSq){
+      // 检查是否有墙阻挡敌人和玩家之间的直线
+      const wallObstructed=isPlayerObstructed(ep);
+      if(wallObstructed){
+        e.state='chase'; moveEntity(ep,dx,dz,e.speed,dt);
+      } else {
+        e.state='attack'; e.attackTimer+=dt;
+        if(e.attackTimer>=e.attackRate){
+          e.attackTimer=0;
+          const dmg=e.kind==='berserker'?e.attackDmg:e.attackDmg+Math.floor(Math.random()*3);
+          P.hp=Math.max(0,P.hp-dmg); P.streak=0; updateHpUI();
+          document.getElementById('kill-streak').textContent='';
+          document.getElementById('pain').style.background='rgba(233,69,96,0.45)';
+          setTimeout(()=>document.getElementById('pain').style.background='rgba(233,69,96,0)',120);
+          playHit(); if(P.hp<=0) die();
+        }
       }
-    } else if(dist<14){
+    } else if(distSq<196){
       e.state='chase'; moveEntity(ep,dx,dz,e.speed,dt);
     } else {
-      e.state='patrol';
-      e.patrolTimer-=dt;
-      if(!e.patrolTarget||e.patrolTimer<=0){
-        e.patrolTimer=1.5+Math.random()*3;
-        const a=Math.random()*Math.PI*2;
-        e.patrolTarget={x:ep.x+Math.cos(a)*4,z:ep.z+Math.sin(a)*4};
-      }
-      const pdx=e.patrolTarget.x-ep.x,pdz=e.patrolTarget.z-ep.z;
-      if(Math.sqrt(pdx*pdx+pdz*pdz)>0.3) moveEntity(ep,pdx,pdz,e.speed,dt);
-      else e.patrolTarget=null;
+      doPatrol(ep,e,dt,4,1.5);
     }
   }
 
