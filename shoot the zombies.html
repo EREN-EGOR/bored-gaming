@@ -160,8 +160,16 @@ function calcBranchHp(){
   return safeHp(estimatedDps() * TARGET_SHOOT_SECS * 1.2);
 }
 
+function hurtHero(dmg){
+  if(!Number.isFinite(dmg) || dmg <= 0) return;
+  S.hero.hp = Math.max(0, S.hero.hp - dmg);
+  if(!Number.isFinite(S.hero.hp)) S.hero.hp = 0;
+  if(S.hero.hp <= 0) gameOver();
+}
+
 function megaBossMaxHp(){
-  return safeHp(280 * cappedPow(1.38, S.wave - 1, 25) * cappedPow(1.06, Math.floor(S.ticks / 7200), 50));
+  // 降低指数：第1波约280，第2波约420，不再指数爆炸
+  return safeHp(280 * cappedPow(1.22, S.wave - 1, 20) * cappedPow(1.04, Math.floor(S.ticks / 7200), 30));
 }
 
 function initUpgradeTargetHp(t){
@@ -911,9 +919,8 @@ function updateEnemyProjectiles(){
       if(dist(p,u)<p.r+UNIT_R){
         spawnPart(p.x,p.y,p.col,5);
         if(i===0){
-          S.hero.hp=Math.max(0,S.hero.hp-p.dmg);
+          hurtHero(p.dmg);
           S.shake=8;
-          if(S.hero.hp<=0) gameOver();
         } else { S.extra=Math.max(0,S.extra-1); refreshTargetOnDpsChange(); }
         return false;
       }
@@ -1123,9 +1130,8 @@ function update(){
         spawnPart(z.x,z.y,'#f44',6);
         if(i===0){
           // 打到主角
-          S.hero.hp=Math.max(0,S.hero.hp-z.dmg);
+          hurtHero(z.dmg);
           S.shake=10;
-          if(S.hero.hp<=0) gameOver();
         } else {
           // 打到额外人数
           S.extra=Math.max(0,S.extra-1);
@@ -1138,9 +1144,8 @@ function update(){
 
     // 僵尸走出底部
     if(z.y > H+30){
-      S.hero.hp=Math.max(0,S.hero.hp-1);
+      hurtHero(1);
       S.shake=6;
-      if(S.hero.hp<=0) gameOver();
       return false;
     }
     return true;
@@ -1193,9 +1198,10 @@ function gameOver(){
 // UI
 // ─────────────────────────────────────────────
 function updateUI(){
-  const hpPct=Math.max(0,S.hero.hp/S.hero.maxHp*100);
+  const hp = Number.isFinite(S.hero.hp) ? Math.max(0, S.hero.hp) : 0;
+  const hpPct = hp / S.hero.maxHp * 100;
   document.getElementById('hp-bar').style.width=hpPct+'%';
-  document.getElementById('hp-text').textContent=`${Math.max(0,S.hero.hp)}/${S.hero.maxHp}`;
+  document.getElementById('hp-text').textContent=`${Math.ceil(hp)}/${S.hero.maxHp}`;
   document.getElementById('tb-units').textContent=1+S.extra;
   document.getElementById('tb-kills').textContent=S.kills;
   document.getElementById('tb-wave').textContent=S.wave;
