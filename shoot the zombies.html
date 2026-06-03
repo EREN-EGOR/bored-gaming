@@ -68,7 +68,7 @@ canvas { display:block; cursor:none; }
   <p class="sub">🖱 鼠标控制角色左右移动</p>
   <p class="sub">左道升级仅主角子弹有效，血量极厚，需蹲左道慢慢磨</p>
   <p class="sub">右赛道：门只标 +1、×2 等，人数自己心算</p>
-  <p class="sub">🔢 每5波左道出现三选一质变；中期有一次分支抉择</p>
+  <p class="sub">🔢 每5波左道出现三重质变（全部打爆均可获得）；中期有一次分支抉择（三选一）</p>
   <p class="sub">左道升级极贵；每2分钟巨型尸王清场并发动有前摇的远程技</p>
   <div id="final"></div>
   <button id="btn">开始游戏</button>
@@ -135,8 +135,9 @@ function estimatedDps(){
 }
 
 function zombieHpMult(){
-  const waveM = cappedPow(1.26, S.wave - 1, 40);
-  const timeM = cappedPow(1.05, Math.floor(S.ticks / 3600), 80);
+  // 底数1.17：12波约6倍，16波约11倍，比1.20温和但仍有压力
+  const waveM = cappedPow(1.17, S.wave - 1, 80);
+  const timeM = cappedPow(1.05, Math.floor(S.ticks / 3600), 60);
   return waveM * timeM;
 }
 
@@ -233,7 +234,7 @@ const UPGRADE_QUEUE = [
   { label:'+10血量',  desc:'最大血+10',            baseHp:26,  type:'hp',     value:10 },
   { label:'护盾',     desc:'每30s回1血',           baseHp:28,  type:'shield', value:1 },
   { label:'大炮',     desc:'高伤炮弹',             baseHp:30,  type:'weapon', value:4 },
-  { label:'追踪弹',   desc:'子弹追踪',             baseHp:32,  type:'magnet', value:1 },
+  { label:'追踪弹',   desc:'子弹偏转30°辅助瞄准',  baseHp:32,  type:'magnet', value:1 },
   { label:'激光炮',   desc:'三联激光',             baseHp:34,  type:'weapon', value:5 },
   { label:'清场强化', desc:'清场CD减半',           baseHp:36,  type:'clear2', value:1 },
 ];
@@ -252,7 +253,7 @@ const UPGRADE_POOL = [
   { id:'squadDmg',  label:'队员强化',  desc:'队员弹伤+15%',     type:'squadDmg',  value:0.15, maxStack:4, weight:9 },
   { id:'extraCap',  label:'人数上限',  desc:'门人数上限+3',     type:'extraCap',  value:3,    maxStack:3, weight:6 },
   { id:'shield2',   label:'护盾加速',  desc:'护盾间隔-25%',     type:'shield2',   value:1,    maxStack:2, weight:5 },
-  { id:'magnet2',   label:'强追踪',    desc:'追踪弹加强',       type:'magnet2',   value:1,    maxStack:2, weight:5 },
+  { id:'magnet2',   label:'强追踪',    desc:'偏转角扩大到42°',       type:'magnet2',   value:1,    maxStack:2, weight:5 },
 ];
 
 // 每5波三选一（质变）
@@ -366,6 +367,8 @@ function initState() {
     hordeTick: 0,
 
     kills: 0,
+
+    paused: false,
   };
 }
 
@@ -455,7 +458,7 @@ function pickMajorChoices(){
 function startMajorChoice(){
   if(S.majorChoices || S.branchChoices) return;
   pickMajorChoices();
-  flash(`⚡ 第${S.wave}波强化：打爆左道其一！`,'#fd4');
+  flash(`⚡ 第${S.wave}波强化：打爆左道全部！`,'#fd4');
 }
 
 function fixedQueueDone(){
@@ -533,6 +536,43 @@ function getLeftTargets(){
   }
 
   out = out.filter(t=>t && !t._broken && t.totalHp > 0);
+
+  // 左道永远不能空：如果过滤后空了，且尸王不在场，立刻生成兜底目标
+  if(!out.length && !hasMegaBoss()){
+    // 固定队列没打完就重置当前靶（被强制碎掉的）
+    if(S.upgradeIdx < S.upgradeQueue.length){
+      const item = S.upgradeQueue[S.upgradeIdx];
+      item._hpReady = false; // 强制重新计算血量
+      item._broken = false;
+      initUpgradeTargetHp(item);
+      item.x=cx; item.y=H*0.35; item.r=26;
+      out = [item];
+    } else {
+      // 固定队列打完了，强制生成池靶（无论 currentPoolTarget 状态）
+      S.currentPoolTarget = null; // 清掉旧的被碎靶
+      S.currentPoolTarget = rollPoolUpgrade();
+      if(!S.currentPoolTarget){
+        // 池也满了，走无限兜底
+        const fallbacks = [
+          { id:'inf_dmg',   label:'伤害+1★', desc:'子弹伤害+1（无上限）', type:'dmg',     value:1 },
+          { id:'inf_hp',    label:'+5血量★', desc:'最大血+5（无上限）',   type:'hp',      value:5 },
+          { id:'inf_fire',  label:'射速+5%★',desc:'射速+5%（无上限）',    type:'fireRate', value:0.05 },
+        ];
+        const choice = fallbacks[S.poolCount % fallbacks.length];
+        const hp = poolTargetHp();
+        S.currentPoolTarget = {
+          ...choice, hpLeft:hp, totalHp:hp, isPool:true, isInfinite:true,
+          _hpReady:true, _createdDps:estimatedDps(),
+        };
+      }
+      if(S.currentPoolTarget){
+        const u = fixUpgradeTargetHp(S.currentPoolTarget);
+        u.x=cx; u.y=H*0.35; u.r=24;
+        out = [u];
+      }
+    }
+  }
+
   leftTargetsCache = out;
   leftTargetsCacheTick = S.ticks;
   return out;
@@ -563,7 +603,11 @@ function onLeftTargetBroken(t){
   flash(`🎉 ${t.label}`,'#7af');
 
   if(t.isMajor){
-    S.majorChoices=null;
+    // 每打爆一个都给奖励；全部打完才清掉 majorChoices
+    const allDone = S.majorChoices && S.majorChoices.every(c=>c._broken);
+    if(allDone){
+      S.majorChoices=null;
+    }
     invalidateLeftCache();
     return;
   }
@@ -657,14 +701,22 @@ function refreshTargetOnDpsChange(){
     if(cur_item && cur_item._hpReady) checkAndBreak(cur_item);
   }
 
-  // 如果刷新导致当前池靶被破坏但没给奖励，手动清掉
+  // 如果刷新导致当前池靶被破坏但没给奖励，手动清掉（下次 getLeftTargets 会重建）
   if(S.currentPoolTarget && S.currentPoolTarget._broken) S.currentPoolTarget = null;
   if(S.branchChoices && S.branchChoices.every(t=>t._broken)){
     S.branchChoices = null;
-    S.upgradeIdx++; // 跳过这个分支
+    S.upgradeIdx++; // 跳过这个分支，继续下一个
   }
   if(S.majorChoices && S.majorChoices.every(t=>t._broken)){
     S.majorChoices = null;
+  }
+  // 固定队列里被碎掉的靶：重置 _broken，让 getLeftTargets 重新初始化血量
+  if(!fixedQueueDone()){
+    const cur_item = S.upgradeQueue[S.upgradeIdx];
+    if(cur_item && cur_item._broken){
+      cur_item._broken = false;
+      cur_item._hpReady = false; // 下次显示时按新战力重算血量
+    }
   }
   invalidateLeftCache();
 }
@@ -680,9 +732,10 @@ function teammateDmgMult(){
 }
 
 function bulletDamage(isHero, z){
-  let d=WEAPONS[S.wepIdx].dmg + S.dmgBonus;
-  if(!isHero) d*=teammateDmgMult();
-  if(z && (z.isMegaBoss || z.name==='BOSS')) d*=S.bossDmgMult;
+  let d = WEAPONS[S.wepIdx].dmg + S.dmgBonus;
+  if(!isHero) d *= teammateDmgMult();
+  if(z && (z.isMegaBoss || z.name==='BOSS')) d *= S.bossDmgMult;
+  // 去掉波次自动伤害补偿——让血量增长真正有压力，玩家靠升级弥补
   return d;
 }
 
@@ -733,16 +786,34 @@ function doFire() {
     for(let m=0;m<wep.multi;m++){
       let vx=0, vy=-BULLET_SPEED;
       const sp=(m-(wep.multi-1)/2)*wep.spread + rnd(-wep.spread*.05, wep.spread*.05);
-      // 队友也追踪左道目标（让子弹飞向靶子而不是直线向上）
-      const track = target && (S.magnetOn || S.magnetStrong || (leftActive && onLeftLane));
-      if(track){
+
+      // 左道靶：完全朝靶子方向射（靶子是固定静止的，不算追踪）
+      const aimAtLeftTarget = target && leftActive && onLeftLane && !target.isMegaBoss && !target.spd;
+      // 追踪弹（magnet）：对右道僵尸只做"拉偏"而非完全锁定
+      // 最多将子弹方向向目标偏转 MAX_MAGNET_ANGLE，子弹发出后直线飞行
+      const MAX_MAGNET_ANGLE = Math.PI / 6; // 30°
+      const doMagnet = target && (S.magnetOn || S.magnetStrong) && !aimAtLeftTarget;
+
+      if(aimAtLeftTarget){
+        // 瞄准静止靶子：完全朝靶方向
         const ax=target.x - u.x, ay=target.y - u.y;
         const ad=Math.hypot(ax,ay)||1;
-        const spd = S.magnetStrong ? BULLET_SPEED*1.15 : BULLET_SPEED;
-        vx = ax/ad * spd;
-        vy = ay/ad * spd;
-        vx += Math.cos(Math.PI/2)*sp*spd;
-        vy += Math.sin(Math.PI/2)*sp*spd;
+        vx = ax/ad * BULLET_SPEED;
+        vy = ay/ad * BULLET_SPEED;
+        vx += Math.cos(Math.PI/2)*sp*BULLET_SPEED;
+        vy += Math.sin(Math.PI/2)*sp*BULLET_SPEED;
+      } else if(doMagnet){
+        // 追踪弹：计算直射方向与目标方向的夹角，最多偏转 MAX_MAGNET_ANGLE
+        const baseAngle = -Math.PI/2 + sp; // 原始直射角（向上加散布）
+        const toTarget = Math.atan2(target.y - u.y, target.x - u.x);
+        let diff = toTarget - baseAngle;
+        // 归一化到 (-π, π]
+        while(diff >  Math.PI) diff -= Math.PI*2;
+        while(diff < -Math.PI) diff += Math.PI*2;
+        const cap = S.magnetStrong ? MAX_MAGNET_ANGLE * 1.4 : MAX_MAGNET_ANGLE;
+        const finalAngle = baseAngle + Math.sign(diff) * Math.min(Math.abs(diff), cap);
+        vx = Math.cos(finalAngle) * BULLET_SPEED;
+        vy = Math.sin(finalAngle) * BULLET_SPEED;
       } else {
         vx = Math.sin(sp)*BULLET_SPEED;
       }
@@ -772,7 +843,15 @@ function spawnGates(){
   const cur = 1 + S.extra;
 
   for(let i=0;i<COUNT;i++){
-    const ops = ['+','+','+','×','×','-','÷'];
+    // A：乘法概率随人数递减
+    // 1-5人：'+','+','+','×','×','-','÷'（乘法2/7）
+    // 6-12人：'+','+','+','+','×','-','÷'（乘法1/7）
+    // 13+人： '+','+','+','+','+','-','÷'（乘法不出现）
+    let ops;
+    if(cur <= 5)       ops = ['+','+','+','×','×','-','÷'];
+    else if(cur <= 12) ops = ['+','+','+','+','×','-','÷'];
+    else               ops = ['+','+','+','+','+','-','÷'];
+
     const op  = ops[rndI(0, ops.length-1)];
     let num, result, formula;
     const cap = S.extraCap || 25;
@@ -786,9 +865,17 @@ function spawnGates(){
       result=Math.max(1, cur-num);
       formula=`−${num}`;
     } else if(op==='×'){
-      num=rndI(2,3);
-      result=Math.min(cur*num,cap);
-      formula=`×${num}`;
+      // C：乘数随人数缩窄，且结果不超过当前人数+5
+      if(cur <= 5)       num=rndI(2,3);  // 少人：×2或×3都能出
+      else               num=2;           // 6-12人（13+已不出乘法）：只出×2
+      const rawResult = Math.min(cur*num, cap);
+      result = Math.min(rawResult, cur+5);
+      // 如果被+5封顶压住了，直接显示为加法，不欺骗玩家
+      if(result <= cur+5 && result < rawResult){
+        formula=`+${result-cur}`;
+      } else {
+        formula=`×${num}`;
+      }
     } else {
       num=rndI(2,3);
       result=Math.max(1, Math.floor(cur/num));
@@ -814,10 +901,12 @@ function spawnZombie(typeIdx){
   const t = ZOMBIE_TYPES[typeIdx];
   const x = RIGHT_X + rnd(t.r+5, RIGHT_W-t.r-5);
   const hp = Math.max(1, Math.floor(t.hp * zombieHpMult()));
+  // 速度随波次小幅增长，最多加快50%（让后期有压迫感而非只靠HP）
+  const spdMult = Math.min(1.5, 1 + (S.wave - 1) * 0.025);
   S.zombies.push({
     x, y:-t.r,
     hp, maxHp:hp,
-    spd:t.spd,
+    spd: t.spd * spdMult,
     r:t.r, col:t.color, pts:t.pts, dmg:t.dmg,
     name:t.name, splits:t.splits||false,
     flash:0, isMegaBoss:false,
@@ -914,6 +1003,8 @@ function updateEnemyProjectiles(){
     p.x+=p.vx; p.y+=p.vy;
     p.life--;
     if(p.life<=0) return false;
+    // 边界：飞出整个画布才删除（不限制左道，允许弹幕打到左边角色）
+    if(p.y > H+40 || p.y < -40 || p.x < -40 || p.x > W+40) return false;
     for(let i=0;i<units.length;i++){
       const u=units[i];
       if(dist(p,u)<p.r+UNIT_R){
@@ -921,12 +1012,47 @@ function updateEnemyProjectiles(){
         if(i===0){
           hurtHero(p.dmg);
           S.shake=8;
-        } else { S.extra=Math.max(0,S.extra-1); refreshTargetOnDpsChange(); }
+        } else {
+          // 有队友才扣，没队友时弹幕照样消耗（不穿透）
+          if(S.extra > 0){
+            S.extra--;
+            teammateExplosion(u.x, u.y);
+            refreshTargetOnDpsChange();
+          } else {
+            // 队友已空，打到主角位置的弹幕算主角受伤
+            hurtHero(p.dmg);
+            S.shake=8;
+          }
+        }
         return false;
       }
     }
-    return p.y<H+40 && p.x>RIGHT_X-20 && p.x<W+20;
+    return true;
   });
+}
+
+// ─────────────────────────────────────────────
+// 队友牺牲爆炸：清除周围一定范围内的普通僵尸
+// ─────────────────────────────────────────────
+const TEAMMATE_EXPLODE_R = 430; // 爆炸半径（半个屏幕宽度，有效清场）
+
+function teammateExplosion(x, y){
+  spawnPart(x, y, '#ffaa44', 18);
+  // 爆炸波纹圆圈（扩散动画，帧数长一点让玩家看清）
+  S.particles.push({ x, y, vx:0, vy:0, life:40, maxLife:40, col:'#ffcc66', isRing:true });
+  S.shake = Math.max(S.shake, 6);
+  // 清除爆炸范围内的非BOSS僵尸
+  let cleared = 0;
+  S.zombies = S.zombies.filter(z=>{
+    if(z.isMegaBoss) return true;
+    if(Math.hypot(z.x-x, z.y-y) < TEAMMATE_EXPLODE_R + z.r){
+      spawnPart(z.x, z.y, z.col, 6);
+      cleared++;
+      return false;
+    }
+    return true;
+  });
+  if(cleared > 0) S.kills += cleared;
 }
 
 // ─────────────────────────────────────────────
@@ -948,7 +1074,7 @@ function activateClear(){
 // 主更新
 // ─────────────────────────────────────────────
 function update(){
-  if(!S.running||S.over) return;
+  if(!S.running||S.over||S.paused) return;
   S.ticks++;
 
   // 护盾
@@ -1004,7 +1130,7 @@ function update(){
       const hordeInt = Math.max(600, 1800 - S.wave*80);
       if(S.hordeTick >= hordeInt){
         S.hordeTick=0;
-        const n = 8 + S.wave*2;
+        const n = 6 + Math.floor(S.wave * 1.5);
         flash(`🧟 尸潮！${n}只来袭！`,'#f84');
         S.hordeSpawnGen++;
         const gen=S.hordeSpawnGen;
@@ -1133,8 +1259,9 @@ function update(){
           hurtHero(z.dmg);
           S.shake=10;
         } else {
-          // 打到额外人数
+          // 打到队友：队友牺牲并爆炸清周围
           S.extra=Math.max(0,S.extra-1);
+          teammateExplosion(u.x, u.y);
           refreshTargetOnDpsChange();
           flash('-1 队员','#f64');
         }
@@ -1159,9 +1286,28 @@ function update(){
       const heroX = S.hero.x;
       if(heroX>=g.x && heroX<=g.x+g.w && S.hero.y>=g.y && S.hero.y<=g.y+g.h){
         g.passed=true;
+        const cap = S.extraCap || 25;
         const cur = 1 + S.extra;
-        const grew = g.result > cur;
-        S.extra=Math.max(0,g.result-1);
+        // 穿门时按当前人数实时计算结果，避免同批多门顺序依赖问题
+        let newCount;
+        const f = g.formula;
+        if(f.startsWith('+')){
+          const n = parseInt(f.slice(1));
+          newCount = Math.min(cur + n, cap);
+        } else if(f.startsWith('−')){
+          const n = parseInt(f.slice(1));
+          newCount = Math.max(1, cur - n);
+        } else if(f.startsWith('×')){
+          const n = parseInt(f.slice(1));
+          newCount = Math.min(cur * n, cap);
+        } else if(f.startsWith('÷')){
+          const n = parseInt(f.slice(1));
+          newCount = Math.max(1, Math.floor(cur / n));
+        } else {
+          newCount = cur; // 兜底
+        }
+        const grew = newCount > cur;
+        S.extra = Math.max(0, newCount - 1);
         refreshTargetOnDpsChange();
         spawnPart(S.hero.x,S.hero.y, grew?'#44ff88':'#ff6644', 10);
       }
@@ -1287,9 +1433,17 @@ function render(){
 
   // ── 粒子 ──
   S.particles.forEach(p=>{
-    ctx.globalAlpha=p.life/p.maxLife;
-    ctx.beginPath(); ctx.arc(p.x,p.y,2.5,0,Math.PI*2);
-    ctx.fillStyle=p.col; ctx.fill();
+    const a = p.life/p.maxLife;
+    ctx.globalAlpha = a;
+    if(p.isRing){
+      // 队友爆炸波纹圆圈
+      const r = TEAMMATE_EXPLODE_R * (1 - a); // 从0扩散到最大半径
+      ctx.beginPath(); ctx.arc(p.x, p.y, r, 0, Math.PI*2);
+      ctx.strokeStyle=p.col; ctx.lineWidth=3; ctx.stroke();
+    } else {
+      ctx.beginPath(); ctx.arc(p.x,p.y,2.5,0,Math.PI*2);
+      ctx.fillStyle=p.col; ctx.fill();
+    }
   });
   ctx.globalAlpha=1;
 
@@ -1335,6 +1489,23 @@ function render(){
   ctx.beginPath(); ctx.arc(S.mouseX, S.hero.y-60, 4, 0, Math.PI*2);
   ctx.strokeStyle='rgba(255,255,255,.3)'; ctx.lineWidth=1; ctx.stroke();
 
+  // ── 暂停遮罩 ──
+  if(S.paused){
+    ctx.save();
+    ctx.fillStyle='rgba(0,0,0,0.55)';
+    ctx.fillRect(0,0,W,H);
+    ctx.font='bold 42px Courier New';
+    ctx.fillStyle='#7af';
+    ctx.textAlign='center';
+    ctx.shadowColor='#4af'; ctx.shadowBlur=28;
+    ctx.fillText('⏸ 已暂停', W/2, H/2-14);
+    ctx.shadowBlur=0;
+    ctx.font='16px Courier New';
+    ctx.fillStyle='#8ac';
+    ctx.fillText('按 Q 继续', W/2, H/2+26);
+    ctx.restore();
+  }
+
   ctx.restore();
 }
 
@@ -1378,14 +1549,18 @@ function drawUpgradeTarget(){
 
   const targets = getLeftTargets();
   if(!targets.length){
-    ctx.fillStyle='#446'; ctx.font='11px Courier New'; ctx.textAlign='center';
-    ctx.fillText('左道暂无目标', cx, H*0.35);
+    // 只有尸王在场时才会真正空（靶被碎掉且尸王还活着）
+    ctx.fillStyle='#a66'; ctx.font='bold 11px Courier New'; ctx.textAlign='center';
+    ctx.fillText('☠ 尸王在场', cx, H*0.32);
+    ctx.fillStyle='#664'; ctx.font='10px Courier New';
+    ctx.fillText('击败尸王后升级恢复', cx, H*0.32+20);
     return;
   }
 
   if(S.majorChoices){
+    const remaining = targets.length;
     ctx.fillStyle='#fd4'; ctx.font='bold 11px Courier New'; ctx.textAlign='center';
-    ctx.fillText('⚡ 五波强化 · 打爆其一', cx, 38);
+    ctx.fillText(`⚡ 五波强化 · 全部打爆（剩${remaining}个）`, cx, 38);
     targets.forEach(t=>drawOneUpgradeOrb(t,'#fa4'));
     return;
   }
@@ -1565,6 +1740,7 @@ canvas.addEventListener('mousemove',e=>{
 
 document.addEventListener('keydown',e=>{
   if(e.code==='Space'){ e.preventDefault(); if(S.running) activateClear(); }
+  if(e.code==='KeyQ' && S.running && !S.over){ S.paused=!S.paused; }
 });
 
 // ─────────────────────────────────────────────
