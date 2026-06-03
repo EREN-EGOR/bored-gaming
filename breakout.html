@@ -140,12 +140,15 @@ function updateHUD() {
   document.getElementById('levelVal').textContent = level;
 }
 
-// 输入
+// 输入（document 级监听，鼠标移出画布仍可控制挡板）
 let mouseX = W / 2;
-canvas.addEventListener('mousemove', e => {
+function setMouseFromEvent(e) {
   const rect = canvas.getBoundingClientRect();
-  mouseX = e.clientX - rect.left;
-});
+  const scaleX = W / rect.width;
+  mouseX = Math.max(0, Math.min(W, (e.clientX - rect.left) * scaleX));
+}
+document.addEventListener('mousemove', setMouseFromEvent);
+document.addEventListener('pointermove', setMouseFromEvent);
 canvas.addEventListener('click', () => {
   if (state === 'idle') state = 'playing';
 });

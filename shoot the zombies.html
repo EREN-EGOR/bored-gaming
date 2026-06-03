@@ -1,0 +1,1589 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>Shoot The Zombies</title>
+<style>
+* { margin:0; padding:0; box-sizing:border-box; }
+body {
+  background:#0a0a0f;
+  display:flex; justify-content:center; align-items:center;
+  height:100vh; overflow:hidden;
+  font-family:'Courier New',monospace;
+  user-select:none;
+}
+
+#wrapper {
+  display:flex; flex-direction:column; align-items:center; gap:6px;
+}
+
+#topbar {
+  width:860px; display:flex; align-items:center; gap:10px;
+  background:#0d1520; border:1px solid #1e3050; border-radius:6px; padding:6px 12px;
+}
+.tb-label { color:#8a9; font-size:11px; }
+.tb-val   { color:#fff; font-size:14px; font-weight:bold; margin-right:14px; }
+#hp-bar-wrap { flex:1; height:14px; background:#1a0808; border-radius:4px; border:1px solid #3a1010; }
+#hp-bar      { height:100%; background:linear-gradient(90deg,#f44,#f84); border-radius:4px; transition:width .2s; }
+#hp-text     { color:#fff; font-size:11px; min-width:56px; text-align:right; }
+#time-val    { color:#7af; font-size:13px; font-weight:bold; min-width:48px; text-align:right; }
+
+canvas { display:block; cursor:none; }
+
+/* overlay */
+#overlay {
+  position:fixed; inset:0; background:rgba(0,0,0,.88);
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  color:#fff; z-index:99;
+}
+#overlay h1 { font-size:38px; color:#7af; text-shadow:0 0 24px #4af; margin-bottom:12px; }
+#overlay .sub { color:#8a9; font-size:13px; margin:3px 0; }
+#final { color:#fa8; font-size:22px; margin:14px 0 4px; }
+#overlay button {
+  margin-top:18px; padding:12px 40px; background:linear-gradient(135deg,#1a4a8a,#2a6aaa);
+  border:1px solid #4af; color:#fff; font-size:16px; border-radius:8px;
+  cursor:pointer; font-family:inherit; transition:all .2s;
+}
+#overlay button:hover { box-shadow:0 0 18px #4af8; }
+#overlay.hidden { display:none; }
+</style>
+</head>
+<body>
+<div id="wrapper">
+  <div id="topbar">
+    <span class="tb-label">❤ 血量</span>
+    <div id="hp-bar-wrap"><div id="hp-bar"></div></div>
+    <span id="hp-text">10/10</span>
+    <span class="tb-label" style="margin-left:10px">👥</span><span class="tb-val" id="tb-units">1</span>
+    <span class="tb-label">💀</span><span class="tb-val" id="tb-kills">0</span>
+    <span class="tb-label">🌊</span><span class="tb-val" id="tb-wave">1</span>
+    <span class="tb-label">🔫</span><span class="tb-val" id="tb-weapon">手枪</span>
+    <span class="tb-label">⏱</span><span id="time-val">0s</span>
+  </div>
+  <canvas id="c" width="860" height="620"></canvas>
+</div>
+
+<div id="overlay">
+  <h1>🧟 Shoot The Zombies</h1>
+  <p class="sub">🖱 鼠标控制角色左右移动</p>
+  <p class="sub">左道升级仅主角子弹有效，血量极厚，需蹲左道慢慢磨</p>
+  <p class="sub">右赛道：门只标 +1、×2 等，人数自己心算</p>
+  <p class="sub">🔢 每5波左道出现三选一质变；中期有一次分支抉择</p>
+  <p class="sub">左道升级极贵；每2分钟巨型尸王清场并发动有前摇的远程技</p>
+  <div id="final"></div>
+  <button id="btn">开始游戏</button>
+</div>
+
+<script>
+// ─────────────────────────────────────────────
+// 画布与常量
+// ─────────────────────────────────────────────
+const canvas = document.getElementById('c');
+const ctx    = canvas.getContext('2d');
+const W = 860, H = 620;
+
+// 两条赛道的X范围
+const LEFT_X  = 0;          // 左赛道（升级）
+const LEFT_W  = 300;
+const MID_X   = 300;        // 中间分隔
+const MID_W   = 20;
+const RIGHT_X = 320;        // 右赛道（僵尸）
+const RIGHT_W = 540;
+
+// 角色
+const UNIT_R   = 9;
+const COL_GAP  = 20;   // 每列间距
+const ROW_GAP  = 22;
+const COLS_MAX = 5;
+
+// 子弹
+const BULLET_SPEED = 9;
+const MEGA_BOSS_INTERVAL = 60 * 120; // 2分钟 @60fps
+const MEGA_WARN_TICKS = 150;
+
+// 难度缩放（指数，带上限防 Infinity 卡死）
+const HP_CAP = 12000;
+
+function cappedPow(base, exp, maxExp){
+  return Math.pow(base, Math.min(exp, maxExp));
+}
+
+function safeHp(n){
+  const v = Math.floor(n);
+  if(!Number.isFinite(v) || v < 50) return 50;
+  return Math.min(v, HP_CAP);
+}
+
+// 队友打左道靶的伤害折扣（避免大量队友秒杀靶子，但保留参与感）
+const TEAMMATE_LEFT_MULT = 0.3;
+// 每个左道升级目标的目标击破时间（秒）
+const TARGET_SHOOT_SECS = 8;
+
+// 估算当前对左道升级靶的实时 DPS（主角 + 队友）
+function estimatedDps(){
+  if(!S || S.wepIdx === undefined) return 1;
+  const wep = WEAPONS[S.wepIdx] || WEAPONS[0];
+  const baseDmg = (wep.dmg || 1) + (S.dmgBonus || 0);
+  const multi = wep.multi || 1;
+  // 主角对左道靶的 DPS（叠加 leftFocusMult，假定主角在左道）
+  const heroDmg = baseDmg * multi * (S.leftFocusMult || 1);
+  // 队友对左道靶的 DPS（折扣 × 队友强化）
+  const teamDmg = (S.extra || 0) * baseDmg * multi * TEAMMATE_LEFT_MULT * (1 + (S.squadDmgBonus || 0));
+  const fr = Math.max(5, (WEAPONS[S.wepIdx] || WEAPONS[0]).fireRate); // 帧/发（未升级射速时用基础值）
+  const dps = (heroDmg + teamDmg) / fr * 60; // 转为 伤害/秒
+  return Math.max(dps, 0.5); // 不让分母趋近0
+}
+
+function zombieHpMult(){
+  const waveM = cappedPow(1.26, S.wave - 1, 40);
+  const timeM = cappedPow(1.05, Math.floor(S.ticks / 3600), 80);
+  return waveM * timeM;
+}
+
+// 固定升级队列：随进度略微递增（第 idx 个升级比第 0 个稍硬）
+function calcFixedUpgradeHp(base, idx){
+  return safeHp(estimatedDps() * TARGET_SHOOT_SECS * (1 + idx * 0.15));
+}
+
+// 随机池：随池数略微递增
+function calcPoolUpgradeHp(){
+  return safeHp(estimatedDps() * TARGET_SHOOT_SECS * (1 + (S.poolCount || 0) * 0.1));
+}
+
+// 五波强化（质变）：稍硬
+function calcMajorHp(){
+  return safeHp(estimatedDps() * TARGET_SHOOT_SECS * 1.5);
+}
+
+// 战术分支选择：略硬
+function calcBranchHp(){
+  return safeHp(estimatedDps() * TARGET_SHOOT_SECS * 1.2);
+}
+
+function megaBossMaxHp(){
+  return safeHp(280 * cappedPow(1.38, S.wave - 1, 25) * cappedPow(1.06, Math.floor(S.ticks / 7200), 50));
+}
+
+function initUpgradeTargetHp(t){
+  if(!t || t._hpReady) return t;
+  let hp;
+  if(t.isPool) hp = calcPoolUpgradeHp();
+  else if(t.isMajor) hp = calcMajorHp();
+  else if(t.isBranch) hp = calcBranchHp();
+  else hp = calcFixedUpgradeHp(t.baseHp || 24, S.upgradeIdx);
+  t.totalHp = safeHp(hp);
+  t.hpLeft = t.totalHp;
+  t._hpReady = true;
+  t._broken = false;
+  t._createdDps = estimatedDps();
+  return t;
+}
+
+function fixUpgradeTargetHp(t){
+  if(!t) return t;
+  if(!t._hpReady) return initUpgradeTargetHp(t);
+  t.totalHp = safeHp(t.totalHp);
+  if(!Number.isFinite(t.hpLeft) || t.hpLeft > t.totalHp) t.hpLeft = t.totalHp;
+  t.hpLeft = clamp(t.hpLeft, 0, t.totalHp);
+  return t;
+}
+
+let leftTargetsCache = [];
+let leftTargetsCacheTick = -1;
+
+function invalidateLeftCache(){
+  leftTargetsCacheTick = -1;
+}
+
+// ─────────────────────────────────────────────
+// 武器定义
+// ─────────────────────────────────────────────
+const WEAPONS = [
+  { name:'手枪',   fireRate:28, dmg:1, spread:0,    multi:1, color:'#ffd070', r:3 },
+  { name:'步枪',   fireRate:13, dmg:1, spread:0,    multi:1, color:'#60dfff', r:3 },
+  { name:'双管枪', fireRate:15, dmg:1, spread:.06,  multi:2, color:'#ff9040', r:3 },
+  { name:'散弹枪', fireRate:22, dmg:1, spread:.18,  multi:4, color:'#ffee40', r:3 },
+  { name:'大炮',   fireRate:40, dmg:5, spread:0,    multi:1, color:'#ff4444', r:8 },
+  { name:'激光炮', fireRate: 9, dmg:2, spread:0,    multi:3, color:'#c060ff', r:4 },
+];
+
+// ─────────────────────────────────────────────
+// 升级：固定里程碑 → 分支 → 随机池（可叠层）
+// ─────────────────────────────────────────────
+const UPGRADE_QUEUE = [
+  { label:'步枪',     desc:'射速提升',             baseHp:14,  type:'weapon', value:1 },
+  { label:'+5血量',   desc:'最大血+5',             baseHp:16,  type:'hp',     value:5 },
+  { label:'战术抉择', desc:'三选一（打爆其一）',    baseHp:18,  type:'choice', options:[
+    { label:'穿透',     desc:'子弹穿透+1',       type:'pierce',    value:1 },
+    { label:'队员强化', desc:'队员弹伤 50%→70%', type:'squadFire', value:1 },
+    { label:'击杀回血', desc:'每8杀回1血',       type:'killHeal',  value:8 },
+  ]},
+  { label:'双管枪',   desc:'双发齐射',             baseHp:18,  type:'weapon', value:2 },
+  { label:'清场技能', desc:'空格清屏×3',           baseHp:20,  type:'clear',  value:3 },
+  { label:'左道专注', desc:'左道打靶伤害×1.5',     baseHp:22,  type:'leftFocus', value:1.5 },
+  { label:'散弹枪',   desc:'4发扇形',              baseHp:24,  type:'weapon', value:3 },
+  { label:'+10血量',  desc:'最大血+10',            baseHp:26,  type:'hp',     value:10 },
+  { label:'护盾',     desc:'每30s回1血',           baseHp:28,  type:'shield', value:1 },
+  { label:'大炮',     desc:'高伤炮弹',             baseHp:30,  type:'weapon', value:4 },
+  { label:'追踪弹',   desc:'子弹追踪',             baseHp:32,  type:'magnet', value:1 },
+  { label:'激光炮',   desc:'三联激光',             baseHp:34,  type:'weapon', value:5 },
+  { label:'清场强化', desc:'清场CD减半',           baseHp:36,  type:'clear2', value:1 },
+];
+
+// 随机池（打完固定线后循环）
+const UPGRADE_POOL = [
+  { id:'pierce',    label:'穿透+1',    desc:'多穿1只僵尸',      type:'pierce',    value:1,    maxStack:4, weight:12 },
+  { id:'fireRate',  label:'射速+8%',   desc:'开火更快',         type:'fireRate',  value:0.08, maxStack:5, weight:14 },
+  { id:'dmg',       label:'伤害+1',    desc:'子弹伤害+1',       type:'dmg',       value:1,    maxStack:6, weight:12 },
+  { id:'hpSmall',   label:'+3血量',    desc:'最大血+3',         type:'hp',        value:3,    maxStack:8, weight:10 },
+  { id:'clear1',    label:'清场+1',    desc:'清场次数+1',       type:'clear',     value:1,    maxStack:5, weight:8 },
+  { id:'killHeal2', label:'击杀回血',  desc:'每6杀回1血',       type:'killHeal',  value:6,    maxStack:2, weight:7 },
+  { id:'leftFocus2',label:'专注强化',  desc:'左道打靶×1.25',    type:'leftFocus', value:1.25, maxStack:3, weight:8 },
+  { id:'bossDmg',   label:'BOSS克星',  desc:'对BOSS伤害+50%',   type:'bossDmg',   value:0.5,  maxStack:3, weight:7 },
+  { id:'gateSlow',  label:'门减速',    desc:'数字门下落更慢',   type:'gateSlow',  value:0.12, maxStack:3, weight:8 },
+  { id:'squadDmg',  label:'队员强化',  desc:'队员弹伤+15%',     type:'squadDmg',  value:0.15, maxStack:4, weight:9 },
+  { id:'extraCap',  label:'人数上限',  desc:'门人数上限+3',     type:'extraCap',  value:3,    maxStack:3, weight:6 },
+  { id:'shield2',   label:'护盾加速',  desc:'护盾间隔-25%',     type:'shield2',   value:1,    maxStack:2, weight:5 },
+  { id:'magnet2',   label:'强追踪',    desc:'追踪弹加强',       type:'magnet2',   value:1,    maxStack:2, weight:5 },
+];
+
+// 每5波三选一（质变）
+const MAJOR_CHOICE_DEFS = [
+  { label:'穿透风暴', desc:'穿透+2',           type:'pierce',    value:2 },
+  { label:'全员火力', desc:'队员弹伤大幅提升', type:'squadFire', value:1 },
+  { label:'生命泉涌', desc:'+15血并回满差值', type:'hp',        value:15 },
+  { label:'极速射击', desc:'射速+20%',         type:'fireRate',  value:0.2 },
+  { label:'屠杀回馈', desc:'每5杀回1血',       type:'killHeal',  value:5 },
+  { label:'清场专家', desc:'清场+2且CD-30%',   type:'clearMega', value:1 },
+  { label:'门神眷顾', desc:'门慢20%+人数上限+5',type:'gateMega',  value:1 },
+  { label:'左道宗师', desc:'左道打靶×2',       type:'leftFocus', value:2 },
+  { label:'BOSS猎手', desc:'对BOSS×2伤害',     type:'bossDmg',   value:1 },
+];
+
+// ─────────────────────────────────────────────
+// 僵尸类型
+// ─────────────────────────────────────────────
+const ZOMBIE_TYPES = [
+  { name:'普通',  hp:7,  spd:.30, r:11, color:'#6ab84a', pts:1, dmg:1 },
+  { name:'胖子',  hp:20, spd:.19, r:16, color:'#8a6a30', pts:3, dmg:2 },
+  { name:'精英',  hp:34, spd:.27, r:13, color:'#e06020', pts:5, dmg:3 },
+  { name:'分裂',  hp:14, spd:.26, r:12, color:'#50b0ff', pts:4, dmg:1, splits:true },
+];
+
+// ─────────────────────────────────────────────
+// 状态
+// ─────────────────────────────────────────────
+let S = {};
+
+function buildUpgradeQueue(){
+  // 血量不在这里预计算，等游戏运行时由 initUpgradeTargetHp 按当前战力懒初始化
+  return UPGRADE_QUEUE.map((u,i)=>{
+    return {...u, totalHp:0, hpLeft:0, idx:i, _hpReady:false};
+  });
+}
+
+function initState() {
+  S = {
+    running: false,
+    over: false,
+    ticks: 0,
+
+    // 主角
+    hero: { x: W/2, y: H - 80, hp:10, maxHp:10 },
+    mouseX: W/2,
+
+    // 额外人数 (0 = 只有主角)
+    extra: 0,
+
+    // 武器
+    wepIdx: 0,
+    fireTick: 0,
+
+    // 能力
+    clearsLeft: 0,
+    clearCD: 0,
+    clearCDMax: 1800,
+    shieldOn: false,
+    shieldTick: 0,
+    shieldInterval: 1800,
+    magnetOn: false,
+    magnetStrong: false,
+
+    pierce: 0,
+    squadFire: false,
+    squadDmgBonus: 0,
+    killHealEvery: 0,
+    killHealCount: 0,
+    leftFocusMult: 1,
+    fireRateBonus: 0,
+    bossDmgMult: 1,
+    dmgBonus: 0,
+    extraCap: 25,
+    gateSlowBonus: 0,
+    stacks: {},
+    unlockedLog: [],
+
+    branchChoices: null,
+    majorChoices: null,
+    currentPoolTarget: null,
+    poolCount: 0,
+
+    // 左赛道升级目标
+    upgradeQueue: buildUpgradeQueue(),
+    upgradeIdx: 0,
+
+    // 右赛道
+    zombies: [],
+    enemyProjectiles: [],
+    megaBossTimer: 0,
+    pendingSpawns: [],
+    hordeSpawnGen: 0,
+    gates: [],
+    gateTick: 0,
+    gateInterval: 280,  // 多久产生一组门
+
+    // 子弹
+    bullets: [],
+
+    // 特效
+    particles: [],
+    shake: 0,
+    flashMsg: null,
+    flashTick: 0,
+
+    // 波次
+    wave: 1,
+    waveTick: 0,
+    waveDur: 1800,       // 每波时长（帧）
+    hordeTick: 0,
+
+    kills: 0,
+  };
+}
+
+// ─────────────────────────────────────────────
+// 工具
+// ─────────────────────────────────────────────
+const rnd  = (a,b) => a + Math.random()*(b-a);
+const rndI = (a,b) => Math.floor(a + Math.random()*(b-a+1));
+const clamp= (v,a,b) => v<a?a:v>b?b:v;
+const dist = (a,b) => Math.hypot(a.x-b.x, a.y-b.y);
+
+function flash(msg, col='#fff') { S.flashMsg={msg,col}; S.flashTick=80; }
+function logFlash(msg,col){flash(msg,col);}
+
+function spawnPart(x,y,col,n=7){
+  if(S.particles.length > 500) return;
+  for(let i=0;i<n;i++){
+    const a=rnd(0,Math.PI*2), sp=rnd(1.5,4.5);
+    S.particles.push({x,y,vx:Math.cos(a)*sp,vy:Math.sin(a)*sp,life:rndI(18,36),maxLife:36,col});
+  }
+}
+
+// ─────────────────────────────────────────────
+// 人物阵列位置
+// ─────────────────────────────────────────────
+function unitPositions() {
+  const total = 1 + S.extra;
+  const rows  = Math.ceil(total / COLS_MAX);
+  const pos   = [];
+  for (let r=0; r<rows; r++){
+    const base  = r * COLS_MAX;
+    const count = Math.min(COLS_MAX, total - base);
+    const startX = S.hero.x - (count-1)*COL_GAP/2;
+    for(let c=0;c<count;c++){
+      pos.push({ x: startX + c*COL_GAP, y: S.hero.y + r*ROW_GAP });
+    }
+  }
+  return pos;
+}
+
+// ─────────────────────────────────────────────
+// 升级逻辑
+// ─────────────────────────────────────────────
+function stackCount(id){ return S.stacks[id]||0; }
+function canTakePool(def){ return stackCount(def.id) < def.maxStack; }
+
+function poolTargetHp(){
+  return calcPoolUpgradeHp();
+}
+
+function rollPoolUpgrade(){
+  const pool = UPGRADE_POOL.filter(canTakePool);
+  if(!pool.length) return null;
+  const totalW = pool.reduce((s,d)=>s+d.weight,0);
+  let r = Math.random() * totalW;
+  for(const d of pool){
+    r -= d.weight;
+    if(r <= 0){
+      const hp = poolTargetHp();
+      return { ...d, hpLeft:hp, totalHp:hp, isPool:true, _hpReady:true, _createdDps:estimatedDps() };
+    }
+  }
+  const d = pool[pool.length-1];
+  const hp = poolTargetHp();
+  return { ...d, hpLeft:hp, totalHp:hp, isPool:true, _hpReady:true, _createdDps:estimatedDps() };
+}
+
+function initBranchChoices(item){
+  const hp = calcBranchHp();
+  const dps = estimatedDps();
+  S.branchChoices = item.options.map(opt=>({
+    ...opt, hpLeft:hp, totalHp:hp, desc:opt.desc, isBranch:true, _hpReady:true, _createdDps:dps,
+  }));
+  invalidateLeftCache();
+}
+
+function pickMajorChoices(){
+  const shuffled = [...MAJOR_CHOICE_DEFS].sort(()=>Math.random()-0.5);
+  const hp = calcMajorHp();
+  const dps = estimatedDps();
+  S.majorChoices = shuffled.slice(0,3).map(opt=>({
+    ...opt, hpLeft:hp, totalHp:hp, isMajor:true, _hpReady:true, _createdDps:dps,
+  }));
+  invalidateLeftCache();
+}
+
+function startMajorChoice(){
+  if(S.majorChoices || S.branchChoices) return;
+  pickMajorChoices();
+  flash(`⚡ 第${S.wave}波强化：打爆左道其一！`,'#fd4');
+}
+
+function fixedQueueDone(){
+  return S.upgradeIdx >= S.upgradeQueue.length;
+}
+
+function poolHasOptions(){
+  return UPGRADE_POOL.some(canTakePool);
+}
+
+function ensurePoolTarget(){
+  if(S.majorChoices || S.branchChoices) return;
+  if(!fixedQueueDone()) return;
+  if(!S.currentPoolTarget){
+    if(poolHasOptions()){
+      S.currentPoolTarget = rollPoolUpgrade();
+    } else {
+      // 所有池选项已达 maxStack，提供无限叠加的兜底奖励
+      // 在伤害和血量之间轮流，保证左道永远有事可做
+      const fallbacks = [
+        { id:'inf_dmg',   label:'伤害+1★', desc:'子弹伤害+1（无上限）', type:'dmg',     value:1 },
+        { id:'inf_hp',    label:'+5血量★', desc:'最大血+5（无上限）',   type:'hp',      value:5 },
+        { id:'inf_fire',  label:'射速+5%★',desc:'射速+5%（无上限）',    type:'fireRate', value:0.05 },
+      ];
+      const choice = fallbacks[S.poolCount % fallbacks.length];
+      const hp = poolTargetHp();
+      S.currentPoolTarget = {
+        ...choice, hpLeft:hp, totalHp:hp, isPool:true, isInfinite:true,
+        _hpReady:true, _createdDps:estimatedDps(),
+      };
+    }
+    invalidateLeftCache();
+  }
+}
+
+function getLeftTargets(){
+  if(leftTargetsCacheTick === S.ticks) return leftTargetsCache;
+
+  const cx = LEFT_X + LEFT_W/2;
+  let out = [];
+
+  if(S.majorChoices){
+    out = S.majorChoices;
+    out.forEach((c,i)=>{
+      fixUpgradeTargetHp(c);
+      c.x=cx; c.y=H*0.2+i*100; c.r=22;
+    });
+  } else if(S.branchChoices){
+    out = S.branchChoices;
+    out.forEach((c,i)=>{
+      fixUpgradeTargetHp(c);
+      c.x=cx; c.y=H*0.26+i*78; c.r=20;
+    });
+  } else {
+    ensurePoolTarget();
+    if(S.currentPoolTarget){
+      const u=fixUpgradeTargetHp(S.currentPoolTarget);
+      u.x=cx; u.y=H*0.35; u.r=24;
+      out = [u];
+    } else if(S.upgradeIdx < S.upgradeQueue.length){
+      const item=S.upgradeQueue[S.upgradeIdx];
+      if(item.type==='choice'){
+        if(!S.branchChoices) initBranchChoices(item);
+        out = S.branchChoices || [];
+        out.forEach((c,i)=>{
+          fixUpgradeTargetHp(c);
+          c.x=cx; c.y=H*0.26+i*78; c.r=20;
+        });
+      } else {
+        initUpgradeTargetHp(item);
+        item.x=cx; item.y=H*0.35; item.r=26;
+        out = [item];
+      }
+    }
+  }
+
+  out = out.filter(t=>t && !t._broken && t.totalHp > 0);
+  leftTargetsCache = out;
+  leftTargetsCacheTick = S.ticks;
+  return out;
+}
+
+function hasLeftTargets(){
+  return getLeftTargets().length > 0;
+}
+
+function nearestLeftTarget(fromX, fromY){
+  const targets=getLeftTargets();
+  let best=null, bd=Infinity;
+  targets.forEach(t=>{
+    const d=Math.hypot(t.x-fromX, t.y-fromY);
+    if(d<bd){ bd=d; best=t; }
+  });
+  return best;
+}
+
+function onLeftTargetBroken(t){
+  if(t._broken) return;
+  t._broken = true;
+  invalidateLeftCache();
+
+  applyUpgrade(t);
+  S.unlockedLog.push(t.label);
+  S.shake=12;
+  flash(`🎉 ${t.label}`,'#7af');
+
+  if(t.isMajor){
+    S.majorChoices=null;
+    invalidateLeftCache();
+    return;
+  }
+  if(t.isBranch){
+    S.branchChoices=null;
+    S.upgradeIdx++;
+    invalidateLeftCache();
+    return;
+  }
+  if(t.isPool){
+    S.currentPoolTarget=null;
+    S.poolCount++;
+    invalidateLeftCache();
+    return;
+  }
+  S.upgradeIdx++;
+  invalidateLeftCache();
+  if(fixedQueueDone() && S.upgradeIdx >= S.upgradeQueue.length){
+    flash('♾ 进入随机强化池','#8cf');
+  }
+}
+
+function applyUpgrade(u){
+  const t=u.type, v=u.value;
+  const inc=(id)=>{ S.stacks[id]=(S.stacks[id]||0)+1; };
+
+  if(t==='weapon') S.wepIdx=Math.max(S.wepIdx,v);
+  else if(t==='hp'){
+    S.hero.maxHp+=v;
+    S.hero.hp=Math.min(S.hero.hp+v, S.hero.maxHp);
+  }
+  else if(t==='clear') S.clearsLeft+=v;
+  else if(t==='clear2') S.clearCDMax=900;
+  else if(t==='clearMega'){
+    S.clearsLeft+=2;
+    S.clearCDMax=Math.max(600, Math.floor(S.clearCDMax*0.7));
+  }
+  else if(t==='shield'){ S.shieldOn=true; S.shieldInterval=1800; }
+  else if(t==='shield2'){
+    S.shieldOn=true;
+    S.shieldInterval=Math.max(900, Math.floor(S.shieldInterval*0.75));
+    if(u.id) inc(u.id);
+  }
+  else if(t==='magnet') S.magnetOn=true;
+  else if(t==='magnet2'){ S.magnetOn=true; S.magnetStrong=true; }
+  else if(t==='pierce'){ S.pierce+=v; if(u.id) inc(u.id); else inc('pierce'); }
+  else if(t==='squadFire') S.squadFire=true;
+  else if(t==='killHeal'){
+    S.killHealEvery = S.killHealEvery ? Math.min(S.killHealEvery, v) : v;
+    if(u.id) inc(u.id);
+    else inc('killHeal');
+  }
+  else if(t==='leftFocus') S.leftFocusMult *= v;
+  else if(t==='fireRate'){
+    S.fireRateBonus=Math.min(0.45, S.fireRateBonus+v);
+    if(u.id) inc(u.id);
+  }
+  else if(t==='dmg'){ S.dmgBonus+=v; if(u.id) inc(u.id); }
+  else if(t==='bossDmg'){ S.bossDmgMult+=v; if(u.id) inc(u.id); }
+  else if(t==='gateSlow'){ S.gateSlowBonus=Math.min(0.45, S.gateSlowBonus+v); if(u.id) inc(u.id); }
+  else if(t==='squadDmg'){ S.squadDmgBonus+=v; if(u.id) inc(u.id); }
+  else if(t==='extraCap'){ S.extraCap+=v; if(u.id) inc(u.id); }
+  else if(t==='gateMega'){
+    S.gateSlowBonus=Math.min(0.5, S.gateSlowBonus+0.2);
+    S.extraCap+=5;
+  }
+}
+
+// 当玩家战力（DPS）显著下降时，强制破坏当前左道靶子并重刷
+// 避免人数骤减后靶子因血量过高而永远打不完
+function refreshTargetOnDpsChange(){
+  const cur = estimatedDps();
+  const THRESHOLD = 0.6; // DPS 下降到创建时的 60% 以下就刷新
+
+  function checkAndBreak(t){
+    if(!t || t._broken) return;
+    // 首次调用时只做快照，不破坏
+    if(!t._createdDps){ t._createdDps = cur; return; }
+    if(cur < t._createdDps * THRESHOLD){
+      t._broken = true;
+      spawnPart(t.x || LEFT_X + LEFT_W/2, t.y || H*0.35, '#ff8844', 12);
+      invalidateLeftCache();
+    }
+  }
+
+  if(S.currentPoolTarget) checkAndBreak(S.currentPoolTarget);
+  if(S.branchChoices) S.branchChoices.forEach(checkAndBreak);
+  if(S.majorChoices) S.majorChoices.forEach(checkAndBreak);
+  if(!fixedQueueDone()){
+    const cur_item = S.upgradeQueue[S.upgradeIdx];
+    if(cur_item && cur_item._hpReady) checkAndBreak(cur_item);
+  }
+
+  // 如果刷新导致当前池靶被破坏但没给奖励，手动清掉
+  if(S.currentPoolTarget && S.currentPoolTarget._broken) S.currentPoolTarget = null;
+  if(S.branchChoices && S.branchChoices.every(t=>t._broken)){
+    S.branchChoices = null;
+    S.upgradeIdx++; // 跳过这个分支
+  }
+  if(S.majorChoices && S.majorChoices.every(t=>t._broken)){
+    S.majorChoices = null;
+  }
+  invalidateLeftCache();
+}
+
+function effectiveFireRate(){
+  const base=WEAPONS[S.wepIdx].fireRate;
+  return Math.max(5, Math.floor(base * (1 - S.fireRateBonus)));
+}
+
+function teammateDmgMult(){
+  const base = S.squadFire ? 0.7 : 0.5;
+  return base * (1 + S.squadDmgBonus);
+}
+
+function bulletDamage(isHero, z){
+  let d=WEAPONS[S.wepIdx].dmg + S.dmgBonus;
+  if(!isHero) d*=teammateDmgMult();
+  if(z && (z.isMegaBoss || z.name==='BOSS')) d*=S.bossDmgMult;
+  return d;
+}
+
+function onZombieKill(){
+  if(!S.killHealEvery) return;
+  S.killHealCount++;
+  if(S.killHealCount >= S.killHealEvery){
+    S.killHealCount=0;
+    if(S.hero.hp < S.hero.maxHp){
+      S.hero.hp++;
+      flash('💚 击杀回血+1','#4f8');
+    }
+  }
+}
+
+// ─────────────────────────────────────────────
+// 射击 — 自动瞄准最近目标（左道 or 右道）
+// ─────────────────────────────────────────────
+function doFire() {
+  const wep = WEAPONS[S.wepIdx];
+  if (S.fireTick > 0){ S.fireTick--; return; }
+  S.fireTick = effectiveFireRate();
+
+  const units = unitPositions();
+  const leftActive = hasLeftTargets();
+
+  units.forEach((u, i) => {
+    const isHero = i === 0;
+    const onLeftLane = u.x <= LEFT_X + LEFT_W - 8;
+    const inRight = u.x >= RIGHT_X;
+
+    let target = null;
+    // 主角和队友都可以打左道升级目标，前提是该单位处于左道范围
+    if(leftActive && onLeftLane){
+      target = nearestLeftTarget(u.x, u.y);
+    }
+    if(inRight || !onLeftLane || !target){
+      let best=null, bd=Infinity;
+      S.zombies.forEach(z=>{
+        if(z.y < u.y){
+          const d=dist(u,z);
+          if(d<bd){ bd=d; best=z; }
+        }
+      });
+      if(inRight || !target) target = best;
+    }
+
+    for(let m=0;m<wep.multi;m++){
+      let vx=0, vy=-BULLET_SPEED;
+      const sp=(m-(wep.multi-1)/2)*wep.spread + rnd(-wep.spread*.05, wep.spread*.05);
+      // 队友也追踪左道目标（让子弹飞向靶子而不是直线向上）
+      const track = target && (S.magnetOn || S.magnetStrong || (leftActive && onLeftLane));
+      if(track){
+        const ax=target.x - u.x, ay=target.y - u.y;
+        const ad=Math.hypot(ax,ay)||1;
+        const spd = S.magnetStrong ? BULLET_SPEED*1.15 : BULLET_SPEED;
+        vx = ax/ad * spd;
+        vy = ay/ad * spd;
+        vx += Math.cos(Math.PI/2)*sp*spd;
+        vy += Math.sin(Math.PI/2)*sp*spd;
+      } else {
+        vx = Math.sin(sp)*BULLET_SPEED;
+      }
+      const pierce = 1 + S.pierce;
+      S.bullets.push({
+        x:u.x, y:u.y, vx, vy,
+        dmg: bulletDamage(isHero, null),
+        col:wep.color, r:wep.r,
+        pierceLeft: pierce,
+        hitZ: new Set(),
+        fromLeft: onLeftLane,
+        isHero,
+      });
+    }
+  });
+}
+
+// ─────────────────────────────────────────────
+// 产生数字门（右赛道，固定3个并排）
+// ─────────────────────────────────────────────
+function spawnGates(){
+  const COUNT  = 3;                          // 固定3个门
+  const gateW  = 130, gateH = 42, gap = 18;
+  const totalW = COUNT*(gateW+gap)-gap;
+  const startX = RIGHT_X + (RIGHT_W-totalW)/2;
+
+  const cur = 1 + S.extra;
+
+  for(let i=0;i<COUNT;i++){
+    const ops = ['+','+','+','×','×','-','÷'];
+    const op  = ops[rndI(0, ops.length-1)];
+    let num, result, formula;
+    const cap = S.extraCap || 25;
+
+    if(op==='+'){
+      num=rndI(1,5);
+      result=Math.min(cur+num,cap);
+      formula=`+${num}`;
+    } else if(op==='-'){
+      num=rndI(1, Math.min(3, Math.max(1, cur-1)));
+      result=Math.max(1, cur-num);
+      formula=`−${num}`;
+    } else if(op==='×'){
+      num=rndI(2,3);
+      result=Math.min(cur*num,cap);
+      formula=`×${num}`;
+    } else {
+      num=rndI(2,3);
+      result=Math.max(1, Math.floor(cur/num));
+      formula=`÷${num}`;
+    }
+
+    S.gates.push({
+      x: startX + i*(gateW+gap),
+      y: -gateH - rndI(0,20),
+      w: gateW, h: gateH,
+      result, formula,
+      col: '#ffffff',   // 所有门统一白色，不暗示好坏
+      spd: Math.max(0.28, 0.5 - (S.gateSlowBonus||0)),
+      passed: false,
+    });
+  }
+}
+
+// ─────────────────────────────────────────────
+// 产生僵尸
+// ─────────────────────────────────────────────
+function spawnZombie(typeIdx){
+  const t = ZOMBIE_TYPES[typeIdx];
+  const x = RIGHT_X + rnd(t.r+5, RIGHT_W-t.r-5);
+  const hp = Math.max(1, Math.floor(t.hp * zombieHpMult()));
+  S.zombies.push({
+    x, y:-t.r,
+    hp, maxHp:hp,
+    spd:t.spd,
+    r:t.r, col:t.color, pts:t.pts, dmg:t.dmg,
+    name:t.name, splits:t.splits||false,
+    flash:0, isMegaBoss:false,
+  });
+}
+
+function hasMegaBoss(){
+  return S.zombies.some(z=>z.isMegaBoss);
+}
+
+function spawnMegaBoss(){
+  if(hasMegaBoss()) return;
+  S.zombies.filter(z=>!z.isMegaBoss).forEach(z=>spawnPart(z.x,z.y,z.col,6));
+  S.zombies=[];
+  // 取消所有待生成的尸潮，防止清场后继续涌出
+  S.pendingSpawns=[];
+  S.hordeSpawnGen++;
+  const hp = megaBossMaxHp();
+  S.zombies.push({
+    x: RIGHT_X + RIGHT_W/2,
+    y: 100,
+    hp, maxHp:hp,
+    spd: 0.09,
+    r: 40,
+    col: '#9010a0',
+    pts: 50,
+    dmg: 6,
+    name: '巨型尸王',
+    isMegaBoss: true,
+    splits: false,
+    flash: 0,
+    phase: 'idle',
+    windupLeft: 0,
+    atkCd: 90,
+    telegraph: null,
+    atkName: null,
+  });
+  S.shake = 22;
+  flash('☠ 巨型尸王降临 · 小怪清场！','#f28');
+}
+
+function startMegaWindup(boss){
+  // 尸王只使用弹幕攻击（spit），不使用范围秒杀技能
+  boss.atkName = 'spit';
+  boss.phase = 'windup';
+  boss.windupLeft = 95;
+  boss.telegraph = { type:'aim', x:boss.x, y:boss.y-8, tx:S.hero.x, ty:S.hero.y };
+}
+
+function releaseMegaAttack(boss){
+  // 只有 spit（扇形弹幕），slam/sweep 已移除
+  if(boss.atkName==='spit'){
+    const ax=S.hero.x-boss.x, ay=S.hero.y-boss.y;
+    const base=Math.atan2(ay,ax);
+    for(let i=-3;i<=3;i++){
+      const a=base+i*0.14;
+      S.enemyProjectiles.push({
+        x:boss.x, y:boss.y,
+        vx:Math.cos(a)*4.2, vy:Math.sin(a)*4.2,
+        r:9, dmg:3, col:'#c040ff', life:220,
+      });
+    }
+  }
+  boss.telegraph=null;
+  boss.atkCd = rndI(200, 320);
+}
+
+function updateMegaBoss(boss){
+  // 尸王固定停在右道顶部，不追踪玩家——只用弹幕攻击
+  boss.x = clamp(boss.x, RIGHT_X+boss.r, RIGHT_X+RIGHT_W-boss.r); // 保持在右道内
+  // 不更新 y，保持降临时的位置（y=100）
+
+  if(boss.phase==='windup'){
+    // aim 类型：前摇期间瞄准线实时跟随玩家
+    if(boss.atkName==='spit' && boss.telegraph){
+      boss.telegraph.tx = S.hero.x;
+      boss.telegraph.ty = S.hero.y;
+    }
+    boss.windupLeft--;
+    if(boss.windupLeft<=0){
+      releaseMegaAttack(boss);
+      boss.phase='idle';
+    }
+    return;
+  }
+
+  boss.atkCd--;
+  if(boss.atkCd<=0) startMegaWindup(boss);
+}
+
+function updateEnemyProjectiles(){
+  const units=unitPositions();
+  S.enemyProjectiles=S.enemyProjectiles.filter(p=>{
+    p.x+=p.vx; p.y+=p.vy;
+    p.life--;
+    if(p.life<=0) return false;
+    for(let i=0;i<units.length;i++){
+      const u=units[i];
+      if(dist(p,u)<p.r+UNIT_R){
+        spawnPart(p.x,p.y,p.col,5);
+        if(i===0){
+          S.hero.hp=Math.max(0,S.hero.hp-p.dmg);
+          S.shake=8;
+          if(S.hero.hp<=0) gameOver();
+        } else { S.extra=Math.max(0,S.extra-1); refreshTargetOnDpsChange(); }
+        return false;
+      }
+    }
+    return p.y<H+40 && p.x>RIGHT_X-20 && p.x<W+20;
+  });
+}
+
+// ─────────────────────────────────────────────
+// 清场
+// ─────────────────────────────────────────────
+function activateClear(){
+  if(S.clearsLeft<=0||S.clearCD>0) return;
+  S.clearsLeft--;
+  S.clearCD=S.clearCDMax;
+  const n=S.zombies.length;
+  S.zombies.filter(z=>!z.isMegaBoss).forEach(z=>spawnPart(z.x,z.y,z.col,8));
+  S.zombies=S.zombies.filter(z=>z.isMegaBoss);
+  S.kills+=Math.floor(n*.5);
+  S.shake=18;
+  flash(`💥 清场！消灭${n}只`,'#fa8');
+}
+
+// ─────────────────────────────────────────────
+// 主更新
+// ─────────────────────────────────────────────
+function update(){
+  if(!S.running||S.over) return;
+  S.ticks++;
+
+  // 护盾
+  if(S.shieldOn){
+    S.shieldTick++;
+    if(S.shieldTick>=S.shieldInterval){
+      S.shieldTick=0;
+      if(S.hero.hp<S.hero.maxHp){ S.hero.hp++; flash('🛡 护盾回血+1','#4af'); }
+    }
+  }
+
+  // 清场CD
+  if(S.clearCD>0) S.clearCD--;
+
+  // 主角跟随鼠标X，Y固定在底部偏上
+  S.hero.x += (S.mouseX - S.hero.x) * 0.18;
+  S.hero.x = clamp(S.hero.x, 20, W-20);
+  // 限制Y：只能在底部区域
+  S.hero.y = H - 80;
+
+  // 波次推进
+  S.waveTick++;
+  if(S.waveTick >= S.waveDur){
+    S.waveTick=0; S.wave++;
+    invalidateLeftCache();
+    flash(`🌊 第${S.wave}波来袭！`,'#7af');
+    if(S.wave % 5 === 0) startMajorChoice();
+  }
+
+  // 尸潮延迟生成（不用 setTimeout，避免堆积卡死）
+  S.pendingSpawns = S.pendingSpawns.filter(ps=>{
+    if(ps.gen !== S.hordeSpawnGen) return false;
+    if(S.ticks >= ps.at){ spawnZombie(ps.type); return false; }
+    return true;
+  });
+
+  // 产生僵尸（速率随波次增加，但不加速单个僵尸）
+  // 尸王在场时暂停所有僵尸刷新，专心打BOSS
+  if(!hasMegaBoss()){
+    // 普通僵尸
+    const normalRate = Math.max(120, 260 - S.wave*15);
+    if(S.ticks % normalRate === 0) spawnZombie(0);
+
+    // 胖子僵尸，波次>=2
+    if(S.wave>=2 && S.ticks % Math.max(240,500-S.wave*20) === 0) spawnZombie(1);
+
+    // 精英，波次>=3
+    if(S.wave>=3 && S.ticks % Math.max(300,700-S.wave*25) === 0) spawnZombie(2);
+
+    // 尸潮（一次10只普通），波次>=4，每隔一段时间
+    if(S.wave>=4){
+      S.hordeTick++;
+      const hordeInt = Math.max(600, 1800 - S.wave*80);
+      if(S.hordeTick >= hordeInt){
+        S.hordeTick=0;
+        const n = 8 + S.wave*2;
+        flash(`🧟 尸潮！${n}只来袭！`,'#f84');
+        S.hordeSpawnGen++;
+        const gen=S.hordeSpawnGen;
+        for(let i=0;i<n;i++){
+          S.pendingSpawns.push({ at:S.ticks + i*8, type:0, gen });
+        }
+      }
+    }
+
+    // 分裂怪，波次>=3（索引3）
+    if(S.wave>=3 && S.ticks % Math.max(400,900-S.wave*30) === 0) spawnZombie(3);
+  }
+
+  // 巨型尸王：每2分钟，登场清场（尸王在场时倒计时暂停）
+  if(!hasMegaBoss()){
+    S.megaBossTimer++;
+    if(S.megaBossTimer === MEGA_BOSS_INTERVAL - MEGA_WARN_TICKS){
+      flash('⚠ 巨型尸王即将降临…','#f84');
+    }
+    if(S.megaBossTimer >= MEGA_BOSS_INTERVAL){
+      S.megaBossTimer=0;
+      spawnMegaBoss();
+    }
+  }
+
+  // 产生门
+  S.gateTick++;
+  if(S.gateTick >= S.gateInterval){
+    S.gateTick=0;
+    // 只有右赛道没有太多门时才产生新的
+    const activeGates = S.gates.filter(g=>!g.passed && g.y < H);
+    if(activeGates.length < 3) spawnGates();
+  }
+
+  // 射击
+  doFire();
+
+  // 更新子弹
+  S.bullets = S.bullets.filter(b=>{
+    b.x+=b.vx; b.y+=b.vy;
+    return b.y>-30&&b.y<H+10&&b.x>-20&&b.x<W+20;
+  });
+
+  // 子弹 vs 左赛道升级目标（主角全伤，队友折扣）
+  const leftTargets = getLeftTargets();
+  if(leftTargets.length){
+    S.bullets = S.bullets.filter(b=>{
+      for(const upg of leftTargets){
+        if(upg._broken) continue;
+        if(dist(b,upg) < upg.r + b.r){
+          let dmg = b.dmg;
+          if(!Number.isFinite(dmg) || dmg < 0.1) dmg = 0.1;
+          if(b.fromLeft) dmg *= S.leftFocusMult;
+          else dmg *= 0.4;
+          // 队友子弹打左道靶使用折扣（血量已按总DPS含队友份额计算）
+          if(!b.isHero) dmg *= TEAMMATE_LEFT_MULT;
+          upg.hpLeft = Math.max(0, upg.hpLeft - dmg);
+          if(S.ticks % 3 === 0) spawnPart(b.x,b.y,'#ffcc44',2);
+          if(upg.hpLeft <= 0) onLeftTargetBroken(upg);
+          return false;
+        }
+      }
+      return true;
+    });
+  }
+
+  // 子弹 vs 僵尸
+  const deadZ = new Set();
+  S.bullets = S.bullets.filter(b=>{
+    for(let i=0;i<S.zombies.length;i++){
+      if(deadZ.has(i) || (b.hitZ && b.hitZ.has(i))) continue;
+      const z=S.zombies[i];
+      if(dist(b,z)<z.r+b.r){
+        const dmg = bulletDamage(b.isHero, z);
+        z.hp-=dmg; z.flash=5;
+        if(!b.hitZ) b.hitZ = new Set();
+        b.hitZ.add(i);
+        if(z.hp<=0){
+          deadZ.add(i);
+          spawnPart(z.x,z.y,z.col,8);
+          S.kills+=z.pts;
+          onZombieKill();
+          if(z.splits){
+            const shp=Math.max(2,Math.floor(3*zombieHpMult()));
+            for(let s=0;s<2;s++){
+              S.zombies.push({
+                x:z.x+rnd(-18,18),y:z.y+rnd(-18,18),
+                hp:shp,maxHp:shp,spd:.5,r:8,col:'#70d0ff',
+                pts:2,dmg:1,name:'分裂体',splits:false,flash:0,isMegaBoss:false,
+              });
+            }
+          }
+          if(z.isMegaBoss) flash('巨型尸王被击败！','#8f8');
+        }
+        b.pierceLeft--;
+        return b.pierceLeft <= 0;
+      }
+    }
+    return true;
+  });
+  S.zombies = S.zombies.filter((_,i)=>!deadZ.has(i));
+
+  updateEnemyProjectiles();
+
+  // 僵尸移动 & 碰撞玩家
+  const units = unitPositions();
+  S.zombies = S.zombies.filter(z=>{
+    if(z.flash>0) z.flash--;
+
+    if(z.isMegaBoss){
+      updateMegaBoss(z);
+    } else {
+      const dx=S.hero.x-z.x, dy=S.hero.y-z.y;
+      const d=Math.hypot(dx,dy)||1;
+      z.x+=dx/d*z.spd;
+      z.y+=dy/d*z.spd;
+    }
+
+    // 检测和每个单位碰撞
+    for(let i=units.length-1;i>=0;i--){
+      const u=units[i];
+      if(dist(z,u)<z.r+UNIT_R){
+        spawnPart(z.x,z.y,'#f44',6);
+        if(i===0){
+          // 打到主角
+          S.hero.hp=Math.max(0,S.hero.hp-z.dmg);
+          S.shake=10;
+          if(S.hero.hp<=0) gameOver();
+        } else {
+          // 打到额外人数
+          S.extra=Math.max(0,S.extra-1);
+          refreshTargetOnDpsChange();
+          flash('-1 队员','#f64');
+        }
+        return false;
+      }
+    }
+
+    // 僵尸走出底部
+    if(z.y > H+30){
+      S.hero.hp=Math.max(0,S.hero.hp-1);
+      S.shake=6;
+      if(S.hero.hp<=0) gameOver();
+      return false;
+    }
+    return true;
+  });
+
+  // 更新门
+  S.gates = S.gates.filter(g=>{
+    g.y += g.spd;
+    if(!g.passed){
+      // 检测角色穿过门（只在右赛道，角色x在门范围内）
+      const heroX = S.hero.x;
+      if(heroX>=g.x && heroX<=g.x+g.w && S.hero.y>=g.y && S.hero.y<=g.y+g.h){
+        g.passed=true;
+        const cur = 1 + S.extra;
+        const grew = g.result > cur;
+        S.extra=Math.max(0,g.result-1);
+        refreshTargetOnDpsChange();
+        spawnPart(S.hero.x,S.hero.y, grew?'#44ff88':'#ff6644', 10);
+      }
+    }
+    return g.y < H+50;
+  });
+
+  // 粒子（上限防卡死）
+  if(S.particles.length > 600) S.particles.length = 600;
+  S.particles=S.particles.filter(p=>{
+    p.x+=p.vx; p.y+=p.vy;
+    p.vx*=.91; p.vy*=.91;
+    p.life--;
+    return p.life>0;
+  });
+
+  if(S.flashTick>0) S.flashTick--;
+  if(S.shake>0) S.shake--;
+
+  updateUI();
+}
+
+function gameOver(){
+  S.over=true; S.running=false;
+  const ov=document.getElementById('overlay');
+  ov.classList.remove('hidden');
+  ov.querySelector('h1').textContent='💀 Game Over';
+  document.getElementById('final').textContent=
+    `存活 ${Math.floor(S.ticks/60)}s  击杀 ${S.kills}  第${S.wave}波`;
+  document.getElementById('btn').textContent='再来一局';
+}
+
+// ─────────────────────────────────────────────
+// UI
+// ─────────────────────────────────────────────
+function updateUI(){
+  const hpPct=Math.max(0,S.hero.hp/S.hero.maxHp*100);
+  document.getElementById('hp-bar').style.width=hpPct+'%';
+  document.getElementById('hp-text').textContent=`${Math.max(0,S.hero.hp)}/${S.hero.maxHp}`;
+  document.getElementById('tb-units').textContent=1+S.extra;
+  document.getElementById('tb-kills').textContent=S.kills;
+  document.getElementById('tb-wave').textContent=S.wave;
+  document.getElementById('tb-weapon').textContent=WEAPONS[S.wepIdx].name;
+  document.getElementById('time-val').textContent=Math.floor(S.ticks/60)+'s';
+}
+
+// ─────────────────────────────────────────────
+// 渲染
+// ─────────────────────────────────────────────
+function render(){
+  const sx=S.shake>0?rnd(-S.shake,S.shake)*.25:0;
+  const sy=S.shake>0?rnd(-S.shake,S.shake)*.25:0;
+  ctx.save(); ctx.translate(sx,sy);
+
+  // 背景
+  ctx.fillStyle='#080c14';
+  ctx.fillRect(0,0,W,H);
+
+  // 网格
+  ctx.strokeStyle='rgba(30,55,90,.25)'; ctx.lineWidth=.5;
+  for(let x=0;x<W;x+=40){ctx.beginPath();ctx.moveTo(x,0);ctx.lineTo(x,H);ctx.stroke();}
+  for(let y=0;y<H;y+=40){ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(W,y);ctx.stroke();}
+
+  // ── 左赛道背景 ──
+  ctx.fillStyle='rgba(10,30,60,.45)';
+  ctx.fillRect(LEFT_X,0,LEFT_W,H);
+  ctx.fillStyle='rgba(20,80,180,.12)';
+  ctx.fillRect(LEFT_X,0,LEFT_W,H);
+
+  // 左赛道标签
+  ctx.fillStyle='#3a6ab8';
+  ctx.font='bold 12px Courier New';
+  ctx.textAlign='center';
+  ctx.fillText('── 升 级 赛 道 ──', LEFT_X+LEFT_W/2, 18);
+
+  // ── 分隔线 ──
+  ctx.fillStyle='#1e3050';
+  ctx.fillRect(MID_X,0,MID_W,H);
+  ctx.strokeStyle='#2a4a80';
+  ctx.lineWidth=1;
+  ctx.setLineDash([6,6]);
+  ctx.beginPath(); ctx.moveTo(MID_X+MID_W/2,0); ctx.lineTo(MID_X+MID_W/2,H); ctx.stroke();
+  ctx.setLineDash([]);
+
+  // ── 右赛道背景 ──
+  ctx.fillStyle='rgba(40,10,10,.40)';
+  ctx.fillRect(RIGHT_X,0,RIGHT_W,H);
+
+  // 右赛道标签
+  ctx.fillStyle='#8a3030';
+  ctx.font='bold 12px Courier New';
+  ctx.textAlign='center';
+  ctx.fillText('── 僵 尸 赛 道 ──', RIGHT_X+RIGHT_W/2, 18);
+
+  // ── 左赛道升级目标 ──
+  drawUpgradeTarget();
+
+  // ── 门 ──
+  S.gates.forEach(g=>drawGate(g));
+
+  drawMegaTelegraphs();
+
+  // ── 僵尸 ──
+  S.zombies.forEach(z=>drawZombie(z));
+
+  // ── 尸王弹幕 ──
+  S.enemyProjectiles.forEach(p=>{
+    ctx.beginPath(); ctx.arc(p.x,p.y,p.r,0,Math.PI*2);
+    ctx.fillStyle=p.col; ctx.shadowColor=p.col; ctx.shadowBlur=12;
+    ctx.fill(); ctx.shadowBlur=0;
+  });
+
+  // ── 子弹 ──
+  S.bullets.forEach(b=>{
+    ctx.beginPath(); ctx.arc(b.x,b.y,b.r,0,Math.PI*2);
+    ctx.fillStyle=b.col; ctx.shadowColor=b.col; ctx.shadowBlur=7;
+    ctx.fill(); ctx.shadowBlur=0;
+  });
+
+  // ── 人物阵列 ──
+  drawUnits();
+
+  // ── 粒子 ──
+  S.particles.forEach(p=>{
+    ctx.globalAlpha=p.life/p.maxLife;
+    ctx.beginPath(); ctx.arc(p.x,p.y,2.5,0,Math.PI*2);
+    ctx.fillStyle=p.col; ctx.fill();
+  });
+  ctx.globalAlpha=1;
+
+  // ── Flash消息 ──
+  if(S.flashTick>0 && S.flashMsg){
+    ctx.save();
+    ctx.globalAlpha=Math.min(1,S.flashTick/25);
+    ctx.font='bold 26px Courier New';
+    ctx.fillStyle=S.flashMsg.col;
+    ctx.textAlign='center';
+    ctx.shadowColor=S.flashMsg.col; ctx.shadowBlur=18;
+    ctx.fillText(S.flashMsg.msg, W/2, H/2-10);
+    ctx.shadowBlur=0; ctx.restore();
+  }
+
+  // ── 已激活能力简览 ──
+  const perks=[];
+  if(S.pierce) perks.push(`穿${S.pierce}`);
+  if(S.squadFire) perks.push('队强');
+  if(S.killHealEvery) perks.push(`${S.killHealEvery}杀回血`);
+  if(S.leftFocusMult>1) perks.push(`专注×${S.leftFocusMult.toFixed(1)}`);
+  if(perks.length){
+    ctx.font='10px Courier New'; ctx.textAlign='right'; ctx.fillStyle='#5a8';
+    ctx.fillText(perks.join(' · '), W-8, H-8);
+  }
+
+  // 巨型尸王倒计时
+  if(S.running && !S.over){
+    const left=Math.max(0, MEGA_BOSS_INTERVAL-S.megaBossTimer);
+    ctx.font='10px Courier New'; ctx.textAlign='center'; ctx.fillStyle='#a68';
+    ctx.fillText(`尸王 ${Math.ceil(left/60)}s`, RIGHT_X+RIGHT_W/2, 32);
+  }
+
+  // ── 清场提示 ──
+  if(S.clearsLeft>0){
+    const ready=S.clearCD<=0;
+    ctx.font='11px Courier New'; ctx.textAlign='left';
+    ctx.fillStyle=ready?'#fa8':'#666';
+    ctx.fillText(`[空格] 清场 ×${S.clearsLeft}${ready?'  就绪':('  '+Math.ceil(S.clearCD/60)+'s')}`, 6, H-6);
+  }
+
+  // ── 鼠标光标替代 ──
+  ctx.beginPath(); ctx.arc(S.mouseX, S.hero.y-60, 4, 0, Math.PI*2);
+  ctx.strokeStyle='rgba(255,255,255,.3)'; ctx.lineWidth=1; ctx.stroke();
+
+  ctx.restore();
+}
+
+// ─────────────────────────────────────────────
+// 绘制升级目标（左赛道）
+// ─────────────────────────────────────────────
+function drawOneUpgradeOrb(upg, accent){
+  const th = Math.max(1, upg.totalHp || 1);
+  const hl = Number.isFinite(upg.hpLeft) ? clamp(upg.hpLeft, 0, th) : th;
+  const pct = 1 - hl / th;
+  const ux=upg.x, uy=upg.y, ur=upg.r||22;
+  const pulse = 0.7 + 0.3*Math.sin(S.ticks*0.06 + uy*0.01);
+
+  ctx.beginPath(); ctx.arc(ux,uy,ur+8,0,Math.PI*2);
+  ctx.strokeStyle=`rgba(100,180,255,${pulse*0.35})`; ctx.lineWidth=6; ctx.stroke();
+
+  ctx.beginPath(); ctx.arc(ux,uy,ur+3,-Math.PI/2,-Math.PI/2+pct*Math.PI*2);
+  ctx.strokeStyle=accent; ctx.lineWidth=3; ctx.lineCap='round'; ctx.stroke(); ctx.lineCap='butt';
+
+  ctx.beginPath(); ctx.arc(ux,uy,ur,0,Math.PI*2);
+  ctx.fillStyle='#0d2040'; ctx.fill();
+  ctx.strokeStyle=accent; ctx.lineWidth=2; ctx.stroke();
+
+  ctx.font='bold 11px Courier New'; ctx.fillStyle='#7af'; ctx.textAlign='center';
+  ctx.fillText(upg.label, ux, uy+4);
+  ctx.font='9px Courier New'; ctx.fillStyle='#8ac';
+  ctx.fillText(`${th-hl}/${th}`, ux, uy+ur+14);
+  if(upg.desc) ctx.fillText(upg.desc, ux, uy+ur+26);
+}
+
+function drawUpgradeTarget(){
+  const cx = LEFT_X + LEFT_W/2;
+
+  S.unlockedLog.slice(-4).forEach((label,i)=>{
+    const y = 52 + i*24;
+    ctx.fillStyle='rgba(30,80,40,.7)';
+    ctx.fillRect(cx-78, y-10, 156, 18);
+    ctx.fillStyle='#3a8'; ctx.font='9px Courier New'; ctx.textAlign='center';
+    ctx.fillText(`✓ ${label}`, cx, y+4);
+  });
+
+  const targets = getLeftTargets();
+  if(!targets.length){
+    ctx.fillStyle='#446'; ctx.font='11px Courier New'; ctx.textAlign='center';
+    ctx.fillText('左道暂无目标', cx, H*0.35);
+    return;
+  }
+
+  if(S.majorChoices){
+    ctx.fillStyle='#fd4'; ctx.font='bold 11px Courier New'; ctx.textAlign='center';
+    ctx.fillText('⚡ 五波强化 · 打爆其一', cx, 38);
+    targets.forEach(t=>drawOneUpgradeOrb(t,'#fa4'));
+    return;
+  }
+  if(S.branchChoices){
+    ctx.fillStyle='#8cf'; ctx.font='bold 11px Courier New'; ctx.textAlign='center';
+    ctx.fillText('战术抉择 · 打爆其一', cx, 38);
+    targets.forEach(t=>drawOneUpgradeOrb(t,'#6cf'));
+    return;
+  }
+
+  const upg = targets[0];
+  const orbAccent = upg.isInfinite ? '#ffa040' : upg.isPool ? '#cf8' : '#4af';
+  drawOneUpgradeOrb(upg, orbAccent);
+
+  if(upg.isPool){
+    ctx.font='10px Courier New'; ctx.textAlign='center';
+    ctx.fillStyle = upg.isInfinite ? '#c84' : '#8a6';
+    const label = upg.isInfinite ? `♾ 无限叠层 #${S.poolCount+1}` : `随机池 #${S.poolCount+1}`;
+    ctx.fillText(label, cx, H*0.35+upg.r+42);
+  } else if(S.upgradeIdx+1 < S.upgradeQueue.length){
+    const next=S.upgradeQueue[S.upgradeIdx+1];
+    if(next.type!=='choice'){
+      ctx.font='10px Courier New'; ctx.fillStyle='#446'; ctx.textAlign='center';
+      ctx.fillText(`下一个：${next.label}`, cx, H*0.35+40);
+    }
+  } else if(fixedQueueDone()){
+    ctx.font='10px Courier New'; ctx.fillStyle='#6a8'; ctx.textAlign='center';
+    ctx.fillText('♾ 随机强化池', cx, H*0.35+40);
+  }
+}
+
+// ─────────────────────────────────────────────
+// 绘制门
+// ─────────────────────────────────────────────
+function drawGate(g){
+  ctx.save();
+  ctx.globalAlpha = g.passed ? 0.22 : 1;
+  // 边框——统一白色，不暗示好坏
+  ctx.shadowColor='rgba(255,255,255,0.6)'; ctx.shadowBlur=10;
+  ctx.strokeStyle='#ffffff'; ctx.lineWidth=2;
+  ctx.strokeRect(g.x,g.y,g.w,g.h);
+  ctx.shadowBlur=0;
+  // 半透明白色填充
+  ctx.fillStyle='rgba(255,255,255,0.06)';
+  ctx.fillRect(g.x,g.y,g.w,g.h);
+  // 只显示 +1、×2 等，不透露当前人数
+  ctx.fillStyle='#ffffff'; ctx.font='bold 26px Courier New'; ctx.textAlign='center';
+  ctx.fillText(g.formula || '', g.x+g.w/2, g.y+g.h/2+10);
+  ctx.restore();
+}
+
+// ─────────────────────────────────────────────
+// 绘制僵尸
+// ─────────────────────────────────────────────
+function drawZombie(z){
+  ctx.save();
+  const col = z.flash>0 ? '#ffffff' : z.col;
+  ctx.shadowColor=z.col; ctx.shadowBlur=z.flash>0?18:5;
+  ctx.fillStyle=col;
+
+  if(z.isMegaBoss){
+    const pulse=0.85+0.15*Math.sin(S.ticks*0.08);
+    ctx.shadowBlur=22;
+    drawStar(z.x,z.y,8,z.r*pulse,z.r*0.45);
+    ctx.fillStyle='#fff'; ctx.font='bold 11px Courier New'; ctx.textAlign='center';
+    ctx.fillText(z.name, z.x, z.y-z.r-12);
+    if(z.phase==='windup'){
+      ctx.fillStyle='#f88'; ctx.font='9px Courier New';
+      ctx.fillText('!', z.x+z.r*0.6, z.y-z.r-4);
+    }
+  } else if(z.name==='胖子'){
+    ctx.fillRect(z.x-z.r,z.y-z.r,z.r*2,z.r*2);
+  } else if(z.name==='分裂'||z.name==='分裂体'){
+    ctx.beginPath();
+    ctx.moveTo(z.x,z.y-z.r); ctx.lineTo(z.x+z.r,z.y);
+    ctx.lineTo(z.x,z.y+z.r); ctx.lineTo(z.x-z.r,z.y);
+    ctx.closePath(); ctx.fill();
+  } else {
+    ctx.beginPath(); ctx.arc(z.x,z.y,z.r,0,Math.PI*2); ctx.fill();
+  }
+  ctx.shadowBlur=0;
+
+  // 血条
+  if(z.hp<z.maxHp){
+    const bw=z.r*2;
+    ctx.fillStyle='#300'; ctx.fillRect(z.x-bw/2,z.y-z.r-7,bw,4);
+    ctx.fillStyle='#f44'; ctx.fillRect(z.x-bw/2,z.y-z.r-7,bw*z.hp/z.maxHp,4);
+  }
+  // 名称（精英/BOSS显示）
+  if(z.isMegaBoss||z.name==='精英'){
+    ctx.fillStyle='#fff'; ctx.font='9px Courier New'; ctx.textAlign='center';
+    ctx.fillText(z.name, z.x, z.y-z.r-9);
+  }
+  ctx.restore();
+}
+
+function drawStar(cx,cy,n,r1,r2){
+  let rot=-Math.PI/2, step=Math.PI/n;
+  ctx.beginPath();
+  for(let i=0;i<n*2;i++){
+    const r=i%2===0?r1:r2;
+    ctx.lineTo(cx+Math.cos(rot)*r, cy+Math.sin(rot)*r);
+    rot+=step;
+  }
+  ctx.closePath(); ctx.fill();
+}
+
+function drawMegaTelegraphs(){
+  const boss=S.zombies.find(z=>z.isMegaBoss&&z.phase==='windup'&&z.telegraph);
+  if(!boss) return;
+  const tg=boss.telegraph;
+  const a=0.35+0.25*Math.sin(S.ticks*0.2);
+  ctx.save();
+  if(tg.type==='slam'){
+    ctx.fillStyle=`rgba(255,40,40,${a})`;
+    ctx.beginPath(); ctx.arc(tg.x,tg.y,tg.r,0,Math.PI*2); ctx.fill();
+    ctx.strokeStyle='#f66'; ctx.lineWidth=2;
+    ctx.setLineDash([6,6]); ctx.stroke(); ctx.setLineDash([]);
+  } else if(tg.type==='sweep'){
+    ctx.fillStyle=`rgba(255,120,40,${a*.85})`;
+    ctx.fillRect(RIGHT_X, tg.y-tg.h/2, RIGHT_W, tg.h);
+    ctx.strokeStyle='#fa4'; ctx.lineWidth=2; ctx.strokeRect(RIGHT_X, tg.y-tg.h/2, RIGHT_W, tg.h);
+  } else if(tg.type==='aim'){
+    ctx.strokeStyle=`rgba(200,80,255,${a+0.2})`;
+    ctx.lineWidth=3;
+    ctx.beginPath(); ctx.moveTo(tg.x,tg.y); ctx.lineTo(tg.tx,tg.ty); ctx.stroke();
+    ctx.fillStyle=`rgba(200,60,255,${a})`;
+    ctx.beginPath(); ctx.arc(tg.x,tg.y,18,0,Math.PI*2); ctx.fill();
+  }
+  ctx.restore();
+}
+
+// ─────────────────────────────────────────────
+// 绘制人物阵列
+// ─────────────────────────────────────────────
+function drawUnits(){
+  const units=unitPositions();
+  const wep=WEAPONS[S.wepIdx];
+  units.forEach((u,i)=>{
+    const isHero=i===0;
+    ctx.save();
+    ctx.shadowColor=isHero?'#4af':'#6af';
+    ctx.shadowBlur=isHero?14:7;
+
+    // 身体
+    ctx.fillStyle=isHero?'#3399dd':'#5588cc';
+    ctx.beginPath(); ctx.arc(u.x,u.y,UNIT_R,0,Math.PI*2); ctx.fill();
+
+    // 高光
+    ctx.fillStyle=isHero?'#88ccff':'#aabbee';
+    ctx.beginPath(); ctx.arc(u.x-2,u.y-2,UNIT_R*.4,0,Math.PI*2); ctx.fill();
+
+    // 枪管（向上）
+    ctx.fillStyle=wep.color;
+    ctx.shadowColor=wep.color; ctx.shadowBlur=4;
+    ctx.fillRect(u.x-1.5, u.y-UNIT_R-7, 3, 7);
+
+    ctx.shadowBlur=0; ctx.restore();
+
+    // 射线（视觉反馈）
+    if(S.fireTick<4){
+      ctx.strokeStyle=wep.color+'30'; ctx.lineWidth=1;
+      ctx.setLineDash([4,6]);
+      ctx.beginPath(); ctx.moveTo(u.x,u.y-UNIT_R); ctx.lineTo(u.x,0);
+      ctx.stroke(); ctx.setLineDash([]);
+    }
+  });
+}
+
+// ─────────────────────────────────────────────
+// 输入
+// ─────────────────────────────────────────────
+canvas.addEventListener('mousemove',e=>{
+  const rect=canvas.getBoundingClientRect();
+  S.mouseX=e.clientX-rect.left;
+});
+
+document.addEventListener('keydown',e=>{
+  if(e.code==='Space'){ e.preventDefault(); if(S.running) activateClear(); }
+});
+
+// ─────────────────────────────────────────────
+// 游戏循环
+// ─────────────────────────────────────────────
+let raf=null;
+function loop(){
+  try{
+    update();
+    render();
+  }catch(err){
+    console.error(err);
+    S.running=false;
+    flash('游戏异常已重置，请重新开始','#f66');
+  }
+  raf=requestAnimationFrame(loop);
+}
+
+document.getElementById('btn').addEventListener('click',()=>{
+  document.getElementById('overlay').classList.add('hidden');
+  if(raf) cancelAnimationFrame(raf);
+  S.pendingSpawns = [];
+  invalidateLeftCache();
+  initState(); S.running=true; loop();
+});
+</script>
+</body>
+</html>
