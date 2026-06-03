@@ -69,7 +69,8 @@ canvas { display:block; cursor:none; }
   <p class="sub">左道升级仅主角子弹有效，血量极厚，需蹲左道慢慢磨</p>
   <p class="sub">右赛道：门只标 +1、×2 等，人数自己心算</p>
   <p class="sub">🔢 每5波左道出现三重质变（全部打爆均可获得）；中期有一次分支抉择（三选一）</p>
-  <p class="sub">左道升级极贵；每2分钟巨型尸王清场并发动有前摇的远程技</p>
+  <p class="sub">每2分钟巨型尸王清场并发动有前摇的远程技</p>
+  <p class="sub" style="color:#ff8888">☠ 第50波：终局魔主降临，左道关闭，击败它即可通关！</p>
   <div id="final"></div>
   <button id="btn">开始游戏</button>
 </div>
@@ -114,10 +115,36 @@ function safeHp(n){
   return Math.min(v, HP_CAP);
 }
 
+// 终局Boss血量：绕过 safeHp / HP_CAP，按当前实战战力动态计算
+// estimatedDps() 严重低估实战DPS（不含实际射速加成、bossDmgMult、穿透多发）
+// 这里单独算更接近实战的"对Boss每秒伤害"
+function finalBossRealDps(){
+  if(!S || S.wepIdx === undefined) return 100;
+  const wep = WEAPONS[S.wepIdx] || WEAPONS[0];
+  const baseDmg = (wep.dmg || 1) + (S.dmgBonus || 0);
+  const multi = wep.multi || 1;
+  // 实际射速（含fireRateBonus）
+  const fr = Math.max(5, Math.floor(wep.fireRate * (1 - (S.fireRateBonus || 0))));
+  // 主角对Boss的DPS = baseDmg × multi × bossDmgMult / fr * 60
+  const heroDps = baseDmg * multi * (S.bossDmgMult || 1) / fr * 60;
+  // 队友对Boss的DPS（使用实际队友伤害系数）
+  const tmMult = (S.squadFire ? 0.7 : 0.5) * (1 + (S.squadDmgBonus || 0));
+  const teamDps = (S.extra || 0) * baseDmg * multi * tmMult * (S.bossDmgMult || 1) / fr * 60;
+  return Math.max(heroDps + teamDps, 50);
+}
+
+function finalBossMaxHp(){
+  // 目标：让玩家打约 55~70 秒才能打完（不含第二阶段弹幕干扰，实际体感更长）
+  const realDps = finalBossRealDps();
+  const raw = Math.floor(realDps * 62);   // 62秒对应血量
+  // 硬底50000防止刚开局误触、硬顶300000防止越算越高
+  return Math.max(50000, Math.min(raw, 300000));
+}
+
 // 队友打左道靶的伤害折扣（避免大量队友秒杀靶子，但保留参与感）
 const TEAMMATE_LEFT_MULT = 0.3;
-// 每个左道升级目标的目标击破时间（秒）
-const TARGET_SHOOT_SECS = 8;
+// 每个左道升级目标的目标击破时间（秒）——后期靠队友火力撑所以要长一些
+const TARGET_SHOOT_SECS = 14;
 
 // 估算当前对左道升级靶的实时 DPS（主角 + 队友）
 function estimatedDps(){
@@ -125,19 +152,26 @@ function estimatedDps(){
   const wep = WEAPONS[S.wepIdx] || WEAPONS[0];
   const baseDmg = (wep.dmg || 1) + (S.dmgBonus || 0);
   const multi = wep.multi || 1;
-  // 主角对左道靶的 DPS（叠加 leftFocusMult，假定主角在左道）
+  // 使用实际射速（含 fireRateBonus），而非基础 fireRate
+  // 这样靶子血量会随射速升级一起增长，不会被轻松秒杀
+  const fr = Math.max(5, Math.floor(wep.fireRate * (1 - (S.fireRateBonus || 0))));
+  // 主角对左道靶的 DPS（叠加 leftFocusMult）
   const heroDmg = baseDmg * multi * (S.leftFocusMult || 1);
   // 队友对左道靶的 DPS（折扣 × 队友强化）
   const teamDmg = (S.extra || 0) * baseDmg * multi * TEAMMATE_LEFT_MULT * (1 + (S.squadDmgBonus || 0));
-  const fr = Math.max(5, (WEAPONS[S.wepIdx] || WEAPONS[0]).fireRate); // 帧/发（未升级射速时用基础值）
   const dps = (heroDmg + teamDmg) / fr * 60; // 转为 伤害/秒
   return Math.max(dps, 0.5); // 不让分母趋近0
 }
 
 function zombieHpMult(){
-  // 底数1.17：12波约6倍，16波约11倍，比1.20温和但仍有压力
-  const waveM = cappedPow(1.17, S.wave - 1, 80);
-  const timeM = cappedPow(1.05, Math.floor(S.ticks / 3600), 60);
+  // 底数从1.17降到1.12：35波约1.12^34≈50倍→现在约1.12^34≈50倍太高了
+  // 改为分段：1~20波用1.14，20~35波用1.08，35波后用1.04封顶，防止后期完全扛不住
+  const w = S.wave - 1;
+  let waveM;
+  if(w <= 19)       waveM = cappedPow(1.14, w, 19);           // 第20波约 ×12
+  else if(w <= 34)  waveM = cappedPow(1.14, 19, 19) * cappedPow(1.07, w-19, 15); // 平缓增长
+  else              waveM = cappedPow(1.14, 19, 19) * cappedPow(1.07, 15, 15) * cappedPow(1.03, w-34, 30); // 后期几乎平稳
+  const timeM = cappedPow(1.03, Math.floor((S.realElapsed||0) / 60000), 40); // 每分钟×1.03
   return waveM * timeM;
 }
 
@@ -170,7 +204,7 @@ function hurtHero(dmg){
 
 function megaBossMaxHp(){
   // 降低指数：第1波约280，第2波约420，不再指数爆炸
-  return safeHp(280 * cappedPow(1.22, S.wave - 1, 20) * cappedPow(1.04, Math.floor(S.ticks / 7200), 30));
+  return safeHp(280 * cappedPow(1.22, S.wave - 1, 20) * cappedPow(1.04, Math.floor((S.realElapsed||0) / 120000), 30));
 }
 
 function initUpgradeTargetHp(t){
@@ -296,6 +330,8 @@ function initState() {
     running: false,
     over: false,
     ticks: 0,
+    startTime: 0,      // performance.now() 时间戳，用于真实计时（避免高刷屏帧率翻倍）
+    realElapsed: 0,    // 累计真实游戏时间（ms），暂停时不增加
 
     // 主角
     hero: { x: W/2, y: H - 80, hp:10, maxHp:10 },
@@ -311,7 +347,8 @@ function initState() {
     // 能力
     clearsLeft: 0,
     clearCD: 0,
-    clearCDMax: 1800,
+    clearCDMax: 30000,    // 毫秒单位（30秒），与 realElapsed 同步
+    clearUseCount: 0,      // 清场累计使用次数（每次+5s CD惩罚）
     shieldOn: false,
     shieldTick: 0,
     shieldInterval: 1800,
@@ -363,12 +400,13 @@ function initState() {
     // 波次
     wave: 1,
     waveTick: 0,
-    waveDur: 1800,       // 每波时长（帧）
+    waveDur: 1800,       // 每波时长（帧，@60fps = 30秒；由 realDelta 自动适配帧率）
     hordeTick: 0,
 
     kills: 0,
 
     paused: false,
+    finalBossActive: false,   // 第50波激活：停止左道刷新、禁止普通尸王再生
   };
 }
 
@@ -470,6 +508,7 @@ function poolHasOptions(){
 }
 
 function ensurePoolTarget(){
+  if(S.finalBossActive) return;   // 终局Boss激活后左道停止刷新
   if(S.majorChoices || S.branchChoices) return;
   if(!fixedQueueDone()) return;
   if(!S.currentPoolTarget){
@@ -495,6 +534,13 @@ function ensurePoolTarget(){
 }
 
 function getLeftTargets(){
+  // 终局Boss激活时，左道完全停止刷新
+  if(S.finalBossActive){
+    leftTargetsCache = [];
+    leftTargetsCacheTick = S.ticks;
+    return [];
+  }
+
   if(leftTargetsCacheTick === S.ticks) return leftTargetsCache;
 
   const cx = LEFT_X + LEFT_W/2;
@@ -640,10 +686,10 @@ function applyUpgrade(u){
     S.hero.hp=Math.min(S.hero.hp+v, S.hero.maxHp);
   }
   else if(t==='clear') S.clearsLeft+=v;
-  else if(t==='clear2') S.clearCDMax=900;
+  else if(t==='clear2') S.clearCDMax=15000;   // CD减半：30s→15s
   else if(t==='clearMega'){
     S.clearsLeft+=2;
-    S.clearCDMax=Math.max(600, Math.floor(S.clearCDMax*0.7));
+    S.clearCDMax=Math.max(10000, Math.floor(S.clearCDMax*0.7));
   }
   else if(t==='shield'){ S.shieldOn=true; S.shieldInterval=1800; }
   else if(t==='shield2'){
@@ -756,7 +802,8 @@ function onZombieKill(){
 // ─────────────────────────────────────────────
 function doFire() {
   const wep = WEAPONS[S.wepIdx];
-  if (S.fireTick > 0){ S.fireTick--; return; }
+  const fd = S.frameDelta || 1;
+  if (S.fireTick > 0){ S.fireTick = Math.max(0, S.fireTick - fd); return; }
   S.fireTick = effectiveFireRate();
 
   const units = unitPositions();
@@ -948,6 +995,43 @@ function spawnMegaBoss(){
   flash('☠ 巨型尸王降临 · 小怪清场！','#f28');
 }
 
+function spawnFinalBoss(){
+  // 清场所有现有小怪和待生成尸潮
+  S.zombies.forEach(z=>spawnPart(z.x,z.y,z.col,8));
+  S.zombies = [];
+  S.pendingSpawns = [];
+  S.hordeSpawnGen++;
+
+  const hp = finalBossMaxHp();  // 直接大血量，绕过 safeHp / HP_CAP
+
+  S.zombies.push({
+    x: RIGHT_X + RIGHT_W / 2,
+    y: 85,
+    hp, maxHp: hp,
+    spd: 0,                 // 第一阶段静止，仅发弹幕
+    r: 55,                  // 比普通尸王(r=40)更大
+    col: '#ff2050',         // 深红——明显区别于普通尸王紫色(#9010a0)
+    pts: 500,
+    dmg: 8,
+    name: '终局魔主',
+    isMegaBoss: true,       // 复用所有Boss相关逻辑（不被清场技能清除等）
+    isFinalBoss: true,      // 额外标记：用于视觉区分和胜利判定
+    splits: false,
+    flash: 0,
+    phase: 'idle',
+    windupLeft: 0,
+    atkCd: 150,             // 首次攻击前给玩家2.5秒观察
+    telegraph: null,
+    atkName: null,
+    phaseTwo: false,        // 是否进入第二阶段（HP≤50%时触发）
+    moveDir: 1,             // 第二阶段横向移动方向
+    moveTick: 0,            // 第二阶段换向计时
+  });
+
+  S.shake = 40;
+  flash('☠☠ 终局魔主降临！☠☠', '#ff2050');
+}
+
 function startMegaWindup(boss){
   // 尸王只使用弹幕攻击（spit），不使用范围秒杀技能
   boss.atkName = 'spit';
@@ -956,25 +1040,109 @@ function startMegaWindup(boss){
   boss.telegraph = { type:'aim', x:boss.x, y:boss.y-8, tx:S.hero.x, ty:S.hero.y };
 }
 
+function startFinalBossWindup(boss){
+  boss.phase = 'windup';
+  if(!boss.phaseTwo){
+    // 第一阶段：只用 spit（9颗扇形），前摇100帧
+    boss.atkName = 'spit';
+    boss.windupLeft = 100;
+    boss.telegraph = { type:'aim', x:boss.x, y:boss.y-8, tx:S.hero.x, ty:S.hero.y };
+  } else {
+    // 第二阶段：三种攻击随机轮换
+    const roll = Math.random();
+    if(roll < 0.4){
+      // spit：密集扇形弹幕（9颗），前摇75帧
+      boss.atkName = 'spit';
+      boss.windupLeft = 75;
+      boss.telegraph = { type:'aim', x:boss.x, y:boss.y-8, tx:S.hero.x, ty:S.hero.y };
+    } else if(roll < 0.7){
+      // burst：全方位12颗，前摇60帧
+      boss.atkName = 'burst';
+      boss.windupLeft = 60;
+      boss.telegraph = { type:'slam', x:boss.x, y:boss.y, r:80 };
+    } else {
+      // spread：三方向各3颗，前摇55帧
+      boss.atkName = 'spread';
+      boss.windupLeft = 55;
+      boss.telegraph = { type:'aim', x:boss.x, y:boss.y-8, tx:S.hero.x, ty:S.hero.y };
+    }
+  }
+}
+
 function releaseMegaAttack(boss){
   // 只有 spit（扇形弹幕），slam/sweep 已移除
   if(boss.atkName==='spit'){
     const ax=S.hero.x-boss.x, ay=S.hero.y-boss.y;
     const base=Math.atan2(ay,ax);
-    for(let i=-3;i<=3;i++){
-      const a=base+i*0.14;
+    // 终局Boss发9颗（普通尸王7颗），更密；第二阶段再扩到11颗
+    const count = boss.isFinalBoss ? (boss.phaseTwo ? 11 : 9) : 7;
+    const spreadAngle = boss.isFinalBoss ? 0.13 : 0.14;
+    const spd = boss.isFinalBoss ? 5.2 : 4.2;
+    const dmg = boss.isFinalBoss ? (boss.phaseTwo ? 5 : 4) : 3;
+    const col = boss.isFinalBoss ? '#ff4477' : '#c040ff';
+    for(let i=-(Math.floor(count/2));i<=Math.floor(count/2);i++){
+      const a=base+i*spreadAngle;
       S.enemyProjectiles.push({
         x:boss.x, y:boss.y,
-        vx:Math.cos(a)*4.2, vy:Math.sin(a)*4.2,
-        r:9, dmg:3, col:'#c040ff', life:220,
+        vx:Math.cos(a)*spd, vy:Math.sin(a)*spd,
+        r:9, dmg, col, life:240,
       });
     }
+  } else if(boss.atkName==='burst'){
+    // 全方位16颗均匀散射（终局Boss第二阶段专属）
+    for(let i=0;i<16;i++){
+      const a = (i/16)*Math.PI*2;
+      S.enemyProjectiles.push({
+        x:boss.x, y:boss.y,
+        vx:Math.cos(a)*3.8, vy:Math.sin(a)*3.8,
+        r:10, dmg:4, col:'#ff6600', life:280,
+      });
+    }
+  } else if(boss.atkName==='spread'){
+    // 三方向各3颗小扇形，朝向玩家/左45°/右45°；第二阶段加速
+    const ax=S.hero.x-boss.x, ay=S.hero.y-boss.y;
+    const base=Math.atan2(ay,ax);
+    const spd2 = boss.phaseTwo ? 6.0 : 5.0;
+    [-0.5, 0, 0.5].forEach(offset=>{
+      const dir = base + offset;
+      for(let i=-1;i<=1;i++){
+        const a = dir + i*0.1;
+        S.enemyProjectiles.push({
+          x:boss.x, y:boss.y,
+          vx:Math.cos(a)*spd2, vy:Math.sin(a)*spd2,
+          r:8, dmg:4, col:'#ff8800', life:210,
+        });
+      }
+    });
   }
   boss.telegraph=null;
-  boss.atkCd = rndI(200, 320);
+  // 终局Boss攻击CD：第一阶段140~200帧（约2.3~3.3s），第二阶段80~130帧（约1.3~2.2s）
+  if(boss.isFinalBoss){
+    boss.atkCd = boss.phaseTwo ? rndI(80, 130) : rndI(140, 200);
+  } else {
+    boss.atkCd = rndI(200, 320);
+  }
 }
 
 function updateMegaBoss(boss){
+  // ── 终局Boss专属逻辑 ──
+  if(boss.isFinalBoss){
+    // 阶段二判定：HP降至50%时触发狂暴
+    if(!boss.phaseTwo && boss.hp <= boss.maxHp * 0.5){
+      boss.phaseTwo = true;
+      boss.atkCd = 60;    // 立即进入高频攻击
+      S.shake = 28;
+      flash('⚡ 终局魔主·狂暴！', '#ff4488');
+    }
+    // 第二阶段横向移动（非前摇期间）
+    if(boss.phaseTwo && boss.phase !== 'windup'){
+      boss.moveTick++;
+      if(boss.moveTick > 90){ boss.moveTick = 0; boss.moveDir *= -1; }
+      boss.x += boss.moveDir * 0.55;
+      boss.x = clamp(boss.x, RIGHT_X+boss.r+10, RIGHT_X+RIGHT_W-boss.r-10);
+    }
+  }
+
   // 尸王固定停在右道顶部，不追踪玩家——只用弹幕攻击
   boss.x = clamp(boss.x, RIGHT_X+boss.r, RIGHT_X+RIGHT_W-boss.r); // 保持在右道内
   // 不更新 y，保持降临时的位置（y=100）
@@ -985,7 +1153,7 @@ function updateMegaBoss(boss){
       boss.telegraph.tx = S.hero.x;
       boss.telegraph.ty = S.hero.y;
     }
-    boss.windupLeft--;
+    boss.windupLeft -= (S.frameDelta || 1);
     if(boss.windupLeft<=0){
       releaseMegaAttack(boss);
       boss.phase='idle';
@@ -993,15 +1161,19 @@ function updateMegaBoss(boss){
     return;
   }
 
-  boss.atkCd--;
-  if(boss.atkCd<=0) startMegaWindup(boss);
+  boss.atkCd -= (S.frameDelta || 1);
+  if(boss.atkCd<=0){
+    if(boss.isFinalBoss) startFinalBossWindup(boss);
+    else startMegaWindup(boss);
+  }
 }
 
 function updateEnemyProjectiles(){
   const units=unitPositions();
+  const fd = S.frameDelta || 1;
   S.enemyProjectiles=S.enemyProjectiles.filter(p=>{
-    p.x+=p.vx; p.y+=p.vy;
-    p.life--;
+    p.x+=p.vx * fd; p.y+=p.vy * fd;
+    p.life -= fd;
     if(p.life<=0) return false;
     // 边界：飞出整个画布才删除（不限制左道，允许弹幕打到左边角色）
     if(p.y > H+40 || p.y < -40 || p.x < -40 || p.x > W+40) return false;
@@ -1061,13 +1233,17 @@ function teammateExplosion(x, y){
 function activateClear(){
   if(S.clearsLeft<=0||S.clearCD>0) return;
   S.clearsLeft--;
-  S.clearCD=S.clearCDMax;
+  S.clearUseCount++;
+  // 每使用一次，CD额外+5000ms（5秒），上限60秒
+  const extraCD = (S.clearUseCount - 1) * 5000;
+  S.clearCD = Math.min(S.clearCDMax + extraCD, 60000);
   const n=S.zombies.length;
   S.zombies.filter(z=>!z.isMegaBoss).forEach(z=>spawnPart(z.x,z.y,z.col,8));
   S.zombies=S.zombies.filter(z=>z.isMegaBoss);
   S.kills+=Math.floor(n*.5);
   S.shake=18;
-  flash(`💥 清场！消灭${n}只`,'#fa8');
+  const cdSec = Math.ceil(S.clearCD/1000);
+  flash(`💥 清场！消灭${n}只  (下次${cdSec}s)`,'#fa8');
 }
 
 // ─────────────────────────────────────────────
@@ -1075,33 +1251,60 @@ function activateClear(){
 // ─────────────────────────────────────────────
 function update(){
   if(!S.running||S.over||S.paused) return;
-  S.ticks++;
 
-  // 护盾
+  // 真实时间计时（不受帧率影响）
+  const now = performance.now();
+  const rawDelta = (S.startTime > 0) ? (now - S.startTime) : (1000/60);
+  S.startTime = now;
+  // GAME_SPEED 只加速游戏逻辑（移动/射击/波次推进等）
+  // realElapsed 用真实物理时间，计时器显示的是实际过了多少秒
+  const GAME_SPEED = 1.5;
+  const frameDelta = Math.min(rawDelta / (1000/60), 2.5) * GAME_SPEED;
+  S.realElapsed += rawDelta * (2/3);  // ÷1.5 抵消游戏加速，显示真实物理时间
+
+  S.frameDelta = frameDelta;  // 供 doFire 等子函数使用
+  S.ticks += frameDelta;  // ticks 用浮点数累积，保持和帧率无关的游戏速度
+
+  // 护盾（用 frameDelta 推进，而非固定+1）
   if(S.shieldOn){
-    S.shieldTick++;
+    S.shieldTick += frameDelta;
     if(S.shieldTick>=S.shieldInterval){
       S.shieldTick=0;
       if(S.hero.hp<S.hero.maxHp){ S.hero.hp++; flash('🛡 护盾回血+1','#4af'); }
     }
   }
 
-  // 清场CD
-  if(S.clearCD>0) S.clearCD--;
+  // 清场CD（毫秒单位，用真实时间倒计，和计时器同步）
+  if(S.clearCD>0) S.clearCD = Math.max(0, S.clearCD - rawDelta * (2/3));
 
   // 主角跟随鼠标X，Y固定在底部偏上
   S.hero.x += (S.mouseX - S.hero.x) * 0.18;
-  S.hero.x = clamp(S.hero.x, 20, W-20);
+  // 终局Boss激活后：玩家只能在右道操作（左道封锁），避免站在左道打不到Boss
+  if(S.finalBossActive){
+    S.hero.x = clamp(S.hero.x, RIGHT_X + 20, W - 20);
+  } else {
+    S.hero.x = clamp(S.hero.x, 20, W-20);
+  }
   // 限制Y：只能在底部区域
   S.hero.y = H - 80;
 
-  // 波次推进
-  S.waveTick++;
+  // 波次推进（frameDelta 适配帧率）
+  S.waveTick += frameDelta;
   if(S.waveTick >= S.waveDur){
     S.waveTick=0; S.wave++;
     invalidateLeftCache();
-    flash(`🌊 第${S.wave}波来袭！`,'#7af');
-    if(S.wave % 5 === 0) startMajorChoice();
+    if(S.wave === 50){
+      // ── 第50波：触发终局Boss战 ──
+      S.finalBossActive = true;
+      S.megaBossTimer = 0;      // 重置普通尸王计时器，防止与终局Boss冲突
+      S.majorChoices = null;    // 清掉可能正在进行的质变（50是5的倍数，必须跳过）
+      S.branchChoices = null;
+      invalidateLeftCache();
+      spawnFinalBoss();
+    } else {
+      flash(`🌊 第${S.wave}波来袭！`,'#7af');
+      if(S.wave % 5 === 0) startMajorChoice();
+    }
   }
 
   // 尸潮延迟生成（不用 setTimeout，避免堆积卡死）
@@ -1114,23 +1317,30 @@ function update(){
   // 产生僵尸（速率随波次增加，但不加速单个僵尸）
   // 尸王在场时暂停所有僵尸刷新，专心打BOSS
   if(!hasMegaBoss()){
-    // 普通僵尸
+    // 普通僵尸（每 normalRate 帧一只，用 ticks 整数部分触发，避免浮点误差）
     const normalRate = Math.max(120, 260 - S.wave*15);
-    if(S.ticks % normalRate === 0) spawnZombie(0);
+    if(Math.floor(S.ticks) % normalRate < frameDelta) spawnZombie(0);
 
     // 胖子僵尸，波次>=2
-    if(S.wave>=2 && S.ticks % Math.max(240,500-S.wave*20) === 0) spawnZombie(1);
+    if(S.wave>=2){
+      const fatRate=Math.max(240,500-S.wave*20);
+      if(Math.floor(S.ticks) % fatRate < frameDelta) spawnZombie(1);
+    }
 
     // 精英，波次>=3
-    if(S.wave>=3 && S.ticks % Math.max(300,700-S.wave*25) === 0) spawnZombie(2);
+    if(S.wave>=3){
+      const eliteRate=Math.max(300,700-S.wave*25);
+      if(Math.floor(S.ticks) % eliteRate < frameDelta) spawnZombie(2);
+    }
 
-    // 尸潮（一次10只普通），波次>=4，每隔一段时间
+    // 尸潮（一次N只普通），波次>=4，每隔一段时间
     if(S.wave>=4){
-      S.hordeTick++;
+      S.hordeTick += frameDelta;
       const hordeInt = Math.max(600, 1800 - S.wave*80);
       if(S.hordeTick >= hordeInt){
         S.hordeTick=0;
-        const n = 6 + Math.floor(S.wave * 1.5);
+        // 35波后尸潮数量封顶，避免后期只能靠清场
+        const n = Math.min(6 + Math.floor(S.wave * 1.5), S.wave <= 35 ? 999 : 30);
         flash(`🧟 尸潮！${n}只来袭！`,'#f84');
         S.hordeSpawnGen++;
         const gen=S.hordeSpawnGen;
@@ -1141,13 +1351,17 @@ function update(){
     }
 
     // 分裂怪，波次>=3（索引3）
-    if(S.wave>=3 && S.ticks % Math.max(400,900-S.wave*30) === 0) spawnZombie(3);
+    if(S.wave>=3){
+      const splitRate=Math.max(400,900-S.wave*30);
+      if(Math.floor(S.ticks) % splitRate < frameDelta) spawnZombie(3);
+    }
   }
 
-  // 巨型尸王：每2分钟，登场清场（尸王在场时倒计时暂停）
-  if(!hasMegaBoss()){
-    S.megaBossTimer++;
-    if(S.megaBossTimer === MEGA_BOSS_INTERVAL - MEGA_WARN_TICKS){
+  // 巨型尸王：每2分钟，登场清场（尸王在场时倒计时暂停；终局Boss激活后不再生成）
+  if(!hasMegaBoss() && !S.finalBossActive){
+    S.megaBossTimer += frameDelta;
+    if(S.megaBossTimer >= MEGA_BOSS_INTERVAL - MEGA_WARN_TICKS &&
+       S.megaBossTimer - frameDelta < MEGA_BOSS_INTERVAL - MEGA_WARN_TICKS){
       flash('⚠ 巨型尸王即将降临…','#f84');
     }
     if(S.megaBossTimer >= MEGA_BOSS_INTERVAL){
@@ -1156,8 +1370,8 @@ function update(){
     }
   }
 
-  // 产生门
-  S.gateTick++;
+  // 产生门（frameDelta 适配）
+  S.gateTick += frameDelta;
   if(S.gateTick >= S.gateInterval){
     S.gateTick=0;
     // 只有右赛道没有太多门时才产生新的
@@ -1170,7 +1384,7 @@ function update(){
 
   // 更新子弹
   S.bullets = S.bullets.filter(b=>{
-    b.x+=b.vx; b.y+=b.vy;
+    b.x+=b.vx * (S.frameDelta||1); b.y+=b.vy * (S.frameDelta||1);
     return b.y>-30&&b.y<H+10&&b.x>-20&&b.x<W+20;
   });
 
@@ -1223,7 +1437,10 @@ function update(){
               });
             }
           }
-          if(z.isMegaBoss) flash('巨型尸王被击败！','#8f8');
+          if(z.isMegaBoss){
+            if(z.isFinalBoss) gameWin();
+            else flash('巨型尸王被击败！','#8f8');
+          }
         }
         b.pierceLeft--;
         return b.pierceLeft <= 0;
@@ -1237,16 +1454,17 @@ function update(){
 
   // 僵尸移动 & 碰撞玩家
   const units = unitPositions();
+  const fdz = S.frameDelta || 1;
   S.zombies = S.zombies.filter(z=>{
-    if(z.flash>0) z.flash--;
+    if(z.flash>0) z.flash = Math.max(0, z.flash - fdz);
 
     if(z.isMegaBoss){
       updateMegaBoss(z);
     } else {
       const dx=S.hero.x-z.x, dy=S.hero.y-z.y;
       const d=Math.hypot(dx,dy)||1;
-      z.x+=dx/d*z.spd;
-      z.y+=dy/d*z.spd;
+      z.x+=dx/d*z.spd*fdz;
+      z.y+=dy/d*z.spd*fdz;
     }
 
     // 检测和每个单位碰撞
@@ -1278,14 +1496,17 @@ function update(){
     return true;
   });
 
-  // 更新门
+  // 更新门（同帧只能触发一个门，防止快速滑动同时吃多门）
+  const fdg = S.frameDelta || 1;
+  let gateTriggeredThisFrame = false;
   S.gates = S.gates.filter(g=>{
-    g.y += g.spd;
-    if(!g.passed){
+    g.y += g.spd * fdg;
+    if(!g.passed && !gateTriggeredThisFrame){
       // 检测角色穿过门（只在右赛道，角色x在门范围内）
       const heroX = S.hero.x;
       if(heroX>=g.x && heroX<=g.x+g.w && S.hero.y>=g.y && S.hero.y<=g.y+g.h){
         g.passed=true;
+        gateTriggeredThisFrame = true;
         const cap = S.extraCap || 25;
         const cur = 1 + S.extra;
         // 穿门时按当前人数实时计算结果，避免同批多门顺序依赖问题
@@ -1317,15 +1538,16 @@ function update(){
 
   // 粒子（上限防卡死）
   if(S.particles.length > 600) S.particles.length = 600;
+  const fd2 = S.frameDelta || 1;
   S.particles=S.particles.filter(p=>{
-    p.x+=p.vx; p.y+=p.vy;
-    p.vx*=.91; p.vy*=.91;
-    p.life--;
+    p.x+=p.vx * fd2; p.y+=p.vy * fd2;
+    p.vx*=Math.pow(.91, fd2); p.vy*=Math.pow(.91, fd2);
+    p.life -= fd2;
     return p.life>0;
   });
 
-  if(S.flashTick>0) S.flashTick--;
-  if(S.shake>0) S.shake--;
+  if(S.flashTick>0) S.flashTick = Math.max(0, S.flashTick - fd2);
+  if(S.shake>0) S.shake = Math.max(0, S.shake - fd2);
 
   updateUI();
 }
@@ -1335,8 +1557,42 @@ function gameOver(){
   const ov=document.getElementById('overlay');
   ov.classList.remove('hidden');
   ov.querySelector('h1').textContent='💀 Game Over';
+  const totalSec=Math.floor(S.realElapsed/1000);
   document.getElementById('final').textContent=
-    `存活 ${Math.floor(S.ticks/60)}s  击杀 ${S.kills}  第${S.wave}波`;
+    `存活 ${totalSec}s  击杀 ${S.kills}  第${S.wave}波`;
+  document.getElementById('btn').textContent='再来一局';
+}
+
+function gameWin(){
+  S.over=true; S.running=false;
+  const ov=document.getElementById('overlay');
+  ov.classList.remove('hidden');
+
+  // 标题改为胜利色
+  const h1=ov.querySelector('h1');
+  h1.textContent='🎉 通关！';
+  h1.style.color='#ffd700';
+  h1.style.textShadow='0 0 30px #ffa500, 0 0 60px #ff6600';
+
+  // 隐藏游戏说明文字（胜利时不需要操作提示）
+  ov.querySelectorAll('.sub').forEach(el=>{ el.style.display='none'; });
+
+  const totalSec=Math.floor(S.realElapsed/1000);
+  const mins=Math.floor(totalSec/60);
+  const secs=totalSec%60;
+  document.getElementById('final').innerHTML=
+    `<div style="color:#ffd700;font-size:20px;margin:10px 0">
+       ✅ 存活时间：${mins}分${String(secs).padStart(2,'0')}秒
+     </div>
+     <div style="color:#8f8;font-size:18px;margin:6px 0">
+       💀 总击杀数：${S.kills}
+     </div>
+     <div style="color:#7af;font-size:18px;margin:6px 0">
+       🌊 通关波数：第${S.wave}波
+     </div>
+     <div style="color:#fa8;font-size:15px;margin:10px 0">
+       ☠ 终局魔主已被消灭！
+     </div>`;
   document.getElementById('btn').textContent='再来一局';
 }
 
@@ -1352,7 +1608,7 @@ function updateUI(){
   document.getElementById('tb-kills').textContent=S.kills;
   document.getElementById('tb-wave').textContent=S.wave;
   document.getElementById('tb-weapon').textContent=WEAPONS[S.wepIdx].name;
-  document.getElementById('time-val').textContent=Math.floor(S.ticks/60)+'s';
+  document.getElementById('time-val').textContent=Math.floor(S.realElapsed/1000)+'s';
 }
 
 // ─────────────────────────────────────────────
@@ -1470,8 +1726,8 @@ function render(){
     ctx.fillText(perks.join(' · '), W-8, H-8);
   }
 
-  // 巨型尸王倒计时
-  if(S.running && !S.over){
+  // 巨型尸王倒计时（终局Boss激活后隐藏）
+  if(S.running && !S.over && !S.finalBossActive){
     const left=Math.max(0, MEGA_BOSS_INTERVAL-S.megaBossTimer);
     ctx.font='10px Courier New'; ctx.textAlign='center'; ctx.fillStyle='#a68';
     ctx.fillText(`尸王 ${Math.ceil(left/60)}s`, RIGHT_X+RIGHT_W/2, 32);
@@ -1480,9 +1736,15 @@ function render(){
   // ── 清场提示 ──
   if(S.clearsLeft>0){
     const ready=S.clearCD<=0;
+    // 预测下次使用后的CD（当前累计次数+1）
+    const nextExtra = S.clearUseCount * 5000;
+    const nextCD = Math.ceil(Math.min(S.clearCDMax + nextExtra, 60000) / 1000);
     ctx.font='11px Courier New'; ctx.textAlign='left';
     ctx.fillStyle=ready?'#fa8':'#666';
-    ctx.fillText(`[空格] 清场 ×${S.clearsLeft}${ready?'  就绪':('  '+Math.ceil(S.clearCD/60)+'s')}`, 6, H-6);
+    const cdInfo = ready
+      ? `  就绪 (下次${nextCD}s CD)`
+      : `  ${Math.ceil(S.clearCD/1000)}s`;
+    ctx.fillText(`[空格] 清场 ×${S.clearsLeft}${cdInfo}`, 6, H-6);
   }
 
   // ── 鼠标光标替代 ──
@@ -1538,6 +1800,33 @@ function drawOneUpgradeOrb(upg, accent){
 
 function drawUpgradeTarget(){
   const cx = LEFT_X + LEFT_W/2;
+
+  // 终局Boss激活时，左道显示终局提示而非升级靶
+  if(S.finalBossActive){
+    const pulse=0.7+0.3*Math.sin(S.ticks*0.06);
+    ctx.save();
+    ctx.shadowColor='#ff2050'; ctx.shadowBlur=18*pulse;
+    ctx.fillStyle=`rgba(255,40,80,${0.6+0.3*pulse})`;
+    ctx.font='bold 14px Courier New'; ctx.textAlign='center';
+    ctx.fillText('☠ 终局降临 ☠', cx, H*0.25);
+    ctx.shadowBlur=0;
+    ctx.fillStyle='#cc8888'; ctx.font='11px Courier New';
+    ctx.fillText('升级赛道已关闭', cx, H*0.25+24);
+    ctx.fillStyle='#998866'; ctx.font='10px Courier New';
+    ctx.fillText('消灭终局魔主', cx, H*0.25+44);
+    ctx.fillText('获得最终胜利！', cx, H*0.25+60);
+
+    // 显示已解锁的能力（最后4条）
+    S.unlockedLog.slice(-4).forEach((label,i)=>{
+      const y = H*0.48 + i*22;
+      ctx.fillStyle='rgba(30,60,30,.6)';
+      ctx.fillRect(cx-72, y-10, 144, 17);
+      ctx.fillStyle='#3a8'; ctx.font='9px Courier New';
+      ctx.fillText(`✓ ${label}`, cx, y+3);
+    });
+    ctx.restore();
+    return;
+  }
 
   S.unlockedLog.slice(-4).forEach((label,i)=>{
     const y = 52 + i*24;
@@ -1622,14 +1911,52 @@ function drawZombie(z){
   ctx.fillStyle=col;
 
   if(z.isMegaBoss){
-    const pulse=0.85+0.15*Math.sin(S.ticks*0.08);
-    ctx.shadowBlur=22;
-    drawStar(z.x,z.y,8,z.r*pulse,z.r*0.45);
-    ctx.fillStyle='#fff'; ctx.font='bold 11px Courier New'; ctx.textAlign='center';
-    ctx.fillText(z.name, z.x, z.y-z.r-12);
-    if(z.phase==='windup'){
-      ctx.fillStyle='#f88'; ctx.font='9px Courier New';
-      ctx.fillText('!', z.x+z.r*0.6, z.y-z.r-4);
+    if(z.isFinalBoss){
+      // ── 终局魔主：12角星、深红/狂暴橙、强光晕 ──
+      const pulse=0.82+0.18*Math.sin(S.ticks*0.07);
+      const baseCol = z.phaseTwo ? '#ff6600' : '#ff2050';
+      ctx.shadowColor = z.phaseTwo ? '#ff8800' : '#ff2050';
+      ctx.shadowBlur = 32;
+      ctx.fillStyle = z.flash>0 ? '#ffffff' : baseCol;
+
+      // 外层光环
+      ctx.beginPath(); ctx.arc(z.x,z.y,z.r*pulse+16,0,Math.PI*2);
+      ctx.strokeStyle=z.phaseTwo
+        ? `rgba(255,140,0,${0.28+0.18*Math.sin(S.ticks*0.1)})`
+        : `rgba(255,40,80,${0.25+0.15*Math.sin(S.ticks*0.08)})`;
+      ctx.lineWidth=5; ctx.stroke();
+
+      // 12角星主体（比普通尸王8角星更多刺）
+      drawStar(z.x,z.y,12,z.r*pulse,z.r*0.38);
+
+      // 内核白点
+      ctx.fillStyle='rgba(255,255,255,0.85)';
+      ctx.beginPath(); ctx.arc(z.x,z.y,z.r*0.18,0,Math.PI*2); ctx.fill();
+
+      ctx.shadowBlur=0;
+      // 名称标签
+      ctx.fillStyle=z.phaseTwo ? '#ffaa00' : '#ff7090';
+      ctx.font='bold 13px Courier New'; ctx.textAlign='center';
+      ctx.shadowColor=baseCol; ctx.shadowBlur=10;
+      ctx.fillText(z.phaseTwo ? '☠ 终局魔主·狂暴 ☠' : '☠ 终局魔主', z.x, z.y-z.r-18);
+      ctx.shadowBlur=0;
+      // 前摇时显示攻击名称
+      if(z.phase==='windup' && z.atkName){
+        const atkLabel = {spit:'弹幕', burst:'全方位', spread:'三叉'}[z.atkName] || z.atkName;
+        ctx.fillStyle='#ffe866'; ctx.font='bold 10px Courier New';
+        ctx.fillText(`【${atkLabel}】`, z.x, z.y-z.r-4);
+      }
+    } else {
+      // ── 普通巨型尸王（保持原有渲染）──
+      const pulse=0.85+0.15*Math.sin(S.ticks*0.08);
+      ctx.shadowBlur=22;
+      drawStar(z.x,z.y,8,z.r*pulse,z.r*0.45);
+      ctx.fillStyle='#fff'; ctx.font='bold 11px Courier New'; ctx.textAlign='center';
+      ctx.fillText(z.name, z.x, z.y-z.r-12);
+      if(z.phase==='windup'){
+        ctx.fillStyle='#f88'; ctx.font='9px Courier New';
+        ctx.fillText('!', z.x+z.r*0.6, z.y-z.r-4);
+      }
     }
   } else if(z.name==='胖子'){
     ctx.fillRect(z.x-z.r,z.y-z.r,z.r*2,z.r*2);
@@ -1649,8 +1976,8 @@ function drawZombie(z){
     ctx.fillStyle='#300'; ctx.fillRect(z.x-bw/2,z.y-z.r-7,bw,4);
     ctx.fillStyle='#f44'; ctx.fillRect(z.x-bw/2,z.y-z.r-7,bw*z.hp/z.maxHp,4);
   }
-  // 名称（精英/BOSS显示）
-  if(z.isMegaBoss||z.name==='精英'){
+  // 名称（精英/普通BOSS显示；终局Boss已在上方渲染，跳过）
+  if((z.isMegaBoss && !z.isFinalBoss)||z.name==='精英'){
     ctx.fillStyle='#fff'; ctx.font='9px Courier New'; ctx.textAlign='center';
     ctx.fillText(z.name, z.x, z.y-z.r-9);
   }
@@ -1761,10 +2088,19 @@ function loop(){
 
 document.getElementById('btn').addEventListener('click',()=>{
   document.getElementById('overlay').classList.add('hidden');
+  // 重置 gameWin() 可能修改的样式，确保再来一局时界面正常
+  const h1=document.querySelector('#overlay h1');
+  h1.textContent='🧟 Shoot The Zombies';
+  h1.style.color=''; h1.style.textShadow='';
+  document.querySelectorAll('#overlay .sub').forEach(el=>{ el.style.display=''; });
+  document.getElementById('final').textContent='';
   if(raf) cancelAnimationFrame(raf);
   S.pendingSpawns = [];
   invalidateLeftCache();
-  initState(); S.running=true; loop();
+  initState();
+  S.running=true;
+  S.startTime = performance.now();
+  loop();
 });
 </script>
 </body>
