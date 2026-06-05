@@ -1,0 +1,2742 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>摸鱼生存战 v0.9.9 卡死优先级修复版</title>
+  <style>
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      font-family: "Microsoft YaHei", "PingFang SC", system-ui, sans-serif;
+      background:
+        radial-gradient(circle at top, rgba(72, 84, 140, 0.45), transparent 36%),
+        linear-gradient(135deg, #151827, #090b12 65%);
+      color: #fff;
+      min-height: 100vh;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      user-select: none;
+      overflow: hidden;
+    }
+
+    .game {
+      width: min(1160px, 96vw);
+      background: rgba(35, 40, 63, 0.96);
+      border: 4px solid #596080;
+      border-radius: 22px;
+      padding: 18px;
+      box-shadow: 0 22px 60px rgba(0,0,0,0.55);
+      position: relative;
+    }
+
+    .topbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 14px;
+      margin-bottom: 12px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 30px;
+      letter-spacing: 1px;
+    }
+
+    .subtitle {
+      color: #cfd3ff;
+      font-size: 14px;
+      margin-top: 4px;
+    }
+
+    .difficulty {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: #1d2238;
+      border: 1px solid #4a5278;
+      padding: 8px 10px;
+      border-radius: 12px;
+      color: #dbe0ff;
+      font-size: 13px;
+      white-space: nowrap;
+    }
+
+    .scene {
+      height: 390px;
+      position: relative;
+      border: 4px solid #444b70;
+      border-radius: 18px;
+      overflow: hidden;
+      background:
+        linear-gradient(#252a42 0 48%, #171a29 48% 100%);
+      margin-bottom: 12px;
+    }
+
+    .wall-line {
+      position: absolute;
+      left: 0;
+      right: 0;
+      top: 188px;
+      height: 4px;
+      background: #343b5e;
+      box-shadow: 0 2px 0 #0d0f18;
+    }
+
+    .window {
+      position: absolute;
+      top: 32px;
+      left: 42px;
+      width: 180px;
+      height: 94px;
+      background: linear-gradient(135deg, #7db8ff, #c8ecff);
+      border: 8px solid #656f9b;
+      border-radius: 12px;
+      box-shadow: inset 0 0 0 3px rgba(255,255,255,0.3);
+    }
+
+    .window::before, .window::after {
+      content: "";
+      position: absolute;
+      background: rgba(255,255,255,0.45);
+    }
+
+    .window::before { left: 50%; top: 0; bottom: 0; width: 4px; }
+    .window::after { top: 50%; left: 0; right: 0; height: 4px; }
+
+    .poster {
+      position: absolute;
+      top: 34px;
+      left: 270px;
+      width: 142px;
+      height: 86px;
+      background: #313852;
+      border: 5px solid #5d668e;
+      border-radius: 10px;
+      padding: 8px;
+      color: #ffe98a;
+      font-size: 13px;
+      line-height: 1.45;
+      text-align: center;
+    }
+
+    .door {
+      position: absolute;
+      right: 34px;
+      top: 50px;
+      width: 116px;
+      height: 182px;
+      background: linear-gradient(90deg, #4b2f24, #76513a);
+      border: 7px solid #2b1b16;
+      border-bottom: none;
+      border-radius: 14px 14px 0 0;
+    }
+
+    .door::after {
+      content: "";
+      position: absolute;
+      right: 17px;
+      top: 84px;
+      width: 13px;
+      height: 13px;
+      border-radius: 50%;
+      background: #ffc95c;
+      box-shadow: 0 0 10px rgba(255,201,92,0.8);
+    }
+
+    .door-sign {
+      position: absolute;
+      right: 54px;
+      top: 75px;
+      width: 76px;
+      height: 32px;
+      background: #151827;
+      border-radius: 6px;
+      text-align: center;
+      line-height: 32px;
+      font-size: 14px;
+      color: #ffaaaa;
+    }
+
+    .floor-grid {
+      position: absolute;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      height: 198px;
+      background-image:
+        linear-gradient(rgba(255,255,255,0.04) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(255,255,255,0.04) 1px, transparent 1px);
+      background-size: 44px 44px;
+      opacity: 0.55;
+    }
+
+    .desk {
+      position: absolute;
+      left: 118px;
+      bottom: 58px;
+      width: 285px;
+      height: 76px;
+      background: linear-gradient(#b88655, #8f5e36);
+      border: 5px solid #5c3923;
+      border-radius: 16px;
+      z-index: 8;
+      box-shadow: 0 13px 0 #4b2d1c;
+    }
+
+    .desk::before, .desk::after {
+      content: "";
+      position: absolute;
+      bottom: -55px;
+      width: 22px;
+      height: 55px;
+      background: #5c3923;
+      border-radius: 0 0 8px 8px;
+    }
+    .desk::before { left: 34px; }
+    .desk::after { right: 34px; }
+
+    .screen {
+      position: absolute;
+      left: 214px;
+      bottom: 138px;
+      width: 135px;
+      height: 93px;
+      background: #10131f;
+      border: 7px solid #0a0c13;
+      border-radius: 10px;
+      z-index: 7;
+      overflow: hidden;
+      box-shadow: 0 0 22px rgba(80,160,255,0.22);
+    }
+
+    .screen-content {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 5px;
+      text-align: center;
+      font-size: 13px;
+      background: linear-gradient(135deg, #22427d, #19305c);
+      color: #eef4ff;
+      transition: 0.18s;
+    }
+
+    .screen-content.web {
+      background: linear-gradient(135deg, #ff69b0, #8d51ff);
+      animation: screenPulse 0.7s infinite alternate;
+    }
+
+    .screen-content.chat {
+      background: linear-gradient(135deg, #2bbb81, #155c6e);
+    }
+
+    .screen-content.frozen {
+      background: linear-gradient(135deg, #babecb, #5c6375);
+      color: #11131f;
+      animation: frozenShake 0.12s infinite;
+    }
+
+    @keyframes screenPulse {
+      from { filter: brightness(1); }
+      to { filter: brightness(1.28); }
+    }
+
+    @keyframes frozenShake {
+      0% { transform: translateX(0); }
+      33% { transform: translateX(-2px); }
+      66% { transform: translateX(2px); }
+      100% { transform: translateX(0); }
+    }
+
+    .chair {
+      position: absolute;
+      left: 82px;
+      bottom: 42px;
+      width: 76px;
+      height: 96px;
+      background: #333b60;
+      border: 5px solid #1b2038;
+      border-radius: 18px;
+      z-index: 5;
+    }
+
+    .player {
+      position: absolute;
+      left: 98px;
+      bottom: 102px;
+      width: 78px;
+      height: 108px;
+      z-index: 12;
+      transition: 0.18s ease;
+    }
+
+    .player .head {
+      width: 54px;
+      height: 54px;
+      margin: 0 auto;
+      border-radius: 18px;
+      background: #ffd59b;
+      border: 4px solid #6b4b34;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 27px;
+      position: relative;
+      box-shadow: inset 0 -5px rgba(0,0,0,0.08);
+    }
+
+    .player .body {
+      width: 68px;
+      height: 58px;
+      margin: -2px auto 0;
+      border-radius: 14px 14px 10px 10px;
+      background: #6ec8ff;
+      border: 4px solid #294860;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 30px;
+    }
+
+    .player.sleeping {
+      transform: rotate(-9deg) translateY(18px);
+    }
+    .player.sleeping .head { animation: nod 0.8s infinite alternate; }
+
+    @keyframes nod { from { transform: translateY(0); } to { transform: translateY(7px); } }
+
+    .player.panic .head,
+    .player.panic .body {
+      animation: panic 0.13s infinite;
+    }
+
+    @keyframes panic {
+      0% { transform: translateX(0); }
+      33% { transform: translateX(-3px); }
+      66% { transform: translateX(3px); }
+      100% { transform: translateX(0); }
+    }
+
+    .phone-light {
+      position: absolute;
+      left: 141px;
+      bottom: 151px;
+      width: 42px;
+      height: 30px;
+      background: rgba(105, 230, 255, 0.55);
+      border-radius: 50%;
+      filter: blur(10px);
+      z-index: 13;
+      display: none;
+    }
+
+    .phone-light.show { display: block; animation: glow 0.5s infinite alternate; }
+    @keyframes glow { from { opacity: 0.45; } to { opacity: 1; } }
+
+    .object {
+      position: absolute;
+      z-index: 16;
+      width: 46px;
+      height: 46px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 27px;
+      cursor: pointer;
+      background: rgba(18, 22, 38, 0.72);
+      border: 2px solid rgba(255,255,255,0.18);
+      box-shadow: 0 5px 0 rgba(0,0,0,0.28);
+      transition: 0.14s;
+    }
+
+    .object:hover {
+      transform: translateY(-4px) scale(1.05);
+      border-color: rgba(255,255,255,0.45);
+      box-shadow: 0 9px 0 rgba(0,0,0,0.26), 0 0 18px rgba(255,255,255,0.12);
+    }
+
+    .object:active { transform: translateY(1px) scale(0.98); }
+
+    .object .tip {
+      position: absolute;
+      bottom: 53px;
+      left: 50%;
+      transform: translateX(-50%);
+      background: #11131f;
+      color: #fff;
+      padding: 6px 8px;
+      border-radius: 8px;
+      font-size: 12px;
+      white-space: nowrap;
+      opacity: 0;
+      pointer-events: none;
+      transition: 0.12s;
+      border: 1px solid #566089;
+    }
+    .object:hover .tip { opacity: 1; }
+
+    #phoneObj { left: 145px; bottom: 118px; }
+    #coffeeObj { left: 202px; bottom: 121px; }
+    #snackObj { left: 358px; bottom: 121px; }
+    #napObj { left: 88px; bottom: 118px; }
+    #fileObj { left: 303px; bottom: 121px; }
+    #webObj { left: 254px; bottom: 121px; }
+
+    .coworker {
+      position: absolute;
+      left: 484px;
+      bottom: 69px;
+      width: 130px;
+      height: 122px;
+      z-index: 9;
+    }
+
+    .coworker .bubble {
+      position: absolute;
+      left: 34px;
+      top: -50px;
+      width: 174px;
+      background: #fff3b0;
+      color: #312a19;
+      border-radius: 12px;
+      padding: 8px 10px;
+      font-size: 13px;
+      line-height: 1.35;
+      display: none;
+      border: 3px solid #7a6425;
+      cursor: pointer;
+      z-index: 24;
+    }
+
+    .coworker .bubble.show { display: block; animation: pop 0.18s; }
+
+    @keyframes pop { from { transform: scale(0.7); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+
+    .coworker .mini {
+      position: absolute;
+      left: 25px;
+      bottom: 50px;
+      width: 58px;
+      height: 58px;
+      border-radius: 18px;
+      background: #ffd59b;
+      border: 4px solid #6b4b34;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 28px;
+    }
+
+    .coworker .desk2 {
+      position: absolute;
+      left: 0;
+      bottom: 0;
+      width: 126px;
+      height: 60px;
+      background: #7c5837;
+      border: 5px solid #4b2d1c;
+      border-radius: 14px;
+    }
+
+    .coworker .status-tag {
+      position: absolute;
+      left: -4px;
+      bottom: -28px;
+      min-width: 138px;
+      text-align: center;
+      background: rgba(15, 18, 31, 0.88);
+      border: 1px solid #5e6a9e;
+      color: #dbe0ff;
+      border-radius: 9px;
+      padding: 4px 7px;
+      font-size: 12px;
+      z-index: 25;
+    }
+
+    .coworker.moyu .mini {
+      animation: panic 0.14s infinite;
+      box-shadow: 0 0 18px rgba(255, 216, 107, 0.65);
+    }
+
+    .coworker.warned .mini {
+      box-shadow: 0 0 18px rgba(124, 255, 155, 0.75);
+    }
+
+    .coworker.caught .mini {
+      animation: dangerFrame 0.28s infinite alternate;
+      box-shadow: 0 0 24px rgba(255, 70, 70, 0.85);
+    }
+
+    .boss {
+      position: absolute;
+      left: 1080px;
+      bottom: 81px;
+      width: 94px;
+      height: 132px;
+      z-index: 20;
+      display: none;
+      transition: transform 0.12s linear;
+    }
+
+    .boss.visible { display: block; }
+
+    .boss .vision {
+      position: absolute;
+      right: 62px;
+      top: 18px;
+      width: 360px;
+      height: 155px;
+      background: linear-gradient(90deg, rgba(255, 47, 47, 0.04), rgba(255, 47, 47, 0.33));
+      clip-path: polygon(100% 4%, 0 50%, 100% 96%);
+      opacity: 0.18;
+      transform-origin: right center;
+      z-index: -1;
+      pointer-events: none;
+      filter: blur(0.3px);
+    }
+
+    .boss.watch .vision,
+    .boss.inspect .vision {
+      opacity: 0.9;
+      animation: warningCone 0.32s infinite alternate;
+    }
+
+    @keyframes warningCone {
+      from { filter: brightness(1); }
+      to { filter: brightness(1.6); }
+    }
+
+    .boss .head {
+      width: 62px;
+      height: 62px;
+      margin: 0 auto;
+      border-radius: 20px;
+      background: #ff9f8a;
+      border: 4px solid #74332a;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 31px;
+      box-shadow: inset 0 -7px rgba(0,0,0,0.1);
+    }
+
+    .boss .body {
+      width: 82px;
+      height: 72px;
+      margin: -2px auto 0;
+      background: #c04b4b;
+      border: 4px solid #5b1d1d;
+      border-radius: 16px 16px 12px 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 30px;
+    }
+
+    .boss-label {
+      position: absolute;
+      left: 50%;
+      top: -34px;
+      transform: translateX(-50%);
+      background: rgba(15, 18, 31, 0.92);
+      border: 1px solid #ff8e8e;
+      color: #ffb3b3;
+      padding: 5px 8px;
+      font-size: 12px;
+      border-radius: 8px;
+      white-space: nowrap;
+    }
+
+    .alert-strip {
+      position: absolute;
+      inset: 0;
+      border: 0 solid rgba(255, 70, 70, 0.0);
+      pointer-events: none;
+      z-index: 23;
+      transition: 0.15s;
+    }
+
+    .alert-strip.danger {
+      border-width: 8px;
+      border-color: rgba(255, 70, 70, 0.72);
+      animation: dangerFrame 0.35s infinite alternate;
+    }
+
+    @keyframes dangerFrame {
+      from { box-shadow: inset 0 0 12px rgba(255,0,0,0.35); }
+      to { box-shadow: inset 0 0 38px rgba(255,0,0,0.65); }
+    }
+
+    .popup {
+      position: absolute;
+      right: 192px;
+      bottom: 70px;
+      width: 245px;
+      min-height: 82px;
+      background: #f8fbff;
+      color: #162036;
+      border: 4px solid #3f4d78;
+      border-radius: 14px;
+      padding: 10px;
+      z-index: 30;
+      display: none;
+      box-shadow: 0 14px 30px rgba(0,0,0,0.35);
+      animation: pop 0.18s;
+    }
+
+    .popup.show { display: block; }
+    .popup-title { font-weight: 700; margin-bottom: 6px; }
+    .popup-actions { display: flex; gap: 8px; margin-top: 9px; }
+
+    .small-btn {
+      border: none;
+      border-radius: 8px;
+      background: #6572ff;
+      color: #fff;
+      padding: 7px 9px;
+      cursor: pointer;
+      font-size: 12px;
+    }
+    .small-btn.bad { background: #ff6060; }
+    .small-btn.safe { background: #4caf7a; }
+
+
+    .girlfriend-call {
+      position: absolute;
+      left: 615px;
+      bottom: 210px;
+      width: 248px;
+      min-height: 90px;
+      background: linear-gradient(135deg, #ff6aa6, #7b5cff);
+      color: #fff;
+      border: 4px solid #ffd2e4;
+      border-radius: 18px;
+      padding: 11px 13px;
+      z-index: 58;
+      display: none;
+      box-shadow: 0 16px 34px rgba(255, 74, 140, 0.36), 0 0 22px rgba(255,255,255,0.18);
+    }
+
+    .girlfriend-call.show {
+      display: block;
+      animation: callShake 0.13s infinite;
+    }
+
+    .girlfriend-call .call-title {
+      font-weight: 900;
+      font-size: 17px;
+      margin-bottom: 5px;
+    }
+
+    .girlfriend-call .call-text {
+      font-size: 13px;
+      line-height: 1.45;
+      color: #fff7fb;
+    }
+
+    .girlfriend-call .call-key {
+      display: inline-block;
+      margin-top: 7px;
+      background: rgba(0,0,0,0.35);
+      border: 1px solid rgba(255,255,255,0.62);
+      border-bottom-width: 3px;
+      border-radius: 8px;
+      padding: 3px 8px;
+      font-weight: 900;
+      letter-spacing: 1px;
+    }
+
+    @keyframes callShake {
+      0% { transform: translate(0, 0) rotate(0deg); }
+      25% { transform: translate(-2px, 1px) rotate(-1deg); }
+      50% { transform: translate(2px, -1px) rotate(1deg); }
+      75% { transform: translate(-1px, -1px) rotate(0deg); }
+      100% { transform: translate(1px, 1px) rotate(1deg); }
+    }
+
+    .boss-notice {
+      position: absolute;
+      left: 414px;
+      top: 24px;
+      width: 390px;
+      min-height: 92px;
+      background: linear-gradient(135deg, rgba(36, 44, 82, 0.96), rgba(35, 91, 104, 0.96));
+      color: #fff;
+      border: 4px solid #8cf7ff;
+      border-radius: 18px;
+      padding: 12px 14px;
+      z-index: 59;
+      display: none;
+      box-shadow: 0 18px 38px rgba(0,0,0,0.36), 0 0 26px rgba(140, 247, 255, 0.24);
+    }
+
+    .boss-notice.show {
+      display: block;
+      animation: noticePop 0.22s ease-out;
+    }
+
+    .boss-notice .notice-title {
+      font-weight: 900;
+      color: #bfffff;
+      margin-bottom: 5px;
+      font-size: 16px;
+    }
+
+    .boss-notice .notice-text {
+      font-size: 13px;
+      line-height: 1.45;
+      color: #f4fbff;
+    }
+
+    .boss-notice .notice-count {
+      margin-top: 7px;
+      display: inline-block;
+      background: rgba(0,0,0,0.34);
+      border: 1px solid rgba(255,255,255,0.45);
+      border-bottom-width: 3px;
+      border-radius: 9px;
+      padding: 4px 9px;
+      font-weight: 900;
+      color: #91ffb0;
+    }
+
+    @keyframes noticePop {
+      from { transform: translateY(-10px) scale(0.94); opacity: 0; }
+      to { transform: translateY(0) scale(1); opacity: 1; }
+    }
+
+    .question {
+      position: absolute;
+      left: 50%;
+      top: 50%;
+      transform: translate(-50%, -50%);
+      width: 430px;
+      background: rgba(16, 19, 31, 0.96);
+      border: 4px solid #ff7070;
+      border-radius: 18px;
+      padding: 20px;
+      z-index: 60;
+      text-align: center;
+      display: none;
+      box-shadow: 0 0 44px rgba(255,0,0,0.35);
+    }
+
+    .question.show { display: block; animation: pop 0.18s; }
+    .question h2 { margin: 0 0 8px; font-size: 24px; color: #ffd7d7; }
+    .question p { color: #e6e9ff; line-height: 1.5; }
+    .type-word {
+      margin: 14px auto 0;
+      padding: 10px;
+      border-radius: 10px;
+      width: 210px;
+      background: #080a12;
+      border: 2px solid #596080;
+      color: #7cff9b;
+      letter-spacing: 8px;
+      font-size: 26px;
+      font-weight: 800;
+      min-height: 52px;
+    }
+
+    .hud {
+      display: grid;
+      grid-template-columns: 1.1fr 1.1fr 1.1fr 1fr;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .stat {
+      background: #1e2238;
+      border: 1px solid #4a5278;
+      padding: 10px;
+      border-radius: 13px;
+    }
+
+    .stat-name {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      font-size: 14px;
+      margin-bottom: 6px;
+      color: #e8ebff;
+    }
+
+    .bar {
+      height: 16px;
+      background: #10131f;
+      border-radius: 99px;
+      overflow: hidden;
+      box-shadow: inset 0 2px 5px rgba(0,0,0,0.4);
+    }
+
+    .fill {
+      height: 100%;
+      width: 50%;
+      transition: width 0.12s linear;
+      border-radius: 99px;
+    }
+    #happyBar { background: linear-gradient(90deg, #ffd86b, #ffad3d); }
+    #susBar { background: linear-gradient(90deg, #ff7580, #ff2841); }
+    #energyBar { background: linear-gradient(90deg, #6bff95, #2eca73); }
+    #timeBar { background: linear-gradient(90deg, #7ba7ff, #535dff); }
+
+    .message-row {
+      display: grid;
+      grid-template-columns: 1.4fr 1fr;
+      gap: 10px;
+    }
+
+    .message {
+      min-height: 76px;
+      background: #151827;
+      border: 1px solid #4a5278;
+      border-radius: 14px;
+      padding: 11px 13px;
+      color: #ffe78a;
+      line-height: 1.45;
+      font-size: 15px;
+    }
+
+    .controls {
+      background: #151827;
+      border: 1px solid #4a5278;
+      border-radius: 14px;
+      padding: 11px 12px;
+      font-size: 13px;
+      color: #d7dcff;
+      line-height: 1.55;
+    }
+
+    .controls b { color: #fff; }
+
+    .key-row {
+      display: flex;
+      gap: 7px;
+      flex-wrap: wrap;
+      margin-top: 7px;
+    }
+
+    .key {
+      background: #262d4a;
+      border: 1px solid #5e6a9e;
+      border-bottom-width: 3px;
+      min-width: 30px;
+      text-align: center;
+      border-radius: 7px;
+      padding: 3px 7px;
+      color: #fff;
+      font-weight: 700;
+    }
+
+    .key.on {
+      transform: translateY(2px);
+      background: #6572ff;
+      border-bottom-width: 1px;
+      box-shadow: 0 0 12px rgba(101,114,255,0.6);
+    }
+
+    .combo-flash {
+      position: absolute;
+      left: 50%;
+      top: 88px;
+      transform: translateX(-50%);
+      background: rgba(8, 10, 18, 0.86);
+      border: 2px solid #7cff9b;
+      color: #adffbe;
+      padding: 8px 14px;
+      border-radius: 12px;
+      z-index: 80;
+      font-size: 17px;
+      font-weight: 700;
+      opacity: 0;
+      pointer-events: none;
+    }
+
+    .combo-flash.show { animation: comboShow 0.7s; }
+
+    @keyframes comboShow {
+      0% { opacity: 0; transform: translate(-50%, 8px) scale(0.9); }
+      20% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+      80% { opacity: 1; transform: translate(-50%, 0) scale(1); }
+      100% { opacity: 0; transform: translate(-50%, -8px) scale(0.96); }
+    }
+
+    .game.shaky {
+      animation: caffeineShake 0.08s infinite;
+      box-shadow: 0 22px 60px rgba(0,0,0,0.55), 0 0 34px rgba(255, 207, 122, 0.18);
+    }
+
+    @keyframes caffeineShake {
+      0% { transform: translate(0, 0); }
+      25% { transform: translate(-1px, 1px); }
+      50% { transform: translate(1px, -1px); }
+      75% { transform: translate(-1px, -1px); }
+      100% { transform: translate(1px, 1px); }
+    }
+
+
+
+    .pause-panel {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.72);
+      z-index: 95;
+      align-items: center;
+      justify-content: center;
+      padding: 22px;
+    }
+
+    .pause-panel.show { display: flex; }
+
+    .pause-box {
+      width: min(920px, 92vw);
+      max-height: 88vh;
+      overflow: auto;
+      background: #202640;
+      border: 4px solid #8cf7ff;
+      border-radius: 22px;
+      padding: 22px;
+      box-shadow: 0 22px 70px rgba(0,0,0,0.62), 0 0 28px rgba(140, 247, 255, 0.18);
+    }
+
+    .pause-box h2 {
+      margin: 0 0 8px;
+      font-size: 30px;
+      color: #bfffff;
+    }
+
+    .pause-subtitle {
+      color: #dce8ff;
+      margin-bottom: 16px;
+      line-height: 1.45;
+    }
+
+    .pause-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+    }
+
+    .pause-card {
+      background: #12172a;
+      border: 1px solid #4a5278;
+      border-radius: 15px;
+      padding: 13px 14px;
+    }
+
+    .pause-card h3 {
+      margin: 0 0 8px;
+      color: #ffe78a;
+      font-size: 17px;
+    }
+
+    .pause-card ul {
+      margin: 0;
+      padding-left: 20px;
+      color: #e9edff;
+      line-height: 1.62;
+      font-size: 14px;
+    }
+
+    .pause-stat-list {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 8px;
+      font-size: 14px;
+    }
+
+    .pause-stat {
+      background: #1d233d;
+      border: 1px solid #3f4d78;
+      border-radius: 10px;
+      padding: 8px 9px;
+      color: #dce8ff;
+    }
+
+    .pause-stat b { color: #fff; }
+
+    .pause-actions {
+      display: flex;
+      gap: 10px;
+      flex-wrap: wrap;
+      margin-top: 16px;
+      align-items: center;
+    }
+
+    .pause-btn {
+      border: none;
+      border-radius: 12px;
+      background: #8cf7ff;
+      color: #142033;
+      font-weight: 900;
+      padding: 11px 16px;
+      cursor: pointer;
+      font-size: 15px;
+    }
+
+    .pause-note {
+      color: #b9c4ef;
+      font-size: 13px;
+    }
+
+    @media (max-width: 850px) {
+      .pause-grid { grid-template-columns: 1fr; }
+      .pause-stat-list { grid-template-columns: 1fr; }
+    }
+
+    .end {
+      display: none;
+      text-align: center;
+      background: rgba(0,0,0,0.76);
+      position: fixed;
+      inset: 0;
+      justify-content: center;
+      align-items: center;
+      flex-direction: column;
+      z-index: 100;
+    }
+
+    .end-box {
+      background: #2c314a;
+      padding: 34px;
+      border-radius: 22px;
+      width: min(520px, 88vw);
+      border: 4px solid #737cff;
+      box-shadow: 0 22px 60px rgba(0,0,0,0.55);
+    }
+
+    .end h2 {
+      font-size: 32px;
+      margin: 0 0 12px;
+    }
+
+    .end p {
+      font-size: 18px;
+      color: #ddd;
+      line-height: 1.55;
+    }
+
+    .restart {
+      margin-top: 18px;
+      width: 180px;
+      padding: 13px 10px;
+      border: none;
+      border-radius: 12px;
+      color: #1b1e30;
+      background: #ffb84d;
+      font-weight: 800;
+      cursor: pointer;
+      font-size: 16px;
+    }
+
+    .restart:hover { filter: brightness(1.08); transform: translateY(-2px); }
+
+    .hint-mobile {
+      display: none;
+      margin-top: 8px;
+      color: #ffcf7a;
+      font-size: 13px;
+    }
+
+    @media (max-width: 850px) {
+      body { overflow: auto; align-items: flex-start; padding: 12px 0; }
+      .game { width: 1120px; transform-origin: top left; }
+      .hint-mobile { display: block; }
+    }
+  </style>
+</head>
+<body>
+  <div class="game" id="game">
+    <div class="topbar">
+      <div>
+        <h1>摸鱼生存战 v0.9.11</h1>
+        <div class="subtitle">计分长局版：5分钟摸鱼战争，快乐满格可提前下班。</div>
+      </div>
+      <div class="difficulty">当前模式：快乐经济 / 5 分钟</div>
+    </div>
+
+    <div class="scene" id="scene">
+      <div class="floor-grid"></div>
+      <div class="wall-line"></div>
+      <div class="window"></div>
+      <div class="poster">今日标语<br>少摸鱼，多交付<br><span style="color:#91ffb0">当然只是标语</span></div>
+      <div class="door"></div>
+      <div class="door-sign">老板室</div>
+
+      <div class="chair"></div>
+      <div class="screen" id="screen">
+        <div class="screen-content" id="screenContent">
+          <strong>季度报告.docx</strong>
+          <span>进度：看起来很忙</span>
+        </div>
+      </div>
+      <div class="desk"></div>
+
+      <div class="phone-light" id="phoneLight"></div>
+
+      <div class="object" id="napObj" onclick="startSleep()">💤<span class="tip">点打盹：收益高，死得快</span></div>
+      <div class="object" id="phoneObj" onclick="usePhone()">📱<span class="tip">点手机：快乐快，风险高</span></div>
+      <div class="object" id="coffeeObj" onclick="drinkCoffee()">☕<span class="tip">点咖啡：回体力</span></div>
+      <div class="object" id="webObj" onclick="openWeb()">🎮<span class="tip">点网页：摸鱼网页</span></div>
+      <div class="object" id="fileObj" onclick="readFiles()">📁<span class="tip">点文件：假装工作，ASD后才能完全安全</span></div>
+
+      <div class="player" id="player">
+        <div class="head" id="playerFace">😐</div>
+        <div class="body" id="playerBody">💻</div>
+      </div>
+
+      <div class="coworker" id="coworkerBox">
+        <div class="bubble" id="coworkerBubble">兄弟我要开始摸鱼了，老板来了叫我。</div>
+        <div class="status-tag" id="coworkerStatus">兄弟：待机</div>
+        <div class="mini" id="coworkerMini">🙂</div>
+        <div class="desk2"></div>
+      </div>
+
+      <div class="boss" id="boss">
+        <div class="vision"></div>
+        <div class="boss-label" id="bossLabel">老板巡逻</div>
+        <div class="head">😡</div>
+        <div class="body">📋</div>
+      </div>
+
+      <div class="popup" id="popup">
+        <div class="popup-title" id="popupTitle">群聊弹窗</div>
+        <div id="popupText">同事发来一个离谱表情包。</div>
+        <div class="popup-actions">
+          <button class="small-btn" onclick="openPopupFun()">点开看</button>
+          <button class="small-btn safe" onclick="closePopup()">关掉</button>
+        </div>
+      </div>
+
+      <div class="girlfriend-call" id="girlfriendCall">
+        <div class="call-title">📞 女朋友来电</div>
+        <div class="call-text">铃声正在办公室里裸奔。不能接，只能按 <span class="call-key">Z + X + C</span> 挂断；响得越久，最后扣分越多。</div>
+      </div>
+
+      <div class="boss-notice" id="bossNotice">
+        <div class="notice-title">📢 老板离场通知</div>
+        <div class="notice-text" id="bossNoticeText">老板暂时离开办公室。</div>
+        <div class="notice-count">安全摸鱼窗口：<span id="safeWindowText">0</span>s</div>
+      </div>
+
+      <div class="question" id="question">
+        <h2>老板问进度！</h2>
+        <p>3 秒内直接在键盘输入 <b>WORK</b>。输对就能糊弄过去，输错就社死。</p>
+        <div class="type-word" id="typedWord"></div>
+      </div>
+
+      <div class="alert-strip" id="alertStrip"></div>
+    </div>
+
+    <div class="hud">
+      <div class="stat">
+        <div class="stat-name"><span>快乐值</span><strong id="happyText">20</strong></div>
+        <div class="bar"><div class="fill" id="happyBar"></div></div>
+      </div>
+      <div class="stat">
+        <div class="stat-name"><span>怀疑值</span><strong id="susText">0</strong></div>
+        <div class="bar"><div class="fill" id="susBar"></div></div>
+      </div>
+      <div class="stat">
+        <div class="stat-name"><span>体力值</span><strong id="energyText">80</strong></div>
+        <div class="bar"><div class="fill" id="energyBar"></div></div>
+      </div>
+      <div class="stat">
+        <div class="stat-name"><span>剩余时间</span><strong><span id="timeText">300</span>s</strong></div>
+        <div class="bar"><div class="fill" id="timeBar"></div></div>
+      </div>
+    </div>
+
+    <div class="message-row">
+      <div class="message" id="message">开局。持续收益版：点击只切状态，真正的快乐和体力来自持续摸鱼。</div>
+      <div class="controls">
+        <b>快捷键：</b>
+        桌上物品可点击但不瞬间领奖励；P 暂停/规则｜Q+W 假装打字｜Z+X+C 藏手机/修卡死/挂电话｜A+S+D 恢复坐姿；老板面前可短暂加快降疑｜点文件夹=假装工作/完全安全｜R 提醒兄弟｜长按 Space 屏住呼吸｜老板提问时输入 WORK｜老板每轮最多回头一次｜老板通知期间可放心摸鱼
+        <div class="key-row" id="keyRow">
+          <span class="key" data-key="q">Q</span><span class="key" data-key="w">W</span>
+          <span class="key" data-key="z">Z</span><span class="key" data-key="x">X</span><span class="key" data-key="c">C</span>
+          <span class="key" data-key="a">A</span><span class="key" data-key="s">S</span><span class="key" data-key="d">D</span>
+          <span class="key" data-key="r">R</span><span class="key" data-key="p">P</span><span class="key" data-key=" ">Space</span>
+        </div>
+        <div class="hint-mobile">手机屏幕较窄，建议电脑浏览器玩。</div>
+      </div>
+    </div>
+
+    <div class="combo-flash" id="comboFlash">Combo!</div>
+  </div>
+
+
+  <div class="pause-panel" id="pausePanel">
+    <div class="pause-box">
+      <h2>暂停 / 新手规则</h2>
+      <div class="pause-subtitle">按 <b>P</b> 暂停或继续。暂停时老板、电话、弹窗和时间都会停住，适合第一次玩先把规则看明白。</div>
+      <div class="pause-grid">
+        <div class="pause-card">
+          <h3>当前统计</h3>
+          <div class="pause-stat-list">
+            <div class="pause-stat">当前状态：<b id="pauseActionText">-</b></div>
+            <div class="pause-stat">屏幕状态：<b id="pauseScreenText">-</b></div>
+            <div class="pause-stat">快乐值：<b id="pauseHappyText">0</b></div>
+            <div class="pause-stat">怀疑值：<b id="pauseSusText">0</b></div>
+            <div class="pause-stat">体力值：<b id="pauseEnergyText">0</b></div>
+            <div class="pause-stat">剩余时间：<b id="pauseTimeText">0</b>s</div>
+            <div class="pause-stat">八卦出现：<b id="pausePopupSeenText">0</b> 条</div>
+            <div class="pause-stat">点开八卦：<b id="pausePopupOpenText">0</b> 次</div>
+            <div class="pause-stat">老板通知：<b id="pauseNoticeText">0</b> 次</div>
+            <div class="pause-stat">安全摸鱼：<b id="pauseSafeMoyuText">0</b>s</div>
+            <div class="pause-stat">电话响铃：<b id="pauseRingText">0.0</b>s</div>
+            <div class="pause-stat">兄弟连坐：<b id="pauseCoworkerCaughtText">0</b> 次</div>
+            <div class="pause-stat">快捷逃生：<b id="pauseEscapeText">0</b> 次</div>
+            <div class="pause-stat">Combo：<b id="pauseComboText">0</b> 次</div>
+          </div>
+        </div>
+        <div class="pause-card">
+          <h3>收益和风险</h3>
+          <ul>
+            <li><b>点击不会立刻领奖励</b>：手机、网页、咖啡、睡觉、八卦弹窗都只是让你进入对应状态。</li>
+            <li><b>网页</b>持续涨快乐最快；点开八卦弹窗会自动进入网页，所以八卦也是高收益高风险入口。</li>
+            <li><b>手机</b>持续涨快乐第二快；手机摸鱼时女朋友不会来电，因为你手机就在手里，会被自动挡掉。</li>
+            <li><b>兄弟摸鱼</b>会给你持续带来少量连带快乐，但老板看到兄弟会连坐；如果你同时还在睡觉/网页/电话暴露，怀疑会叠加暴涨，这不是 bug，是共犯现场。</li>
+            <li><b>老板通知</b>期间是安全窗口，老板不会进场；这时候网页、手机、睡觉收益更好。</li>
+          </ul>
+        </div>
+        <div class="pause-card">
+          <h3>保命流程</h3>
+          <ul>
+            <li><b>Z + X + C</b>：藏手机、修电脑卡死、挂断女朋友电话。它不是清屏大招。</li>
+            <li><b>A + S + D</b>：恢复坐姿，只能压一点怀疑；只有老板在视野/贴脸检查时，才会短暂加快怀疑下降。</li>
+            <li><b>长按 Space 屏息</b>：老板视野扫到你时临时硬扛，降低怀疑上涨；画面干净且老板在看时还能帮你更快降疑。老板不在时屏息没必要，只会浪费体力。</li>
+            <li>危险之后要完全安全：先处理手机/电话/卡死，再 <b>A+S+D</b>，最后点 <b>文件夹</b> 假装工作。</li>
+            <li>睡觉醒来不会自动洗白，网页、弹窗、电话、手机亮光都会原样保留。</li>
+          </ul>
+        </div>
+        <div class="pause-card">
+          <h3>掉快乐和体力</h3>
+          <ul>
+            <li>老板不在时，怀疑值会自动自然下降；这时假装工作不会额外加速降疑，只会缓慢掉快乐。</li><li>老板在面前/红色视野中时，保持文档+工作姿态才会更快降怀疑。</li>
+            <li>喝咖啡进入短暂提神状态：持续回体力，同时轻微掉快乐；喝太多会手抖，组合键可能失误。</li>
+            <li>睡觉进入休息状态：不会瞬间回血，但持续回体力很明显；普通睡觉会极慢掉快乐，安全窗口里会小幅涨快乐。</li>
+            <li>快乐满格会提前胜利：你今天已经足够快乐了，摸不摸鱼也无所谓了。</li>
+          </ul>
+        </div>
+      </div>
+      <div class="pause-actions">
+        <button class="pause-btn" onclick="togglePause()">继续摸鱼</button>
+        <span class="pause-note">也可以按 P 继续。真正的高手不是永不暂停，而是暂停后还能继续装忙。</span>
+      </div>
+    </div>
+  </div>
+
+  <div class="end" id="endScreen">
+    <div class="end-box">
+      <h2 id="endingTitle">结局</h2>
+      <p id="endingText"></p>
+      <button class="restart" onclick="location.reload()">重新摸鱼</button>
+    </div>
+  </div>
+
+  <script>
+    const MAX_TIME = 300;
+    const HAPPY_MAX = 800;
+
+    // 快乐经济参数：点击只切换状态，收益/损耗主要来自状态持续时间。
+    const HAPPY_WEB_CLICK = 0;
+    const HAPPY_WEB_CLICK_SAFE = 0;
+    const HAPPY_WEB_RATE = 8.2;
+    const HAPPY_WEB_RATE_SAFE = 10.8;
+    const HAPPY_PHONE_CLICK = 0;
+    const HAPPY_PHONE_CLICK_SAFE = 0;
+    const HAPPY_PHONE_RATE = 5.4;
+    const HAPPY_PHONE_RATE_SAFE = 7.1;
+    const HAPPY_COWORKER_RATE = 1.15;
+    const HAPPY_COWORKER_RATE_SAFE = 1.55;
+    const HAPPY_WORK_LOSS_RATE = 0.48;
+    const HAPPY_COFFEE_LOSS_RATE = 0.24;
+    const HAPPY_SLEEP_LOSS_RATE = 0.10;
+    const HAPPY_SLEEP_SAFE_RATE = 0.28;
+    const ENERGY_COFFEE_RATE = 4.6;
+    const ENERGY_SLEEP_RATE = 9.4;
+    let happy = 20;
+    let suspicion = 0;
+    let energy = 82;
+    let timeLeft = MAX_TIME;
+    let gameOver = false;
+    let paused = false;
+
+    let currentAction = "work";
+    let screenMode = "doc";
+    let chatOpen = false;
+    let noisySnack = 0;
+    let frozen = false;
+    let freezeStep = 0;
+    let fakeTypingBuff = 0;
+    let breathHold = false;
+    let wakeStun = 0;
+    let disguiseBoost = 0;
+    let postureReady = false;
+    let postureReadyTime = 0;
+    let needsManualRecover = false;
+    let tremorTime = 0;
+    let coffeeDrinkTimes = [];
+    let webStreak = 0;
+    let phoneExposure = 0;
+    let phoneExposed = false;
+    let girlfriendCalling = false;
+    let girlfriendCallTime = 0;
+    let girlfriendCallTimer = 12;
+    let girlfriendExposure = 0;
+    let girlfriendCallCount = 0;
+    let girlfriendMissedCount = 0;
+    let girlfriendRingSeconds = 0;
+    let comboCount = 0;
+    let escapeCount = 0;
+    let popupSeenCount = 0;
+    let popupOpenedCount = 0;
+    let bossNoticeCount = 0;
+    let safeWindowMoyuSeconds = 0;
+
+    let coworkerMoyu = false;
+    let coworkerSafeTime = 0;
+    let coworkerExposure = 0;
+    let coworkerMoyuTime = 0;
+    let coworkerCaughtCount = 0;
+    let coworkerDangerGrace = 0;
+    let coworkerBossThreatActive = false;
+
+    const boss = {
+      state: "hidden",
+      x: 1080,
+      timer: 0,
+      asked: false,
+      turnBackUsed: false,
+      callTurnBackUsed: false,
+      leaveGrace: 0
+    };
+
+    let progressQuestion = false;
+    let questionTimer = 0;
+    let typedBuffer = "";
+    let lastTick = performance.now();
+    let lastBossSpawn = 0;
+    let popupTimer = 5;
+    let coworkerTimer = 4;
+    let safeWindowTime = 0;
+    let nextBossNoticeTimer = 18 + Math.random() * 14;
+    const bossNoticeMessages = [
+      "我去开一个本来可以发邮件解决的会，别摸鱼。",
+      "我去找打印机吵架，它今天又觉得自己是祖宗，别摸鱼。",
+      "我去茶水间和咖啡机进行一场没有结果的谈判，别摸鱼。",
+      "我去给一个空文件夹改名叫最终版，别摸鱼。",
+      "我去参加一个主题是提高效率、时长两小时的会议，别摸鱼。",
+      "我去和报销系统进行灵魂互殴，别摸鱼。",
+      "我去楼下拿外卖，但这是工作调研，别摸鱼。",
+      "我去安抚打印机的纸张情绪，它现在拒绝进入社会，别摸鱼。",
+      "我去参加‘如何减少会议’的会议，预计会开到下班，别摸鱼。",
+      "我去找 IT 解释为什么重启能解决一切，别摸鱼。",
+      "我去和领导同步一个我也不知道为什么要同步的东西，别摸鱼。",
+      "我去给 Excel 的第 1048576 行做心理辅导，别摸鱼。",
+      "我去检查公司绿植是否也在摸鱼，别摸鱼。",
+      "我去把‘最终最终版’改名成‘这次真不改了’，别摸鱼。",
+      "我去茶水间看咖啡机有没有偷偷加班，别摸鱼。",
+      "我去和门禁系统讨论为什么它只认脸不认命，别摸鱼。",
+      "我去找会议室遥控器，它已经离职三天了，别摸鱼。",
+      "我去给公司 WiFi 做思想工作，它最近信号很叛逆，别摸鱼。",
+      "我去和空调谈判，要求它别再把办公室吹成北极分部，别摸鱼。",
+      "我去楼下前台领取一份没人知道是谁买的奶茶，别摸鱼。",
+      "我去问 HR 为什么团建不算工伤，别摸鱼。",
+      "我去给 PPT 加一页‘谢谢’，这页决定项目成败，别摸鱼。",
+      "我去处理一个标记为紧急但其实可以下周再看的邮件，别摸鱼。",
+      "我去厕所思考公司战略，其实主要是躲另一个老板，别摸鱼。",
+      "我去和老板的老板进行眼神上的商业互吹，别摸鱼。",
+      "我去看一下谁又把公共文档命名成‘新建文本文档’，别摸鱼。",
+      "我去给碎纸机喂点失败的方案，它最近胃口不错，别摸鱼。",
+      "我去确认一下公司冰箱里的酸奶是否已经进化成新同事，别摸鱼。",
+      "我去参加消防演练，但只演不练，别摸鱼。",
+      "我去和法务讨论‘马上’到底是不是一个合法时间单位，别摸鱼。",
+      "我去检查打卡机是不是故意针对迟到的人类，别摸鱼。",
+      "我去给投影仪上香，它今天能亮已经是奇迹，别摸鱼。",
+      "我去和财务解释为什么一支笔不能走三个月审批，别摸鱼。",
+      "我去研究公司群里那个‘收到’到底有没有感情，别摸鱼。",
+      "我去找一张椅子开会，听说它比我更懂项目进度，别摸鱼。",
+      "我去给工牌拍照，它今天看起来比我更像员工，别摸鱼。",
+      "我去确认老板室的门为什么总是自带低气压，别摸鱼。",
+      "我去帮电脑更新系统，预计更新时间：从现在到人类文明结束，别摸鱼。",
+      "我去问保洁阿姨为什么她比项目经理更了解公司运作，别摸鱼。",
+      "我去和自动售货机讲价，它坚持自己是奢侈品渠道，别摸鱼。",
+      "我去修一盏闪烁的灯，它已经开始像 KPI 一样压迫我，别摸鱼。",
+      "我去和公司猫开会，它只看了我一眼就否决了方案，别摸鱼。",
+      "我去研究为什么‘简单改一下’通常意味着重做，别摸鱼。",
+      "我去给老板画饼，回来之前你别偷吃，别摸鱼。",
+      "我去楼下迎接一个快递，快递内容是上周的紧急文件，别摸鱼。",
+      "我去找丢失的会议纪要，可能已经和真相一起蒸发了，别摸鱼。",
+      "我去和办公椅谈职业规划，它想转岗去电竞房，别摸鱼。",
+      "我去参加一个没有议程的会，大家准备现场发明意义，别摸鱼。",
+      "我去问行政为什么茶包只有伯爵红茶，没有公爵绿茶，别摸鱼。",
+      "我去把桌上的便签从‘待办’移动到‘精神负债’，别摸鱼。",
+      "我去检查监控死角，但你放心我检查得很不认真，别摸鱼。",
+      "我去给电脑桌面清理图标，若我没回来，说明图标赢了，别摸鱼。",
+      "我去问老板能不能把周一改成可选 DLC，别摸鱼。",
+      "我去参与一场关于‘降本增效’的讨论，主要内容是增会降命，别摸鱼。",
+      "我去确认公司厕所门锁是否具备基本人性，别摸鱼。",
+      "我去给文件夹排序，顺序是：乱、很乱、老板说不乱，别摸鱼。",
+      "我去找谁拿走了我的笔。嫌疑人包括全公司和命运，别摸鱼。",
+      "我去和同事争论奶茶到底算饮料还是精神急救，别摸鱼。",
+      "我去给白板擦写绩效悼词，别摸鱼。",
+      "我去处理一个写着‘尽快’但没有截止日期的宇宙谜题，别摸鱼。",
+      "我去看看会议室有没有人把灵魂落在里面，别摸鱼。",
+      "我去确认打印机吐出来的空白纸是不是对工作的无声抗议，别摸鱼。",
+      "我去找领导签字，领导去找更大的领导签字，别摸鱼。",
+      "我去给公司口号加粗，毕竟加粗之后生产力会上升 0.0001%，别摸鱼。",
+      "我去和空气净化器开会，它说办公室最大污染源是需求变更，别摸鱼。",
+      "我去查看谁在公司群里发了‘辛苦大家’，全员瞬间更辛苦了，别摸鱼。",
+      "我去问法务‘摸鱼’能不能注册成企业文化，别摸鱼。",
+      "我去给下班时间做可行性分析，初步结论：存在理论可能，别摸鱼。",
+      "我去茶水间寻找失踪的勺子，它可能已经投奔奶茶店，别摸鱼。",
+      "我去参加一个跨部门会议，大家会共同确认谁都不负责，别摸鱼。",
+      "我去把‘明天再说’归档进长期战略，别摸鱼。",
+      "我去问系统管理员为什么权限像俄罗斯套娃，别摸鱼。",
+      "我去找公司 WiFi 密码，传说只有入职满三年的人能念出全名，别摸鱼。",
+      "我去确认一下考勤机是不是对我的脸有私人恩怨，别摸鱼。",
+      "我去给老板汇报进度，进度是我正在准备汇报进度，别摸鱼。"
+    ];
+    let comboCooldown = {};
+    const keysDown = new Set();
+
+    const el = {
+      game: document.getElementById("game"),
+      player: document.getElementById("player"),
+      playerFace: document.getElementById("playerFace"),
+      playerBody: document.getElementById("playerBody"),
+      phoneLight: document.getElementById("phoneLight"),
+      boss: document.getElementById("boss"),
+      bossLabel: document.getElementById("bossLabel"),
+      screenContent: document.getElementById("screenContent"),
+      message: document.getElementById("message"),
+      alertStrip: document.getElementById("alertStrip"),
+      popup: document.getElementById("popup"),
+      girlfriendCall: document.getElementById("girlfriendCall"),
+      bossNotice: document.getElementById("bossNotice"),
+      bossNoticeText: document.getElementById("bossNoticeText"),
+      safeWindowText: document.getElementById("safeWindowText"),
+      popupTitle: document.getElementById("popupTitle"),
+      popupText: document.getElementById("popupText"),
+      coworkerBox: document.getElementById("coworkerBox"),
+      coworkerBubble: document.getElementById("coworkerBubble"),
+      coworkerMini: document.getElementById("coworkerMini"),
+      coworkerStatus: document.getElementById("coworkerStatus"),
+      question: document.getElementById("question"),
+      typedWord: document.getElementById("typedWord"),
+      comboFlash: document.getElementById("comboFlash"),
+      happyText: document.getElementById("happyText"),
+      susText: document.getElementById("susText"),
+      energyText: document.getElementById("energyText"),
+      timeText: document.getElementById("timeText"),
+      happyBar: document.getElementById("happyBar"),
+      susBar: document.getElementById("susBar"),
+      energyBar: document.getElementById("energyBar"),
+      timeBar: document.getElementById("timeBar"),
+      pausePanel: document.getElementById("pausePanel"),
+      pauseActionText: document.getElementById("pauseActionText"),
+      pauseScreenText: document.getElementById("pauseScreenText"),
+      pauseHappyText: document.getElementById("pauseHappyText"),
+      pauseSusText: document.getElementById("pauseSusText"),
+      pauseEnergyText: document.getElementById("pauseEnergyText"),
+      pauseTimeText: document.getElementById("pauseTimeText"),
+      pausePopupSeenText: document.getElementById("pausePopupSeenText"),
+      pausePopupOpenText: document.getElementById("pausePopupOpenText"),
+      pauseNoticeText: document.getElementById("pauseNoticeText"),
+      pauseSafeMoyuText: document.getElementById("pauseSafeMoyuText"),
+      pauseRingText: document.getElementById("pauseRingText"),
+      pauseCoworkerCaughtText: document.getElementById("pauseCoworkerCaughtText"),
+      pauseEscapeText: document.getElementById("pauseEscapeText"),
+      pauseComboText: document.getElementById("pauseComboText")
+    };
+
+    function clamp(value, min = 0, max = 100) {
+      return Math.max(min, Math.min(max, value));
+    }
+
+    function setMessage(text) {
+      el.message.textContent = text;
+    }
+
+    function actionLabel(action) {
+      const map = {
+        work: "工作/待机",
+        files: "假装工作",
+        phone: "刷手机",
+        web: "看网页",
+        coffee: "喝咖啡",
+        sleep: "睡觉",
+        typing: "假装打字",
+        straight: "坐端正",
+        breath: "屏住呼吸"
+      };
+      return map[action] || action;
+    }
+
+    function screenLabel(mode) {
+      const map = {
+        doc: "工作文档",
+        web: "摸鱼网页",
+        chat: "八卦弹窗",
+        frozen: "电脑卡死"
+      };
+      return map[mode] || mode;
+    }
+
+    function updatePausePanel() {
+      if (!el.pausePanel) return;
+      el.pauseActionText.textContent = actionLabel(currentAction);
+      el.pauseScreenText.textContent = screenLabel(screenMode);
+      el.pauseHappyText.textContent = `${Math.round(happy)}/${HAPPY_MAX}`;
+      el.pauseSusText.textContent = Math.round(suspicion);
+      el.pauseEnergyText.textContent = Math.round(energy);
+      el.pauseTimeText.textContent = Math.ceil(timeLeft);
+      el.pausePopupSeenText.textContent = popupSeenCount;
+      el.pausePopupOpenText.textContent = popupOpenedCount;
+      el.pauseNoticeText.textContent = bossNoticeCount;
+      el.pauseSafeMoyuText.textContent = Math.round(safeWindowMoyuSeconds);
+      el.pauseRingText.textContent = girlfriendRingSeconds.toFixed(1);
+      el.pauseCoworkerCaughtText.textContent = coworkerCaughtCount;
+      el.pauseEscapeText.textContent = escapeCount;
+      el.pauseComboText.textContent = comboCount;
+    }
+
+    function togglePause(forceState) {
+      if (gameOver) return;
+      paused = typeof forceState === "boolean" ? forceState : !paused;
+      el.pausePanel.classList.toggle("show", paused);
+      if (paused) {
+        keysDown.clear();
+        breathHold = false;
+        updatePausePanel();
+        updateKeyVisuals();
+        updatePlayerVisual();
+      } else {
+        lastTick = performance.now();
+        setMessage("继续游戏。摸鱼暂停过，人生可没有。 ");
+      }
+    }
+
+    function reduceSuspicionLimited(rawAmount, fractionLimit = 0.35, flatLimit = rawAmount) {
+      const before = Math.max(0, suspicion);
+      if (before <= 0) return 0;
+      const drop = Math.min(rawAmount, flatLimit, Math.max(1.5, before * fractionLimit));
+      suspicion -= drop;
+      return drop;
+    }
+
+    function addDisguiseBoost(seconds) {
+      disguiseBoost = Math.max(disguiseBoost, seconds);
+    }
+
+    function markNeedsRecover() {
+      needsManualRecover = true;
+      postureReady = false;
+      postureReadyTime = 0;
+    }
+
+    function markPostureReady(seconds = 4.8) {
+      postureReady = true;
+      postureReadyTime = Math.max(postureReadyTime, seconds);
+    }
+
+    function clearManualRecover() {
+      needsManualRecover = false;
+      postureReady = false;
+      postureReadyTime = 0;
+    }
+
+    function setAction(action, msg) {
+      if (gameOver) return;
+      currentAction = action;
+      if (msg) setMessage(msg);
+      updatePlayerVisual();
+    }
+
+    function wakeFromSleep(reason = "你被惊醒了。") {
+      if (currentAction !== "sleep") return false;
+      currentAction = "work";
+      markNeedsRecover();
+      wakeStun = 0.9;
+      breathHold = false;
+      energy -= 3;
+      suspicion += isInVision() ? 8 : 2;
+      setMessage(reason + " 但网页、弹窗、女朋友电话、手机亮光、电脑卡死都还保持原样。先醒，再救命。 ");
+      updatePlayerVisual();
+      updateUI();
+      return true;
+    }
+
+    function blockActionIfAsleep(actionName) {
+      if (currentAction === "sleep") {
+        wakeFromSleep(`你试图${actionName}，结果先把自己从梦里拽了回来。`);
+        return true;
+      }
+      if (wakeStun > 0) {
+        setMessage(`刚醒还有 ${wakeStun.toFixed(1)} 秒硬直，${actionName}失败。屏幕不会因为你灵魂归位就自动变干净。 `);
+        return true;
+      }
+      return false;
+    }
+
+    function updatePlayerVisual() {
+      el.player.classList.remove("sleeping", "panic");
+      el.phoneLight.classList.remove("show");
+
+      if (progressQuestion || isBossThreatening()) {
+        el.player.classList.add("panic");
+      }
+
+      const visualMap = {
+        work: ["😐", "💻"],
+        files: ["🤓", "📁"],
+        phone: ["😏", "📱"],
+        web: ["😎", "🎮"],
+        coffee: ["😵‍💫", "☕"],
+        sleep: ["😴", "💤"],
+        typing: ["🫡", "⌨️"],
+        straight: ["😳", "📄"],
+        breath: ["😬", "💻"]
+      };
+
+      const state = breathHold ? "breath" : currentAction;
+      const [face, body] = visualMap[state] || visualMap.work;
+      el.playerFace.textContent = face;
+      el.playerBody.textContent = body;
+
+      if (currentAction === "sleep") el.player.classList.add("sleeping");
+      if (currentAction === "phone" || phoneExposed) el.phoneLight.classList.add("show");
+    }
+
+    function setScreen(mode) {
+      screenMode = mode;
+      el.screenContent.className = "screen-content";
+
+      if (mode === "doc") {
+        el.screenContent.innerHTML = "<strong>季度报告.docx</strong><span>进度：看起来很忙</span>";
+      } else if (mode === "web") {
+        el.screenContent.classList.add("web");
+        el.screenContent.innerHTML = "<strong>摸鱼网页</strong><span>排行榜：你第 1</span>";
+      } else if (mode === "chat") {
+        el.screenContent.classList.add("chat");
+        el.screenContent.innerHTML = "<strong>群聊八卦</strong><span>老板今天好像心情差</span>";
+      } else if (mode === "frozen") {
+        el.screenContent.classList.add("frozen");
+        el.screenContent.innerHTML = "<strong>电脑卡死</strong><span>按 Z X C Z X C Z X C 解救</span>";
+      }
+    }
+
+    function isBossVisible() {
+      return boss.state !== "hidden";
+    }
+
+    function isSafeWindowActive() {
+      return safeWindowTime > 0;
+    }
+
+    function startBossNotice() {
+      if (gameOver || progressQuestion || boss.state !== "hidden" || isSafeWindowActive()) return;
+      const msg = bossNoticeMessages[Math.floor(Math.random() * bossNoticeMessages.length)];
+      safeWindowTime = 11 + Math.random() * 7;
+      bossNoticeCount++;
+      nextBossNoticeTimer = 30 + Math.random() * 22;
+      el.bossNoticeText.textContent = msg;
+      el.bossNotice.classList.add("show");
+      el.safeWindowText.textContent = Math.ceil(safeWindowTime);
+      setMessage("老板通知：" + msg + " 鱼塘开放，趁现在大胆摸。");
+    }
+
+    function updateBossNotice(dt) {
+      if (isSafeWindowActive()) {
+        safeWindowTime = Math.max(0, safeWindowTime - dt);
+        el.safeWindowText.textContent = Math.ceil(safeWindowTime);
+        if (safeWindowTime <= 0) {
+          el.bossNotice.classList.remove("show");
+          lastBossSpawn = 0;
+          setMessage("安全摸鱼窗口结束。鱼塘收网，老板随时可能回来。");
+        }
+        return;
+      }
+
+      if (boss.state === "hidden" && !progressQuestion && !gameOver) {
+        nextBossNoticeTimer -= dt;
+        if (nextBossNoticeTimer <= 0) startBossNotice();
+      }
+    }
+
+    function isBossThreatening() {
+      return boss.state === "patrol" || boss.state === "inspect" || boss.state === "watch";
+    }
+
+    function isInVision() {
+      return isBossVisible() && boss.x < 820 && boss.x > 150;
+    }
+
+    function isCoworkerAllowedToStart() {
+      // 兄弟只能在老板完全离场时开摸。
+      // 之前只判断红色视野，导致老板虽然没看兄弟、但人还在旁边时，
+      // 兄弟会突然开摸并把玩家连坐。
+      return boss.state === "hidden" && !progressQuestion && !gameOver;
+    }
+
+    function isCoworkerActuallyThreatened() {
+      // 被抓判定仍然看红色视野；只是开摸必须等老板真正离开。
+      return coworkerMoyu && isInVision() && coworkerSafeTime <= 0;
+    }
+
+    function isRisky() {
+      return ["phone", "web", "sleep", "coffee"].includes(currentAction)
+        || phoneExposed || girlfriendCalling || screenMode === "web" || screenMode === "chat" || chatOpen || noisySnack > 0 || frozen;
+    }
+
+    function isVisiblyClean() {
+      return ["work", "files", "typing", "straight"].includes(currentAction)
+        && screenMode === "doc"
+        && !chatOpen
+        && !frozen
+        && !phoneExposed
+        && !girlfriendCalling;
+    }
+
+    function isSafePosture() {
+      return isVisiblyClean() && !needsManualRecover;
+    }
+
+    function usePhone() {
+      if (blockActionIfAsleep("刷手机")) return;
+      if (energy < 8) return setMessage("你太累了，手机屏幕像一块发光的砖。");
+      markNeedsRecover();
+      phoneExposed = true;
+      energy -= 2;
+      suspicion += isInVision() ? 10 : 2.5;
+      setAction("phone", "你进入刷手机状态。点击本身不加快乐，快乐会在你持续低头摸鱼时上涨；老板来了就按 Z+X+C 藏手机。 ");
+      updateUI();
+    }
+
+    function openWeb() {
+      if (blockActionIfAsleep("打开网页")) return;
+      if (frozen) return setMessage("电脑已经卡死了，先按 Z X C Z X C Z X C 把它救回来。滑稽但真实。 ");
+      markNeedsRecover();
+      energy -= 2;
+      suspicion += isInVision() ? 14 : 3.5;
+      setScreen("web");
+      setAction("web", "你进入看网页状态。点击本身不加快乐，但网页会持续高速涨快乐；想完全安全：先 A+S+D 坐正，再点文件夹假装工作。 ");
+      if (Math.random() < 0.42) freezeComputer();
+      updateUI();
+    }
+
+    function drinkCoffee() {
+      if (blockActionIfAsleep("喝咖啡")) return;
+      markNeedsRecover();
+      const now = performance.now();
+      coffeeDrinkTimes = coffeeDrinkTimes.filter(t => now - t < 20000);
+      coffeeDrinkTimes.push(now);
+
+      suspicion += isInVision() ? 6 : 2;
+
+      if (coffeeDrinkTimes.length >= 2) {
+        tremorTime = Math.max(tremorTime, 8);
+        suspicion += 6;
+        setAction("coffee", "你进入咖啡提神状态。点击不会瞬间回血，接下来几秒会持续回体力；喝多了手会抖，组合键可能误触。 ");
+      } else {
+        setAction("coffee", "你进入咖啡提神状态。点击本身不回血，体力会在接下来几秒慢慢回来，同时快乐轻微流失。 ");
+      }
+
+      setTimeout(() => { if (!gameOver && currentAction === "coffee") setAction("work", "咖啡提神结束，你假装回到工作。杯子里装着最后的体面。 "); }, 5200);
+      updateUI();
+    }
+
+    // 零食机制已删除：避免低风险回血/快乐过强。
+
+    function readFiles() {
+      if (blockActionIfAsleep("打开文件夹")) return;
+
+      if (frozen) {
+        setMessage("电脑还卡死着，点文件夹没用。先用 Z+X+C 连续抢救电脑，再 A+S+D，最后点文件夹假装工作。 ");
+        return;
+      }
+
+      const unresolved = phoneExposed || girlfriendCalling;
+      if (unresolved) {
+        if (!frozen) {
+          setScreen("doc");
+          chatOpen = false;
+          el.popup.classList.remove("show");
+        }
+        setMessage("屏幕可以先切回文档，但手机亮光/女朋友电话还没处理。先 Z+X+C 处理证据，再 A+S+D，最后点文件夹完全安全。 ");
+        currentAction = "files";
+        happy -= 1;
+        energy -= 2;
+        reduceSuspicionLimited(2, 0.08, 2);
+        updatePlayerVisual();
+        updateUI();
+        return;
+      }
+
+      if (needsManualRecover && !postureReady) {
+        currentAction = "files";
+        // 允许先把网页/聊天切回文档，解决“老板来了点工作切不回去”的挫败感。
+        // 但这一步不清除 needsManualRecover，因此还不算完全安全；完整流程仍然是 A+S+D 后再点文件夹。
+        if (!frozen) {
+          setScreen("doc");
+          chatOpen = false;
+          el.popup.classList.remove("show");
+        }
+        happy -= 1;
+        energy -= 2;
+        reduceSuspicionLimited(isInVision() ? 3 : 1.5, 0.10, isInVision() ? 3 : 1.5);
+        setMessage("你先把屏幕切回了文档，但坐姿和心虚感还没恢复。要完全安全：先 A+S+D 坐正，再点一次文件夹假装工作。 ");
+        updatePlayerVisual();
+        updateUI();
+        return;
+      }
+
+      happy -= 1;
+      energy -= 3;
+      const wasRecovering = needsManualRecover;
+      setScreen("doc");
+      chatOpen = false;
+      closePopup(false);
+      clearManualRecover();
+      currentAction = "files";
+      const drop = reduceSuspicionLimited(wasRecovering ? (isInVision() ? 9 : 4) : (isInVision() ? 5 : 2), 0.20, wasRecovering ? 9 : 5);
+      addDisguiseBoost(wasRecovering ? 4.6 : 2.0);
+      setMessage(wasRecovering
+        ? `完整伪装成功：A+S+D 后点文件夹，屏幕回文档、姿态也稳住了。立刻只压下 ${drop.toFixed(0)} 点怀疑，接下来靠伪装慢慢降。 `
+        : `你打开文件夹假装工作，压下 ${drop.toFixed(0)} 点怀疑。没有危险证据时，这才算正常安全状态。 `);
+      updatePlayerVisual();
+      updateUI();
+    }
+
+    function startSleep() {
+      if (currentAction === "sleep") return setMessage("你已经睡着了。再点睡觉不会自动关网页，只会让命运更像命运。 ");
+      if (wakeStun > 0) return setMessage("刚醒还没缓过来，不能立刻继续睡。摸鱼战争里连回笼觉都要冷却。 ");
+      markNeedsRecover();
+      suspicion += isInVision() ? 24 : 8;
+      const dirtyScreen = screenMode !== "doc" || phoneExposed || chatOpen || frozen || girlfriendCalling;
+      setAction("sleep", dirtyScreen
+        ? "你进入睡觉状态，但点击不会瞬间回血。屏幕/手机不会替你自首变清白，体力会在睡觉持续期间快速恢复。 "
+        : "你进入睡觉状态。点击本身不回血，体力会持续明显恢复；老板走近时这不是休息，是献祭。 ");
+      updateUI();
+    }
+
+    function tremorMisfire(label) {
+      if (tremorTime > 0 && Math.random() < 0.34) {
+        comboHit(label + " 失误");
+        suspicion += isInVision() ? 13 : 6;
+        energy -= 3;
+        setMessage("手抖！组合键按歪了。咖啡正在接管你的神经系统，键盘像在下雨。 ");
+        updatePlayerVisual();
+        updateUI();
+        return true;
+      }
+      return false;
+    }
+
+    function fakeTyping() {
+      if (blockActionIfAsleep("假装打字")) return;
+      if (tremorMisfire("Q+W")) return;
+      comboHit("Q+W 假装打字");
+      fakeTypingBuff = 2.5;
+      currentAction = "typing";
+      const cleanDesk = screenMode === "doc" && !chatOpen && !frozen && !phoneExposed && !girlfriendCalling && !needsManualRecover;
+      suspicion -= cleanDesk ? (isInVision() ? 16 : 6) : 2;
+      energy -= 5;
+      setMessage(cleanDesk
+        ? "Q+W 成功：你开始猛烈敲键盘，像代码在自动生长。 "
+        : "Q+W 只是让你手在动，屏幕/手机还没清干净。老板看的是证据，不是你的手速。 ");
+      updatePlayerVisual();
+      updateUI();
+    }
+
+    function hidePhone() {
+      if (blockActionIfAsleep("藏手机/修卡死/挂电话")) return;
+      if (tremorMisfire("Z+X+C")) return;
+      comboHit("Z+X+C 应急处理");
+      if (girlfriendCalling) {
+        hangupGirlfriendCall();
+        return;
+      }
+      if (frozen) {
+        freezeStep++;
+        setMessage(`电脑卡死抢救中：Z X C Z X C Z X C 进度 ${freezeStep}/3`);
+        if (freezeStep >= 3) {
+          frozen = false;
+          freezeStep = 0;
+          setScreen("doc");
+          currentAction = "work";
+          reduceSuspicionLimited(8, 0.22, 8);
+          addDisguiseBoost(2.0);
+          setMessage("电脑终于恢复了，但这不等于完全安全。接下来先 A+S+D 坐正，再点文件夹假装工作。 ");
+        }
+      } else if (currentAction === "phone" || phoneExposed) {
+        currentAction = "work";
+        phoneExposed = false;
+        reduceSuspicionLimited(isInVision() ? 12 : 5, 0.28, isInVision() ? 12 : 5);
+        addDisguiseBoost(2.2);
+        escapeCount++;
+        setMessage("Z+X+C 成功：手机藏起来了，但还没完全安全。接下来先 A+S+D 坐正，再点文件夹假装工作。 ");
+      } else {
+        reduceSuspicionLimited(2, 0.12, 2);
+        setMessage("Z+X+C：你摸了摸口袋。没电话没手机时乱按，只能降低一点点心虚感。 ");
+      }
+      energy -= 4;
+      updatePlayerVisual();
+      updateUI();
+    }
+
+    function sitStraight() {
+      if (blockActionIfAsleep("坐端正")) return;
+      if (tremorMisfire("A+S+D")) return;
+      comboHit("A+S+D 端正坐姿");
+      currentAction = "straight";
+      const cleanDesk = screenMode === "doc" && !chatOpen && !frozen && !phoneExposed && !girlfriendCalling && !needsManualRecover;
+      const drop = cleanDesk
+        ? reduceSuspicionLimited(isInVision() ? 7 : 3, 0.18, isInVision() ? 7 : 3)
+        : reduceSuspicionLimited(isInVision() ? 3 : 1.5, 0.08, isInVision() ? 3 : 1.5);
+      markPostureReady(4.8);
+      addDisguiseBoost(cleanDesk ? 3.0 : 2.4);
+      energy -= 6;
+      escapeCount++;
+      setMessage(cleanDesk
+        ? `A+S+D 成功：你坐正了，只压下 ${drop.toFixed(0)} 点怀疑；接下来几秒怀疑下降更快。 `
+        : `A+S+D 成功：你只是恢复坐姿，压下 ${drop.toFixed(0)} 点怀疑。要完全安全，马上点文件夹假装工作。 `);
+      setTimeout(() => { if (!gameOver && currentAction === "straight") setAction("work", "坐姿维持结束。摸鱼之心又开始轻轻敲门。 "); }, 1800);
+      updatePlayerVisual();
+      updateUI();
+    }
+
+    // Z+X+C 不再清场；现在只负责原 J+K 的应急处理：藏手机、修卡死、挂电话。
+
+    function comboHit(text) {
+      comboCount++;
+      el.comboFlash.textContent = text;
+      el.comboFlash.classList.remove("show");
+      void el.comboFlash.offsetWidth;
+      el.comboFlash.classList.add("show");
+    }
+
+    function freezeComputer() {
+      markNeedsRecover();
+      frozen = true;
+      freezeStep = 0;
+      setScreen("frozen");
+      setMessage("完了，电脑卡死了！按 Z X C Z X C Z X C 才能恢复。老板此刻如果来，空气会变硬。 ");
+    }
+
+    function forceBossTurnBackFromCall() {
+      if (boss.state !== "leave" || boss.callTurnBackUsed || boss.timer < 0.45) return false;
+      boss.state = "inspect";
+      boss.timer = 0;
+      boss.x = Math.min(boss.x, 650);
+      boss.callTurnBackUsed = true;
+      boss.turnBackUsed = true;
+      boss.leaveGrace = 0;
+      el.boss.classList.add("visible", "inspect");
+      el.boss.classList.remove("watch");
+      el.bossLabel.textContent = "被电话拽回头";
+      suspicion += 8;
+      return true;
+    }
+
+    function spawnGirlfriendCall() {
+      if (girlfriendCalling || gameOver || progressQuestion || currentAction === "phone" || phoneExposed) return;
+      markNeedsRecover();
+      girlfriendCalling = true;
+      girlfriendCallTime = 0;
+      girlfriendExposure = 0;
+      girlfriendCallCount++;
+      el.girlfriendCall.classList.add("show");
+      const turned = forceBossTurnBackFromCall();
+      setMessage(turned
+        ? "女朋友电话响了，老板本来要走，结果立马回头。不能接，只能按 Z+X+C 挂断；响得越久，最终扣分越多。 "
+        : "女朋友突然打电话。不能接，只能尽快按 Z+X+C 挂断；铃声不是爱情，是会计入最终扣分的警报。 ");
+    }
+
+    function hangupGirlfriendCall() {
+      const ringTime = girlfriendCallTime;
+      girlfriendRingSeconds += ringTime;
+      girlfriendCalling = false;
+      girlfriendCallTime = 0;
+      girlfriendExposure = 0;
+      el.girlfriendCall.classList.remove("show");
+      reduceSuspicionLimited(isInVision() ? 6 : 2, 0.18, isInVision() ? 6 : 2);
+      addDisguiseBoost(2.4);
+      energy -= 3;
+      escapeCount++;
+      setMessage(`Z+X+C 成功：你在 ${ringTime.toFixed(1)} 秒后挂断电话。不是漏接，是战术断联；但还没完全安全，接下来先 A+S+D，再点文件夹假装工作。 `);
+      updatePlayerVisual();
+      updateUI();
+    }
+
+    function missGirlfriendCall() {
+      if (!girlfriendCalling) return;
+      const ringTime = girlfriendCallTime;
+      girlfriendRingSeconds += ringTime;
+      girlfriendCalling = false;
+      girlfriendCallTime = 0;
+      girlfriendExposure = 0;
+      girlfriendMissedCount++;
+      el.girlfriendCall.classList.remove("show");
+      suspicion += isInVision() ? 12 : 4;
+      setMessage(isInVision()
+        ? `电话响了 ${ringTime.toFixed(1)} 秒才停，老板听见了。你不是漏接，是没来得及战术挂断，都市情感剧差点在办公室开机。 `
+        : `电话响了 ${ringTime.toFixed(1)} 秒才停。老板没贴脸，但这段铃声会记入最终扣分。 `);
+      updateUI();
+    }
+
+    function spawnPopup() {
+      if (chatOpen || progressQuestion || gameOver) return;
+      if (frozen) {
+        // 电脑卡死优先级最高：弹窗不应覆盖“卡死”画面，
+        // 否则玩家会误以为弹窗把电脑修好了。
+        popupTimer = 3.5 + Math.random() * 4.5;
+        return;
+      }
+      markNeedsRecover();
+      chatOpen = true;
+      const variants = [
+        ["715特报", "715大少爷邵轩廷今日临盆，降下一儿母子平安。院方表示：孩子一出生就会喊“保安呢”。"],
+        ["动作电影快讯", "著名功夫影星成蛇加盟新动作电影《新保安故事》，片方称全片最大动作戏是主角从监控室冲向奶茶店。"],
+        ["校园奇闻", "有同学声称在图书馆三楼看见一杯奶茶独自占座四小时，疑似已获得学生身份。"],
+        ["金融快报", "今日鱼币大涨 114%，专家建议：别问，问就是长期看好精神胜利板块。"],
+        ["重大考古", "考古队在某同学书包底部发现去年没交的作业，纸张已进化出独立意识。"],
+        ["离谱天气", "本地明日有小到中等程度的摆烂，局部地区可能出现强摸鱼，请注意老板回头。"],
+        ["食堂新闻", "食堂阿姨宣布推出新品“看起来像鸡腿的随机事件”，售价随缘，口感像人生。"],
+        ["电竞战报", "某男子排位连跪七把后宣布：不是我菜，是系统在进行人格压力测试。"],
+        ["宿舍快讯", "某宿舍空调遥控器失踪三日后自行归来，身上带有隔壁寝室 WiFi 密码。"],
+        ["学术突破", "研究发现：DDL 前一天打开文档，论文会自动散发一种‘我快写完了’的幻觉。"],
+        ["办公室传说", "打印机今日第 27 次卡纸，疑似正在用 A4 纸给人类写遗书。"],
+        ["娱乐播报", "著名歌手周董不周到宣布新歌《等你下课但我先点名》，评论区已被老师占领。"],
+        ["社会新闻", "一名男子声称自己只是闭眼思考，监控显示他思考时还流了口水。"],
+        ["神秘来电", "未知号码连续拨打 13 次，接通后只说了一句：‘你外卖放前台三天了。’"],
+        ["校园热搜", "某同学早八迟到后解释：不是我起晚了，是床对我进行了强制挽留。"],
+        ["科技发布", "某公司发布 AI 鼠标，能自动打开工作文档，但也会偷偷点开视频网站，像极了人类。"],
+        ["职场观察", "领导说‘简单同步一下’，会议室的灯当场暗了三度。"],
+        ["健康提醒", "专家建议每天摸鱼 8 分钟，有助于保持灵魂湿润，缺点是专家已被开除。"],
+        ["玄学新闻", "有人在 Excel 里输入 SUM 后听见远方传来一句：‘你终于开始工作了。’"],
+        ["情感栏目", "女朋友问‘你在忙吗’，该男子沉默 0.3 秒后被判定为正在打游戏。"],
+        ["交通广播", "通往下班的道路全线畅通，但通往周五的心路仍有严重拥堵。"],
+        ["保安故事番外", "《新保安故事》片场爆料：成蛇为追求真实，已经连续三天没让任何人进小区。"],
+        ["离谱招聘", "某公司招聘摸鱼监督员，要求有五年被抓经验，熟练掌握 Alt+Tab 传统文化。"],
+        ["宇宙新闻", "NASA 发现一颗新行星，表面全是未读消息，命名为‘已读不回 b’。"],
+        ["寝室民俗", "室友说‘我眯十分钟’，三小时后被考古队从被子文明中发掘。"],
+        ["猫猫快讯", "校园流浪猫疑似当上辅导员，已对路过学生进行无差别眼神考勤。"],
+        ["奶茶金融", "某品牌推出分期奶茶，首付一口，尾款由明天的你承担。"],
+        ["学习战报", "某同学打开 PPT 后立即感到知识进入大脑，后查明只是屏幕亮度太高。"],
+        ["群聊热议", "有人发了一个‘在吗’，全群 37 人同时装死，场面十分专业。"],
+        ["重大事故", "一名学生误把‘保存’点成‘另存为’，电脑桌面新增最终版、最终版2、真最终版。"],
+        ["校园金融", "某同学宣布破产，原因是连续三天请客喝奶茶，被尊称为‘液体经济学家’。"],
+        ["办公室神话", "传说认真工作满 30 秒，就能召唤老板从任何地方出现，包括茶水间和梦里。"],
+        ["体育快讯", "本届宿舍奥运会新增项目：躺着拿外卖、闭眼找手机、听脚步声判断老师距离。"],
+        ["抽象文学", "某人朋友圈发‘一切随缘’，三分钟后又补充：但别随便对我。"],
+        ["外卖简报", "骑手备注写‘放门口’，门口回复：我也不知道我在哪。"],
+        ["校园传闻", "715 走廊出现神秘脚步声，目击者称声音像拖鞋，但气场像董事长。"],
+        ["摸鱼日报", "今日最佳摸鱼姿势评选出炉：左手键盘救命，右手鼠标犯罪。"],
+        ["保安宇宙", "成蛇在《新保安故事》中饰演一位会用眼神刷门禁的传奇保安，豆瓣暂无条目但已有精神评分。"],
+        ["离谱财经", "快乐值指数暴涨，怀疑值期货跳水，市场认为老板暂时离场释放重大利好。"],
+        ["灵魂快讯", "某员工称自己正在进行深度工作，实际深度约等于椅子后仰角度。"],
+        ["校园医学", "研究发现：听到‘点名’两个字，人的灵魂会比身体早到教室三秒。"],
+        ["紧急插播", "有人把‘等会儿写’连续说了七天，目前该句已申请非物质文化遗产。"],
+        ["神秘档案", "电脑 C 盘剩余 2GB，却依然坚强开机，精神状态领先当代大学生。"],
+        ["老板观察", "老板路过工位时看似随意，实际眼神扫描精度高达 4K。"],
+        ["群聊事故", "某人错把‘哈哈哈哈’发给老师，随后补了一句‘老师您讲课很有喜感’。"],
+        ["摸鱼哲学", "哲学家指出：人不能同时踏进同一条河流，但可以反复打开同一个摸鱼网页。"],
+        ["校园悬案", "自习室出现一支无人认领的笔，因长期占座已被同学尊称为笔主任。"],
+        ["生活妙招", "当你不想工作时，可以先打开工作软件，这样就从不想工作变成了不想在工作软件里工作。"],
+        ["精神气象台", "今日全城灵魂湿度偏低，建议适量摸鱼，过量会引发老板雷暴。"]
+      ];
+      const p = variants[Math.floor(Math.random() * variants.length)];
+      popupSeenCount++;
+      el.popupTitle.textContent = p[0];
+      el.popupText.textContent = p[1];
+      el.popup.classList.add("show");
+      setScreen("chat");
+      setMessage("右下角弹出了消息。点开会快乐，不点会遗憾，被老板看到会升天。 ");
+    }
+
+    function openPopupFun() {
+      if (blockActionIfAsleep("点开弹窗")) return;
+      if (!chatOpen) return;
+      if (frozen) {
+        setMessage("电脑还卡死着，八卦点不开。先用 Z+X+C 连续抢救电脑，别指望群聊帮你修系统。 ");
+        return;
+      }
+      popupOpenedCount++;
+      markNeedsRecover();
+      suspicion += isInVision() ? 12 : 3;
+      chatOpen = false;
+      el.popup.classList.remove("show");
+      setScreen("web");
+      setAction("web", "你点开八卦，结果顺手滑进摸鱼网页。点击本身不加快乐，持续看网页才会高速涨快乐。 ");
+      updateUI();
+    }
+
+    function closePopup(showMsg = true) {
+      if (showMsg && blockActionIfAsleep("关弹窗")) return;
+      chatOpen = false;
+      el.popup.classList.remove("show");
+      if (screenMode === "chat" && !frozen) setScreen("doc");
+      if (showMsg) {
+        if (frozen) {
+          setMessage("弹窗关掉了，但电脑仍然卡死。卡死只能靠 Z+X+C 连续抢救，弹窗不是维修工。 ");
+        } else {
+          setMessage(needsManualRecover ? "你关掉了弹窗，但还没完全安全。先 A+S+D，再点文件夹假装工作。 " : "你关掉了弹窗。错过八卦，但保住饭碗。 ");
+        }
+      }
+    }
+
+    function showCoworkerBubble() {
+      if (gameOver || progressQuestion || coworkerMoyu || !isCoworkerAllowedToStart()) return;
+      el.coworkerBubble.textContent = "兄弟我要开始摸鱼了，老板来了叫我。";
+      el.coworkerBubble.classList.add("show");
+      startCoworkerMoyu("auto");
+      setTimeout(() => el.coworkerBubble.classList.remove("show"), 3600);
+    }
+
+    function startCoworkerMoyu(source = "auto") {
+      if (coworkerMoyu || gameOver || progressQuestion) return;
+      if (!isCoworkerAllowedToStart()) {
+        setMessage("兄弟想摸鱼，但老板还没真正离开。现在不开摸，避免莫名连坐。 ");
+        return;
+      }
+      coworkerMoyu = true;
+      coworkerSafeTime = 0;
+      coworkerExposure = 0;
+      coworkerDangerGrace = 0;
+      coworkerBossThreatActive = false;
+      coworkerMoyuTime = 10 + Math.random() * 9;
+      happy += source === "manual" ? 3 : 1.5;
+      setMessage("老板已经完全离场，兄弟开始摸鱼。老板重新出现并进入红色视野时，会先给你短暂反应时间，按 R 提醒他。 ");
+      updateCoworkerVisual();
+      updateUI();
+    }
+
+    function helpCoworker() {
+      el.coworkerBubble.classList.remove("show");
+      startCoworkerMoyu("manual");
+    }
+
+    function warnCoworker() {
+      if (blockActionIfAsleep("提醒兄弟")) return;
+      if (tremorMisfire("R")) return;
+      comboHit("R 提醒兄弟");
+      if (!coworkerMoyu) {
+        suspicion += isInVision() ? 5 : 1;
+        setMessage("你对空气提醒兄弟。兄弟没在摸鱼，老板只觉得你突然很可疑。 ");
+      } else {
+        coworkerSafeTime = 2.8;
+        coworkerExposure = 0;
+        happy += 2;
+        energy -= 2;
+        setMessage("R 成功：你提醒了兄弟，他瞬间收手机。办公室友情，就是互相从悬崖边拽一把。 ");
+      }
+      updateCoworkerVisual();
+      updateUI();
+    }
+
+    function coworkerCaught() {
+      coworkerCaughtCount++;
+      coworkerMoyu = false;
+      coworkerSafeTime = 0;
+      coworkerExposure = 0;
+      coworkerDangerGrace = 0;
+      coworkerBossThreatActive = false;
+      coworkerMoyuTime = 0;
+      const penalty = boss.state === "inspect" ? 30 : 22;
+      suspicion += penalty;
+      el.coworkerBox.classList.add("caught");
+      setTimeout(() => el.coworkerBox.classList.remove("caught"), 900);
+      setMessage(currentAction === "sleep"
+        ? `兄弟摸鱼被抓，而你还趴着睡觉。连坐 + 睡觉被抓双重叠加，怀疑值暴涨 ${penalty} 点；这不是 bug，是办公室核爆。 `
+        : `兄弟摸鱼被老板发现了。老板顺手看了你一眼：'你俩是不是串通好的？' 连坐怀疑值 +${penalty}。 `);
+      updateCoworkerVisual();
+      updateUI();
+    }
+
+    function updateCoworkerVisual() {
+      el.coworkerBox.classList.toggle("moyu", coworkerMoyu && coworkerSafeTime <= 0);
+      el.coworkerBox.classList.toggle("warned", coworkerMoyu && coworkerSafeTime > 0);
+      if (!coworkerMoyu) {
+        el.coworkerMini.textContent = "🙂";
+        el.coworkerStatus.textContent = "兄弟：待机";
+      } else if (coworkerSafeTime > 0) {
+        el.coworkerMini.textContent = "🫡";
+        el.coworkerStatus.textContent = "兄弟：已收手";
+      } else {
+        el.coworkerMini.textContent = "📱";
+        el.coworkerStatus.textContent = "兄弟：摸鱼中";
+      }
+    }
+
+    function spawnBoss() {
+      boss.state = "enter";
+      boss.x = 1040;
+      boss.timer = 0;
+      boss.asked = false;
+      boss.turnBackUsed = false;
+      boss.callTurnBackUsed = false;
+      boss.leaveGrace = 0;
+      el.boss.classList.add("visible");
+      el.boss.classList.remove("watch", "inspect");
+      el.bossLabel.textContent = "门口出现";
+      setMessage("门口有动静：老板出现了。别等文字提示，直接看右边！ ");
+    }
+
+    function updateBoss(dt) {
+      boss.timer += dt;
+
+      if (boss.state === "hidden") {
+        if (isSafeWindowActive()) {
+          lastBossSpawn = 0;
+        } else {
+          lastBossSpawn += dt;
+          const latePressure = timeLeft < 60 ? 0.22 : 0.13;
+          if (lastBossSpawn > 8.0 && Math.random() < dt * latePressure) {
+            lastBossSpawn = 0;
+            spawnBoss();
+          }
+        }
+      }
+
+      if (boss.state === "enter") {
+        boss.x -= dt * (timeLeft < 30 ? 165 : 135);
+        el.bossLabel.textContent = "门口观察";
+        if (boss.x <= 875 || boss.timer > 1.55) {
+          boss.state = "patrol";
+          boss.timer = 0;
+          el.boss.classList.add("watch");
+          setMessage("老板开始巡逻。红色视野扫过来时，摸鱼行为会很危险。 ");
+        }
+      } else if (boss.state === "patrol") {
+        boss.x -= dt * (timeLeft < 30 ? 135 : 112);
+        el.bossLabel.textContent = "巡逻靠近";
+        if (boss.x <= 480 || boss.timer > 3.9) {
+          boss.state = "inspect";
+          boss.timer = 0;
+          el.boss.classList.remove("watch");
+          el.boss.classList.add("inspect");
+          setMessage("老板站到附近检查！现在最好保持文档 + 正常坐姿。 ");
+        }
+      } else if (boss.state === "inspect") {
+        boss.x = 480 + Math.sin(boss.timer * 5) * 10;
+        el.bossLabel.textContent = "身后检查";
+        if (!boss.asked && boss.timer > 0.65 && Math.random() < dt * 0.78) {
+          askProgress();
+          boss.asked = true;
+        }
+        if (boss.timer > 3.3) {
+          boss.state = "leave";
+          boss.timer = 0;
+          boss.leaveGrace = 0.7;
+          el.boss.classList.remove("inspect");
+          el.boss.classList.add("watch");
+          setMessage(boss.turnBackUsed || boss.callTurnBackUsed
+            ? "老板准备离开。这轮已经回头过了，别太浪，但他不会无限折返。 "
+            : "老板准备离开，但别急着浪，他可能会回头一次。 ");
+        }
+      } else if (boss.state === "leave") {
+        boss.x += dt * 190;
+        boss.leaveGrace = Math.max(0, boss.leaveGrace - dt);
+        el.bossLabel.textContent = boss.turnBackUsed || boss.callTurnBackUsed ? "离开中（不再回头）" : "离开中";
+        if (!boss.turnBackUsed && boss.leaveGrace <= 0 && Math.random() < dt * 0.085 && boss.x < 760) {
+          boss.state = "inspect";
+          boss.timer = 0;
+          boss.turnBackUsed = true;
+          el.boss.classList.add("inspect");
+          setMessage("老板突然回头！这是本轮唯一一次自然回头。按 A+S+D 坐直；有手机/电话/卡死才用 Z+X+C 处理证据。 ");
+        }
+        if (boss.x >= 1080) {
+          boss.state = "hidden";
+          boss.timer = 0;
+          boss.turnBackUsed = false;
+          boss.callTurnBackUsed = false;
+          boss.leaveGrace = 0;
+          el.boss.classList.remove("visible", "watch", "inspect");
+          setMessage("老板离开了。办公室重新恢复低质量自由。 ");
+        }
+      }
+
+      el.boss.style.left = boss.x + "px";
+    }
+
+    function askProgress() {
+      if (progressQuestion) return;
+      progressQuestion = true;
+      questionTimer = 3.1;
+      typedBuffer = "";
+      el.typedWord.textContent = "";
+      el.question.classList.add("show");
+      setMessage("老板问你进度！不要点鼠标，直接输入 WORK。 ");
+    }
+
+    function resolveProgress(success) {
+      progressQuestion = false;
+      el.question.classList.remove("show");
+      if (success) {
+        suspicion -= 26;
+        happy += 4;
+        currentAction = "typing";
+        setScreen("doc");
+        comboHit("WORK 汇报成功");
+        setMessage("你流畅说出 WORK。老板听不懂，但觉得你很忙。 ");
+      } else {
+        suspicion += 34;
+        setMessage("你没答上来。老板的沉默像一份没有保存的 Word 文档。 ");
+      }
+      updatePlayerVisual();
+      updateUI();
+    }
+
+    function updateStats(dt) {
+      timeLeft -= dt;
+      energy -= dt * 0.7;
+      updateBossNotice(dt);
+
+      if (fakeTypingBuff > 0) {
+        fakeTypingBuff -= dt;
+        if (fakeTypingBuff <= 0 && currentAction === "typing") currentAction = "work";
+      }
+
+      if (noisySnack > 0) noisySnack -= dt;
+      if (wakeStun > 0) wakeStun = Math.max(0, wakeStun - dt);
+      if (postureReadyTime > 0) {
+        postureReadyTime = Math.max(0, postureReadyTime - dt);
+        if (postureReadyTime <= 0) postureReady = false;
+      }
+
+      if (breathHold) {
+        energy -= dt * 5.5;
+        if (isInVision()) suspicion -= dt * (isVisiblyClean() ? 6.5 : 4.2);
+        if (energy <= 3) {
+          breathHold = false;
+          setMessage("你屏住呼吸太久，差点把自己从摸鱼游戏里送走。Space 是临时硬扛老板视线，不是永久隐身术。 ");
+        }
+      }
+
+      if (currentAction === "phone") {
+        if (isSafeWindowActive()) safeWindowMoyuSeconds += dt;
+        happy += dt * (isSafeWindowActive() ? HAPPY_PHONE_RATE_SAFE : HAPPY_PHONE_RATE);
+        energy -= dt * 0.9;
+      } else if (currentAction === "web") {
+        if (isSafeWindowActive()) safeWindowMoyuSeconds += dt;
+        happy += dt * (isSafeWindowActive() ? HAPPY_WEB_RATE_SAFE : HAPPY_WEB_RATE);
+        energy -= dt * 0.9;
+      } else if (currentAction === "sleep") {
+        if (isSafeWindowActive()) safeWindowMoyuSeconds += dt;
+        happy += dt * (isSafeWindowActive() ? HAPPY_SLEEP_SAFE_RATE : -HAPPY_SLEEP_LOSS_RATE);
+        energy += dt * ENERGY_SLEEP_RATE;
+      } else if (currentAction === "coffee") {
+        energy += dt * ENERGY_COFFEE_RATE;
+        happy -= dt * HAPPY_COFFEE_LOSS_RATE;
+      } else if (currentAction === "work" || currentAction === "files" || currentAction === "typing") {
+        // 工作本身主要用于“在老板面前表演”。老板不在时不再因为工作而额外降疑，
+        // 只保留快乐值缓慢下降，避免玩家空场一直工作反而成为最优解。
+        happy -= dt * HAPPY_WORK_LOSS_RATE;
+      }
+
+      if (disguiseBoost > 0) {
+        disguiseBoost = Math.max(0, disguiseBoost - dt);
+        // 伪装加成只在老板看得到你时有效；没人看时，表演给空气看没有意义。
+        if (isInVision()) {
+          suspicion -= dt * (isSafePosture() ? 4.4 : 1.4);
+        }
+      }
+
+      // 老板完全离场后，怀疑值会自然回落；这不是“工作奖励”，而是风险热度冷却。
+      // 如果画面干净，冷却更明显；如果你还开着网页/手机/电话/卡死，也会降，但慢很多。
+      if (boss.state === "hidden") {
+        suspicion -= dt * (isRisky() ? 0.35 : (isVisiblyClean() ? 1.55 : 0.8));
+      }
+
+      if (needsManualRecover && isInVision() && !isRisky() && !isVisiblyClean()) {
+        // Only visible awkward states should raise suspicion.
+        // A clean document + normal posture should not randomly increase suspicion just because
+        // the internal recovery flag is still true.
+        suspicion += dt * (boss.state === "inspect" ? 1.2 : 0.5);
+      }
+
+      if (screenMode === "web") {
+        webStreak += dt;
+        if (!frozen) {
+          let freezeChance = 0.08;
+          if (isInVision()) freezeChance = 0.16;
+          if (webStreak > 5) freezeChance = 0.23;
+          if (currentAction === "sleep") freezeChance += 0.08;
+          if (Math.random() < dt * freezeChance) freezeComputer();
+        }
+      } else {
+        webStreak = 0;
+      }
+
+      if (phoneExposed && isInVision()) {
+        phoneExposure += dt;
+        if (phoneExposure > 1.25) {
+          phoneExposure = 0;
+          suspicion += boss.state === "inspect" ? 12 : 6;
+          setMessage("手机亮光在红色视野里暴露太久！A+S+D 救不了手机，必须 Z+X+C。 ");
+        }
+      } else {
+        phoneExposure = 0;
+      }
+
+      girlfriendCallTimer -= dt;
+      if (girlfriendCallTimer <= 0) {
+        girlfriendCallTimer = 23 + Math.random() * 16;
+        if (!isSafeWindowActive() && currentAction !== "phone" && !phoneExposed && Math.random() < 0.36) spawnGirlfriendCall();
+      }
+      if (boss.state === "leave" && !girlfriendCalling && !boss.callTurnBackUsed && !isSafeWindowActive() && currentAction !== "phone" && !phoneExposed && boss.timer > 0.65 && Math.random() < dt * 0.025) {
+        spawnGirlfriendCall();
+      }
+      if (girlfriendCalling) {
+        girlfriendCallTime += dt;
+        if (boss.state === "leave" && !boss.callTurnBackUsed) forceBossTurnBackFromCall();
+        if (isInVision()) {
+          girlfriendExposure += dt;
+          if (girlfriendExposure > 1.0) {
+            girlfriendExposure = 0;
+            suspicion += boss.state === "inspect" ? 12 : 7;
+            setMessage("女朋友电话铃声在老板视野里持续响！快按 Z+X+C 挂断；现在不是接不接的问题，是铃声正在给你计分扣款。 ");
+          }
+        } else {
+          girlfriendExposure = 0;
+        }
+        if (girlfriendCallTime > 5.2) missGirlfriendCall();
+      }
+
+      if (tremorTime > 0) {
+        tremorTime -= dt;
+        el.game.classList.add("shaky");
+        if (tremorTime <= 0) {
+          tremorTime = 0;
+          el.game.classList.remove("shaky");
+          setMessage("咖啡手抖结束。你的手重新归还给了你本人。 ");
+        }
+      } else {
+        el.game.classList.remove("shaky");
+      }
+
+      if (isInVision()) {
+        if (isRisky()) {
+          let add = 0;
+          if (currentAction === "sleep") add += 16;
+          if (currentAction === "web" || screenMode === "web") add += 10;
+          if (currentAction === "phone") add += 9;
+          if (phoneExposed && currentAction !== "phone") add += 5;
+          if (chatOpen || screenMode === "chat") add += 7;
+          if (girlfriendCalling) add += 7;
+          if (frozen) add += 11;
+          if (currentAction === "coffee") add += 1;
+          suspicion += dt * add;
+        } else if (isSafePosture()) {
+          // 老板面前认真工作，才会明显加快怀疑值下降。
+          suspicion -= dt * 3.2;
+        } else if (isVisiblyClean()) {
+          // Visually clean but not fully recovered: do not punish the player.
+          // The full A+S+D -> 文件夹流程 only affects how fast suspicion falls.
+          suspicion -= dt * 0.45;
+        }
+      }
+
+      if (boss.state === "inspect" && !isVisiblyClean()) {
+        suspicion += dt * 4.2;
+      }
+
+      if (progressQuestion) {
+        questionTimer -= dt;
+        if (questionTimer <= 0) resolveProgress(false);
+      }
+
+      popupTimer -= dt;
+      if (popupTimer <= 0) {
+        popupTimer = 4.5 + Math.random() * 4.5;
+        if (Math.random() < 0.78) spawnPopup();
+      }
+
+      coworkerTimer -= dt;
+      if (coworkerTimer <= 0) {
+        coworkerTimer = 9 + Math.random() * 8;
+        if (isCoworkerAllowedToStart() && Math.random() < 0.82) showCoworkerBubble();
+      }
+
+      if (coworkerMoyu) {
+        coworkerMoyuTime -= dt;
+        if (coworkerSafeTime > 0) coworkerSafeTime = Math.max(0, coworkerSafeTime - dt);
+        // 兄弟摸鱼会带来连带快乐，但收益低于玩家自己刷手机。
+        happy += dt * (isSafeWindowActive() ? HAPPY_COWORKER_RATE_SAFE : HAPPY_COWORKER_RATE);
+
+        if (boss.state === "hidden") {
+          coworkerBossThreatActive = false;
+          coworkerDangerGrace = 0;
+          coworkerExposure = 0;
+        } else if (!coworkerBossThreatActive) {
+          coworkerBossThreatActive = true;
+          coworkerDangerGrace = 2.2;
+          coworkerExposure = 0;
+          if (coworkerSafeTime <= 0) {
+            setMessage("老板出现了，兄弟还在摸鱼！你有短暂缓冲，老板视野压过来时按 R 提醒他。 ");
+          }
+        }
+
+        if (isCoworkerActuallyThreatened()) {
+          if (coworkerDangerGrace > 0) {
+            coworkerDangerGrace = Math.max(0, coworkerDangerGrace - dt);
+          } else {
+            coworkerExposure += dt;
+            if (coworkerExposure > 1.35) coworkerCaught();
+          }
+        } else {
+          coworkerExposure = 0;
+        }
+
+        if (coworkerMoyuTime <= 0 && coworkerMoyu) {
+          coworkerMoyu = false;
+          coworkerExposure = 0;
+          coworkerSafeTime = 0;
+          coworkerDangerGrace = 0;
+          coworkerBossThreatActive = false;
+          happy += 2;
+          setMessage("兄弟这轮摸鱼安全结束。你们交换了一个懂的人都懂的眼神。 ");
+        }
+        updateCoworkerVisual();
+      }
+
+      if (energy <= 0) {
+        energy = 0;
+        suspicion += dt * 7;
+        if (currentAction !== "sleep") setAction("sleep", "体力耗尽，你自动趴下了。打工人的电量，比手机还脆。 ");
+      }
+
+      if (timeLeft <= 0) {
+        timeLeft = 0;
+        finalEnding();
+      }
+    }
+
+    function updateUI() {
+      happy = clamp(happy, 0, HAPPY_MAX);
+      suspicion = clamp(suspicion);
+      energy = clamp(energy);
+      el.happyText.textContent = Math.round(happy);
+      el.susText.textContent = Math.round(suspicion);
+      el.energyText.textContent = Math.round(energy);
+      el.timeText.textContent = Math.ceil(timeLeft);
+      el.happyBar.style.width = (happy / HAPPY_MAX * 100) + "%";
+      el.susBar.style.width = suspicion + "%";
+      el.energyBar.style.width = energy + "%";
+      el.timeBar.style.width = (timeLeft / MAX_TIME * 100) + "%";
+
+      const danger = isInVision() && (isRisky() || (boss.state === "inspect" && !isVisiblyClean()));
+      el.alertStrip.classList.toggle("danger", danger);
+      updatePlayerVisual();
+      updateKeyVisuals();
+
+      if (happy >= HAPPY_MAX) {
+        endGame("快乐满格", "你今天已经足够快乐了，摸不摸鱼也无所谓了。", "happyMax");
+      } else if (suspicion >= 100) {
+        endGame("当场去世", "老板盯着你的屏幕沉默了三秒。那三秒，比毕业论文查重还漫长。你解释不了，鱼也救不了你。 ", "caught");
+      }
+    }
+
+    function updateKeyVisuals() {
+      document.querySelectorAll(".key").forEach(k => {
+        const key = k.dataset.key;
+        k.classList.toggle("on", keysDown.has(key));
+      });
+    }
+
+    function canCombo(name, ms = 650) {
+      const now = performance.now();
+      if (!comboCooldown[name] || now - comboCooldown[name] > ms) {
+        comboCooldown[name] = now;
+        return true;
+      }
+      return false;
+    }
+
+    function hasKeys(...keys) {
+      return keys.every(k => keysDown.has(k));
+    }
+
+    function checkCombos() {
+      if (gameOver) return;
+      if (currentAction === "sleep" || wakeStun > 0) return;
+      if (hasKeys("q", "w") && canCombo("qw")) fakeTyping();
+      if (hasKeys("z", "x", "c") && canCombo("zxc", frozen ? 280 : 700)) hidePhone();
+      if (hasKeys("a", "s", "d") && canCombo("asd")) sitStraight();
+    }
+
+    window.addEventListener("blur", () => {
+      keysDown.clear();
+      breathHold = false;
+      updateKeyVisuals();
+      updatePlayerVisual();
+    });
+
+    document.addEventListener("keydown", (e) => {
+      const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+      if (key === "p") {
+        e.preventDefault();
+        togglePause();
+        return;
+      }
+      if (paused) return;
+      if ([" ", "Spacebar"].includes(e.key)) {
+        e.preventDefault();
+        keysDown.add(" ");
+        breathHold = true;
+        updatePlayerVisual();
+      } else {
+        keysDown.add(key);
+      }
+
+      if (currentAction === "sleep") {
+        wakeFromSleep(progressQuestion ? "老板问话把你从梦里拎了出来。" : "你被键盘声惊醒了。");
+        updateKeyVisuals();
+        return;
+      }
+
+      if (wakeStun > 0) {
+        setMessage(`刚醒还有 ${wakeStun.toFixed(1)} 秒硬直。你能看见网页还开着，但手还没听大脑指挥。 `);
+        updateKeyVisuals();
+        return;
+      }
+
+      if (/^[a-z]$/i.test(e.key)) {
+        typedBuffer = (typedBuffer + e.key.toLowerCase()).slice(-8);
+        if (progressQuestion) {
+          const shown = typedBuffer.slice(-4).toUpperCase();
+          el.typedWord.textContent = shown;
+          if (typedBuffer.endsWith("work")) resolveProgress(true);
+        }
+      }
+
+      if (!progressQuestion && key === "r" && canCombo("r", 450)) warnCoworker();
+
+      checkCombos();
+      updateKeyVisuals();
+    });
+
+    document.addEventListener("keyup", (e) => {
+      const key = e.key.length === 1 ? e.key.toLowerCase() : e.key;
+      if (key === "p") {
+        e.preventDefault();
+        togglePause();
+        return;
+      }
+      if (paused) return;
+      if ([" ", "Spacebar"].includes(e.key)) {
+        keysDown.delete(" ");
+        breathHold = false;
+      } else {
+        keysDown.delete(key);
+      }
+      updatePlayerVisual();
+      updateKeyVisuals();
+    });
+
+    function calculateFinalScore(endType = "normal") {
+      const playedSeconds = Math.max(0, MAX_TIME - timeLeft);
+      const remainingSeconds = Math.max(0, timeLeft);
+      const participationBase = 500;
+      const happyScore = Math.round(happy * 6);
+      const survivalScore = Math.round(playedSeconds * 5);
+      const suspicionPenalty = Math.round(suspicion * 18);
+      const escapeBonus = escapeCount * 120;
+      const comboBonus = comboCount * 30;
+      const gossipBonus = Math.min(2400, popupSeenCount * 70 + popupOpenedCount * 130);
+      const noticeBonus = Math.min(1800, bossNoticeCount * 140 + Math.round(safeWindowMoyuSeconds * 18));
+      const coworkerPenalty = coworkerCaughtCount * 320;
+      const girlfriendPenalty = Math.min(900, Math.round(girlfriendRingSeconds * 18 + girlfriendMissedCount * 70));
+      const cleanBonus = suspicion < 25 ? 650 : suspicion < 50 ? 330 : 0;
+      let earlyFinishBonus = 0;
+
+      if (endType === "happyMax") {
+        // 早结束给高倍剩余时间奖励，但系数受“看八卦/老板通知”影响，
+        // 避免玩家只暴力刷快乐、完全不看彩蛋。
+        const cultureFactor = 0.65
+          + Math.min(popupSeenCount, 12) * 0.025
+          + Math.min(popupOpenedCount, 8) * 0.035
+          + Math.min(bossNoticeCount, 5) * 0.04;
+        earlyFinishBonus = Math.round(remainingSeconds * 45 * cultureFactor);
+      }
+
+      const total = Math.max(0, Math.round(
+        participationBase + happyScore + survivalScore + escapeBonus + comboBonus + gossipBonus + noticeBonus + cleanBonus + earlyFinishBonus
+        - suspicionPenalty - coworkerPenalty - girlfriendPenalty
+      ));
+
+      return {
+        total,
+        earlyFinishBonus,
+        gossipBonus,
+        noticeBonus,
+        cleanBonus,
+        suspicionPenalty,
+        coworkerPenalty,
+        girlfriendPenalty,
+        girlfriendRingSeconds
+      };
+    }
+
+    function endGame(title, text, endType = "normal") {
+      if (gameOver) return;
+      gameOver = true;
+      const score = calculateFinalScore(endType);
+      document.getElementById("endingTitle").textContent = title;
+      document.getElementById("endingText").textContent = text
+        + `\n\n最终分数：${score.total}`
+        + `\n最终快乐值：${Math.round(happy)}/${HAPPY_MAX}｜剩余时间：${Math.ceil(timeLeft)} 秒｜快捷键逃生：${escapeCount} 次｜Combo：${comboCount} 次`
+        + `\n八卦弹窗：${popupSeenCount} 条｜点开八卦：${popupOpenedCount} 次｜老板通知：${bossNoticeCount} 次｜安全摸鱼：${Math.round(safeWindowMoyuSeconds)} 秒`
+        + `\n加分：早退奖励 ${score.earlyFinishBonus}｜八卦奖励 ${score.gossipBonus}｜通知奖励 ${score.noticeBonus}｜低疑心奖励 ${score.cleanBonus}`
+        + `\n扣分：怀疑惩罚 ${score.suspicionPenalty}｜兄弟连坐 ${coworkerCaughtCount} 次｜电话响铃 ${score.girlfriendRingSeconds.toFixed(1)} 秒｜电话惩罚 ${score.girlfriendPenalty}`;
+      document.getElementById("endScreen").style.display = "flex";
+    }
+
+    function finalEnding() {
+      if (gameOver) return;
+      if (happy >= 700 && suspicion < 55 && escapeCount >= 5) {
+        endGame("键盘摸鱼王", "你在老板视野边缘反复横跳，鼠标和键盘像两条会逃命的鱼。办公室从此流传你的传说。 ");
+      } else if (happy >= 560 && suspicion < 70) {
+        endGame("极限摸鱼王", "你快乐很高，风险也踩得漂亮。人生不一定要赢，但摸鱼必须有风骨。 ");
+      } else if (suspicion < 28 && happy >= 360) {
+        endGame("优秀员工幻觉", "你安全得像公司官网首页，但快乐值没有完全开花。老板满意，灵魂打了个哈欠。 ");
+      } else if (happy < 300) {
+        endGame("低功耗幸存者", "你活下来了，但鱼没摸几条。像一杯没加冰的白开水，稳，但没故事。 ");
+      } else {
+        endGame("普通幸存者", "你熬过了 5 分钟摸鱼战争。有惊无险，有鱼无鲸。下班铃声像远方的寺钟。 ");
+      }
+    }
+
+    function loop(now) {
+      const dt = Math.min(0.05, (now - lastTick) / 1000);
+      lastTick = now;
+      if (!gameOver && !paused) {
+        updateBoss(dt);
+        updateStats(dt);
+        updateUI();
+      } else if (paused) {
+        updatePausePanel();
+      }
+      requestAnimationFrame(loop);
+    }
+
+    setScreen("doc");
+    updateCoworkerVisual();
+    updateUI();
+    requestAnimationFrame(loop);
+  </script>
+</body>
+</html>
