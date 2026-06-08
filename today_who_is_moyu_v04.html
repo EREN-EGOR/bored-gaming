@@ -1,0 +1,860 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>今天谁在摸鱼 v0.4</title>
+<style>
+    * { box-sizing: border-box; user-select: none; }
+    body {
+        margin: 0;
+        background: #171923;
+        color: #e8eaf0;
+        font-family: "Microsoft YaHei", Arial, sans-serif;
+        height: 100vh;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        overflow: hidden;
+    }
+    #game {
+        position: relative;
+        width: 1100px;
+        height: 680px;
+        background: #222633;
+        border: 3px solid #3c4358;
+        box-shadow: 0 0 35px rgba(0,0,0,0.45);
+        overflow: hidden;
+    }
+    #topBar {
+        height: 86px;
+        display: flex;
+        align-items: center;
+        gap: 16px;
+        padding: 14px 18px;
+        background: #1d2130;
+        border-bottom: 2px solid #3c4358;
+    }
+    .meterBox { width: 230px; }
+    .meterTitle { font-size: 14px; margin-bottom: 5px; color: #c8cedb; }
+    .meter {
+        width: 100%; height: 14px; background: #11141d;
+        border-radius: 999px; overflow: hidden; border: 1px solid #4d566f;
+    }
+    .meterFill { height: 100%; width: 50%; transition: width 0.2s; }
+    #effFill { background: linear-gradient(90deg, #8fbc8f, #a3be8c); }
+    #angerFill { background: linear-gradient(90deg, #d08770, #bf616a); }
+    #trustFill { background: linear-gradient(90deg, #81a1c1, #88c0d0); }
+    #clockBox { margin-left: auto; text-align: right; line-height: 1.6; font-size: 15px; color: #d8dee9; }
+    #main { display: flex; height: calc(100% - 86px); }
+    #office {
+        width: 760px; height: 100%; padding: 22px;
+        display: grid; grid-template-columns: repeat(4, 1fr); grid-template-rows: repeat(2, 1fr); gap: 18px;
+        background:
+            linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px),
+            linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px);
+        background-size: 44px 44px;
+    }
+    .employee {
+        position: relative;
+        background: #2c3242;
+        border: 2px solid #4a5268;
+        border-radius: 14px;
+        padding: 12px;
+        cursor: pointer;
+        overflow: hidden;
+        transition: 0.15s;
+    }
+    .employee:hover { transform: translateY(-3px); border-color: #88c0d0; }
+    .employee.selected { border-color: #ebcb8b; box-shadow: 0 0 0 3px rgba(235,203,139,0.18); }
+    .employee.caught { filter: grayscale(0.45); opacity: 0.72; }
+    .employee.suspect { box-shadow: inset 0 0 0 999px rgba(191,97,106,0.04); }
+    .employee.calm { box-shadow: inset 0 0 0 999px rgba(163,190,140,0.035); }
+    .empName { font-weight: bold; font-size: 16px; margin-bottom: 5px; }
+    .trait { font-size: 12px; color: #aeb6c8; margin-bottom: 7px; }
+    .desk {
+        position: absolute; left: 16px; right: 16px; bottom: 14px; height: 54px;
+        background: #4c566a; border-radius: 10px; box-shadow: inset 0 4px 0 rgba(255,255,255,0.08);
+    }
+    .screen {
+        position: absolute; left: 50%; bottom: 48px; transform: translateX(-50%);
+        width: 58px; height: 38px; background: #11141d; border: 4px solid #6b7288; border-radius: 5px;
+    }
+    .screen.work { background: linear-gradient(135deg, #2e5f87, #18202d); }
+    .screen.web { background: linear-gradient(135deg, #b48ead, #5e81ac); }
+    .screen.sheet { background: repeating-linear-gradient(0deg, #294b37 0px, #294b37 6px, #3c6c4d 7px); }
+    .screen.blank { background: #10131a; }
+    .person { position: absolute; left: 50%; bottom: 82px; transform: translateX(-50%); width: 42px; height: 52px; }
+    .head { width: 28px; height: 28px; background: #d8b38c; border-radius: 50%; margin: 0 auto; }
+    .body { width: 42px; height: 28px; background: #81a1c1; border-radius: 12px 12px 4px 4px; margin-top: -2px; }
+    .employee.sleeping .person { animation: nod 1.1s infinite; }
+    .employee.typing .body { animation: shake 0.25s infinite; }
+    .employee.nervous .person { animation: nervous 0.18s infinite; }
+    .employee.chatting .head { animation: look 0.7s infinite; }
+    .employee.frozen .person { animation: freeze 1.1s infinite; }
+    .clueLine {
+        position: absolute; left: 10px; right: 10px; top: 55px;
+        font-size: 13px; color: #eceff4; min-height: 36px; line-height: 1.35;
+        text-shadow: 0 2px 3px rgba(0,0,0,0.45);
+    }
+    .bubble { position: absolute; right: 8px; top: 8px; font-size: 22px; opacity: 0.9; }
+    .quickActions {
+        position: absolute;
+        left: 9px;
+        right: 9px;
+        bottom: 8px;
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 6px;
+        z-index: 4;
+        padding: 6px;
+        background: rgba(17,20,29,0.78);
+        border: 1px solid rgba(235,203,139,0.35);
+        border-radius: 10px;
+        backdrop-filter: blur(2px);
+    }
+    .quickActions button {
+        padding: 7px 4px;
+        border-radius: 7px;
+        font-size: 12px;
+        line-height: 1;
+        box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+    }
+    .quickActions button.check {
+        background: #bf616a;
+        color: #fff;
+    }
+    .quickActions button.camera {
+        background: #5e81ac;
+        color: #fff;
+    }
+    .employee.selected .desk { bottom: 50px; }
+    .employee.selected .screen { bottom: 84px; }
+    .employee.selected .person { bottom: 118px; }
+    .employee.selected .heat { bottom: 112px; }
+    .heat {
+        position: absolute; left: 10px; right: 10px; bottom: 76px;
+        height: 5px; background: rgba(0,0,0,0.35); border-radius: 99px; overflow: hidden;
+    }
+    .heatFill { height: 100%; background: #ebcb8b; width: 0%; transition: width .2s; }
+    #side {
+        width: 340px; background: #1d2130; border-left: 2px solid #3c4358;
+        padding: 16px; display: flex; flex-direction: column;
+    }
+    #selectedTitle { font-size: 22px; margin: 0 0 8px; color: #ebcb8b; }
+    #selectedInfo {
+        min-height: 172px; padding: 12px; background: #292f3f; border: 1px solid #4a5268;
+        border-radius: 10px; line-height: 1.55; font-size: 13px; color: #d8dee9;
+    }
+    .riskBox { margin-top: 8px; height: 8px; background: #11141d; border-radius: 99px; overflow: hidden; border: 1px solid #4a5268; }
+    .riskFill { height: 100%; background: #bf616a; width: 0%; }
+    #buttons { margin-top: 14px; display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    button {
+        border: none; border-radius: 8px; padding: 11px 8px; font-size: 14px; font-weight: bold;
+        cursor: pointer; color: #151820; background: #88c0d0;
+    }
+    button:hover { filter: brightness(1.1); }
+    button.danger { background: #bf616a; color: white; }
+    button.warn { background: #ebcb8b; }
+    button.dark { background: #5e81ac; color: white; }
+    button:disabled { opacity: 0.45; cursor: not-allowed; filter: grayscale(0.5); }
+    #log {
+        margin-top: 14px; flex: 1; overflow-y: auto; background: #11141d;
+        border-radius: 10px; border: 1px solid #3c4358; padding: 10px; font-size: 13px; line-height: 1.55;
+    }
+    .logItem { margin-bottom: 8px; padding-bottom: 8px; border-bottom: 1px solid rgba(255,255,255,0.06); color: #cfd6e6; }
+    .good { color: #a3be8c; } .bad { color: #bf616a; } .neutral { color: #d8dee9; } .warnText { color: #ebcb8b; }
+    .panel {
+        position: absolute; inset: 0; z-index: 10; background: rgba(12, 14, 21, 0.88);
+        display: flex; align-items: center; justify-content: center; flex-direction: column; text-align: center; padding: 40px;
+    }
+    .hidden { display: none; }
+    .panel h1 { font-size: 44px; margin: 0 0 14px; }
+    .panel p { margin: 6px 0; color: #d8dee9; font-size: 16px; }
+    .panel button { margin-top: 22px; font-size: 18px; padding: 13px 32px; }
+    #statusTag {
+        position: absolute; left: 50%; top: 96px; transform: translateX(-50%);
+        background: rgba(0,0,0,0.45); padding: 8px 18px; border-radius: 999px;
+        font-size: 15px; color: #eceff4; opacity: 0; transition: opacity 0.2s; pointer-events: none; z-index: 5;
+    }
+    #statusTag.show { opacity: 1; }
+    @keyframes nod { 0%,100%{ transform: translateX(-50%) rotate(0deg); } 50%{ transform: translateX(-50%) rotate(14deg) translateY(6px); } }
+    @keyframes shake { 0%,100%{ transform: translateX(0); } 50%{ transform: translateX(2px); } }
+    @keyframes nervous { 0%,100%{ transform: translateX(-50%); } 50%{ transform: translateX(calc(-50% + 2px)); } }
+    @keyframes look { 0%,100%{ transform: translateX(-2px); } 50%{ transform: translateX(4px); } }
+    @keyframes freeze { 0%,100%{ transform: translateX(-50%) translateY(0); } 50%{ transform: translateX(-50%) translateY(-1px); } }
+</style>
+</head>
+<body>
+
+<div id="game">
+    <div id="topBar">
+        <div class="meterBox"><div class="meterTitle">公司效率</div><div class="meter"><div id="effFill" class="meterFill"></div></div></div>
+        <div class="meterBox"><div class="meterTitle">员工怨气</div><div class="meter"><div id="angerFill" class="meterFill"></div></div></div>
+        <div class="meterBox"><div class="meterTitle">老板威信</div><div class="meter"><div id="trustFill" class="meterFill"></div></div></div>
+        <div id="clockBox"><div id="timeText">剩余时间：180s</div><div id="modeText">状态：正常巡视</div></div>
+    </div>
+
+    <div id="main">
+        <div id="office"></div>
+        <div id="side">
+            <h2 id="selectedTitle">未选择员工</h2>
+            <div id="selectedInfo">点击一个员工，然后观察、查看监控或突击检查。<br>v0.3：点员工卡片后，卡片里会直接出现“观察 / 监控 / 检查”。先收集证据，再下手。</div>
+            <div id="buttons">
+                <button onclick="observeSelected()">右侧观察</button>
+                <button class="dark" onclick="cameraSelected()">右侧监控</button>
+                <button class="danger" onclick="checkSelected()">右侧检查</button>
+                <button class="warn" onclick="fakeLeave()">假装离开</button>
+                <button class="warn" onclick="holdMeeting()">开会镇压</button>
+                <button class="dark" onclick="restartGame()">重新开始</button>
+            </div>
+            <div id="log"></div>
+        </div>
+    </div>
+
+    <div id="statusTag"></div>
+
+    <div id="startPanel" class="panel">
+        <h1>今天谁在摸鱼 v0.3</h1>
+        <p>这次员工不是骰子，而是一副性格牌。</p>
+        <p>摸鱼高手会伪装，老实人会误导，刺头会反噬，卷王会自燃。</p>
+        <p>点员工卡片后，直接点卡片里的“观察 / 监控 / 检查”。取证是灯，乱抓是火。</p>
+        <button onclick="startGame()">开始巡视</button>
+    </div>
+
+    <div id="endPanel" class="panel hidden">
+        <h1 id="endTitle">结算</h1>
+        <p id="endText"></p>
+        <button onclick="startGame()">再当一天老板</button>
+    </div>
+</div>
+
+<script>
+const office = document.getElementById("office");
+const logBox = document.getElementById("log");
+const selectedTitle = document.getElementById("selectedTitle");
+const selectedInfo = document.getElementById("selectedInfo");
+const startPanel = document.getElementById("startPanel");
+const endPanel = document.getElementById("endPanel");
+const endTitle = document.getElementById("endTitle");
+const endText = document.getElementById("endText");
+const statusTag = document.getElementById("statusTag");
+const effFill = document.getElementById("effFill");
+const angerFill = document.getElementById("angerFill");
+const trustFill = document.getElementById("trustFill");
+const timeText = document.getElementById("timeText");
+const modeText = document.getElementById("modeText");
+
+const TOTAL_TIME = 180;
+
+let employees = [];
+let selectedId = null;
+let gameState = "start";
+let lastTime = 0;
+let gameTime = 0;
+let efficiency = 72;
+let anger = 18;
+let trust = 75;
+let correctChecks = 0;
+let wrongChecks = 0;
+let mode = "normal";
+let modeTimer = 0;
+let eventTimer = 18;
+let stateTimer = 0;
+let clueTimer = 0;
+let loopId = null;
+
+const names = ["摄像头", "张学风", "柯比", "入机风", "赫god", "西北雨", "瘦猫", "蚊子"];
+
+const traitDeck = [
+    {
+        id: "master", name: "摸鱼高手", icon: "🎭",
+        desc: "表面比谁都忙，实际擅长把网页伪装成表格。",
+        fishBias: 0.18, disguise: 0.42, nervousFalse: 0.02, angerOnObserve: 0.8,
+        favorite: { fakeWork: 2.0, web: 1.8, phone: 1.35 },
+        passive(emp) {
+            if (states[emp.state].fish && mode !== "fakeLeave" && Math.random() < 0.36) emp.visual = "busy";
+        },
+        onCorrect(emp) { trust += 4; addLog(`${emp.name} 是摸鱼高手，抓到他让全场安静了一秒。`, "good"); },
+        onWrong(emp) { trust -= 2; }
+    },
+    {
+        id: "honest", name: "老实人", icon: "🐑",
+        desc: "认真工作也会紧张，像刚把公司服务器删了。",
+        fishBias: -0.16, disguise: -0.1, nervousFalse: 0.42, angerOnObserve: 2.2,
+        favorite: { work: 1.5, overwork: 1.55 },
+        passive(emp) {
+            if (!states[emp.state].fish && Math.random() < 0.38) emp.visual = "suspicious";
+        },
+        onCorrect(emp) { anger += 1; },
+        onWrong(emp) { anger += 10; trust -= 6; addLog(`${emp.name} 是老实人，冤枉他约等于给办公室点了一根引线。`, "bad"); }
+    },
+    {
+        id: "rebel", name: "刺头", icon: "🧨",
+        desc: "被管就反弹，摸鱼不是因为想休息，是因为想和制度对线。",
+        fishBias: 0.16, disguise: 0.08, nervousFalse: 0.08, angerOnObserve: 3.2,
+        favorite: { phone: 1.8, chat: 1.6, web: 1.35 },
+        passive(emp) {
+            if (mode === "fakeLeave" && Math.random() < 0.25) emp.state = weightedPick([["phone", 4], ["chat", 3], ["web", 2], ["fakeWork", 1]]);
+        },
+        onCorrect(emp) { anger += 5; addLog(`${emp.name} 被抓后开始散播“管理太窒息”的低气压。`, "warnText"); },
+        onWrong(emp) { anger += 14; trust -= 7; }
+    },
+    {
+        id: "ace", name: "卷王", icon: "📈",
+        desc: "效率发动机，但怨气太高时会进入疲惫工作，像一盏快烧穿的灯。",
+        fishBias: -0.22, disguise: 0.03, nervousFalse: 0.08, angerOnObserve: 1.3,
+        favorite: { work: 2.0, overwork: 1.7 },
+        passive(emp) {
+            if (!states[emp.state].fish) efficiency += 0.018;
+            if (anger > 58 && Math.random() < 0.18) emp.state = "overwork";
+        },
+        onCorrect(emp) { trust += 1; },
+        onWrong(emp) { efficiency -= 10; anger += 8; trust -= 8; addLog(`${emp.name} 是卷王，冤枉他等于把发动机拆了。`, "bad"); }
+    },
+    {
+        id: "nepo", name: "关系户", icon: "🪑",
+        desc: "不一定最会摸鱼，但最会让你处理起来很尴尬。",
+        fishBias: 0.08, disguise: 0.16, nervousFalse: 0.04, angerOnObserve: 1.0,
+        favorite: { web: 1.45, snack: 1.45, fakeWork: 1.25 },
+        passive(emp) {
+            if (states[emp.state].fish && Math.random() < 0.12) emp.visual = "calm";
+        },
+        onCorrect(emp) { trust += 1; anger += 2; addLog(`${emp.name} 被抓了，但空气里有一种“你确定吗”的沉默。`, "warnText"); },
+        onWrong(emp) { trust -= 12; anger += 6; }
+    },
+    {
+        id: "social", name: "社交达人", icon: "🗣️",
+        desc: "一个人摸鱼，两个人快乐，三个人就快变成团建。",
+        fishBias: 0.1, disguise: 0.05, nervousFalse: 0.12, angerOnObserve: 1.6,
+        favorite: { chat: 2.4, snack: 1.25, phone: 1.2 },
+        passive(emp) {
+            if (emp.state === "chat" && Math.random() < 0.12) {
+                const neighbor = employees.find(e => e.id !== emp.id && !states[e.state].fish && e.checkedCooldown <= 0);
+                if (neighbor) neighbor.state = Math.random() < 0.65 ? "chat" : "fakeWork";
+            }
+        },
+        onCorrect(emp) { efficiency += 2; },
+        onWrong(emp) { anger += 6; }
+    },
+    {
+        id: "sleepy", name: "困兽", icon: "🌙",
+        desc: "不是想摸鱼，是电量只剩 3%。睡觉和疲惫工作之间只有一杯咖啡的距离。",
+        fishBias: 0.04, disguise: -0.06, nervousFalse: 0.3, angerOnObserve: 1.0,
+        favorite: { sleep: 1.9, overwork: 1.7, snack: 1.2 },
+        passive(emp) {
+            if (emp.state === "overwork" && Math.random() < 0.16) emp.visual = "suspicious";
+        },
+        onCorrect(emp) { anger += 2; },
+        onWrong(emp) { anger += 8; trust -= 3; }
+    },
+    {
+        id: "rookie", name: "新人", icon: "🧩",
+        desc: "真不会和装不会很难区分。他的每一次操作都像在抽盲盒。",
+        fishBias: -0.04, disguise: -0.18, nervousFalse: 0.26, angerOnObserve: 1.4,
+        favorite: { work: 1.25, fakeWork: 1.35, overwork: 1.2 },
+        passive(emp) {
+            if (Math.random() < 0.15) emp.visual = states[emp.state].fish ? "suspicious" : "busy";
+        },
+        onCorrect(emp) { trust += 1; },
+        onWrong(emp) { anger += 5; }
+    }
+];
+
+const states = {
+    work: {
+        label: "认真工作", fish: false, screen: "work", className: "typing", drain: -0.04, heat: 8,
+        visualIcon: "💻",
+        clues: ["一直在改文档，偶尔揉眼睛。", "屏幕上像是表格和邮件。", "打字节奏稳定，没有明显破绽。", "他看起来很累，但手没停。"],
+        inspect: ["近看能看到工作文档，基本安全。", "鼠标移动有明确目标，不太像摸鱼。", "眼神空洞，但这是上班常见症状。"],
+        camera: ["监控里他一直在电脑前操作。", "三分钟前他在回邮件。"],
+        evidence: -18
+    },
+    overwork: {
+        label: "疲惫工作", fish: false, screen: "sheet", className: "sleeping", drain: -0.015, heat: 35,
+        visualIcon: "😵",
+        clues: ["头偶尔一点一点，但屏幕没切走。", "看起来像睡着了，又像被 KPI 抽走灵魂。", "动作很慢，但似乎还在工作。", "眼神像关机重启失败。"],
+        inspect: ["近看发现他确实在处理表格。", "他不是摸鱼，只是快被工作腌入味了。", "可疑，但没有实锤。"],
+        camera: ["监控显示他过去一分钟都在同一个表格里。", "录像里他没有切到娱乐网站。"],
+        evidence: -4
+    },
+    fakeWork: {
+        label: "假装工作", fish: true, screen: "sheet", className: "typing", drain: 0.13, heat: 55,
+        visualIcon: "⌨️",
+        clues: ["键盘敲得很响，但屏幕几乎没变化。", "他每隔几秒就看一眼门口。", "鼠标像无头苍蝇，绕着表格转圈。", "看起来很忙，忙得有点太用力。"],
+        inspect: ["近看发现表格停在同一页很久了。", "他在反复选中空白单元格，像在做法。", "有明显装忙痕迹。"],
+        camera: ["监控显示他刚才切过聊天窗口。", "三分钟前他一直在空表格里乱点。"],
+        evidence: 26
+    },
+    phone: {
+        label: "刷手机", fish: true, screen: "work", className: "nervous", drain: 0.19, heat: 72,
+        visualIcon: "📱",
+        clues: ["一只手长时间藏在桌下。", "他低头次数异常多。", "你一看过去，他突然开始狂敲键盘。", "桌下隐约有亮光。"],
+        inspect: ["靠近时他把手缩得很快。", "手机屏幕还没完全熄。", "你听到短视频外放残响，像罪证自己长腿跑出来。"],
+        camera: ["监控角度不好，但能看到他频繁低头。", "录像里他的右手基本没碰键盘。"],
+        evidence: 36
+    },
+    web: {
+        label: "看网页", fish: true, screen: "web", className: "", drain: 0.21, heat: 80,
+        visualIcon: "🌐",
+        clues: ["屏幕颜色变化很花，不像办公系统。", "鼠标滚轮动得太丝滑了。", "你靠近时，他切窗口切得像忍者。", "网页残影一闪而过。"],
+        inspect: ["浏览器标签页数量可疑。", "他切回文档的速度太熟练了。", "刚才那个页面绝不是公司内网。"],
+        camera: ["监控拍到他刚才在浏览长页面。", "录像里屏幕明显不是办公软件。"],
+        evidence: 40
+    },
+    sleep: {
+        label: "睡觉", fish: true, screen: "blank", className: "sleeping", drain: 0.26, heat: 95,
+        visualIcon: "💤",
+        clues: ["头部周期性下坠。", "手放在键盘上，但灵魂不在本地。", "他像是在加载一个很长的梦。", "屏幕亮着，人快灭了。"],
+        inspect: ["他明显睡着了。", "靠近后他惊醒，并假装刚才在思考架构。", "嘴角有压痕，键盘认证通过。"],
+        camera: ["监控显示他已经点头三次。", "录像里他的姿势十分钟没变。"],
+        evidence: 52
+    },
+    snack: {
+        label: "吃零食", fish: true, screen: "work", className: "", drain: 0.1, heat: 48,
+        visualIcon: "🍪",
+        clues: ["嘴在动，但办公室没有会议。", "桌面多了奇怪包装袋。", "他嚼得很克制，像在和薯片谈判。", "键盘旁边出现不明碎屑。"],
+        inspect: ["桌面有包装袋，证据很脆。", "他试图把饼干藏进抽屉，但抽屉不同意。", "空气里有黄瓜味薯片的罪恶。"],
+        camera: ["监控看到他刚才拆了包装。", "录像里他多次低头吃东西。"],
+        evidence: 24
+    },
+    chat: {
+        label: "聊天摸鱼", fish: true, screen: "sheet", className: "chatting", drain: 0.16, heat: 62,
+        visualIcon: "💬",
+        clues: ["他频繁和旁边人对视。", "嘴型在动，但没有开会邀请。", "两个人笑得太有组织性。", "他们像在传递某种地下快乐。"],
+        inspect: ["靠近后两人立刻安静。", "对话内容从八卦瞬间切成项目进度。", "你听到一句：老板来了。"],
+        camera: ["监控显示他和旁边人聊了很久。", "录像里两人多次互相转头。"],
+        evidence: 32
+    }
+};
+
+function startGame() {
+    cancelAnimationFrame(loopId);
+    employees = [];
+    selectedId = null;
+    gameState = "playing";
+    lastTime = performance.now();
+    gameTime = 0;
+    efficiency = 72; anger = 18; trust = 75;
+    correctChecks = 0; wrongChecks = 0;
+    mode = "normal"; modeTimer = 0;
+    eventTimer = 18; stateTimer = 0; clueTimer = 0;
+    startPanel.classList.add("hidden");
+    endPanel.classList.add("hidden");
+    createEmployees();
+    renderOffice();
+    updateHud();
+    updateSelectedPanel();
+    clearLog();
+    addLog("新的一天开始了。每个员工都抽到了一张性格牌。", "neutral");
+    loopId = requestAnimationFrame(gameLoop);
+}
+
+function restartGame() { startGame(); }
+
+function createEmployees() {
+    const shuffledTraits = [...traitDeck].sort(() => Math.random() - 0.5);
+    for (let i = 0; i < 8; i++) {
+        const trait = shuffledTraits[i];
+        employees.push({
+            id: i, name: names[i], trait,
+            state: "work", visual: "normal", clue: "", observed: [], checkedCooldown: 0,
+            suspicion: 18 + Math.floor(Math.random() * 10), heat: 0
+        });
+    }
+    employees.forEach(emp => rerollEmployee(emp, true));
+}
+
+function gameLoop(now) {
+    if (gameState !== "playing") return;
+    const dt = Math.min((now - lastTime) / 1000, 0.04);
+    lastTime = now;
+    updateGame(dt);
+    renderOffice();
+    updateHud();
+    updateSelectedPanel();
+    loopId = requestAnimationFrame(gameLoop);
+}
+
+function updateGame(dt) {
+    gameTime += dt;
+    stateTimer -= dt;
+    clueTimer -= dt;
+    eventTimer -= dt;
+
+    if (modeTimer > 0) {
+        modeTimer -= dt;
+        if (modeTimer <= 0) {
+            mode = "normal";
+            showStatus("你回到了办公室。空气瞬间学会了假装。");
+        }
+    }
+
+    if (stateTimer <= 0) {
+        employees.forEach(emp => {
+            if (emp.checkedCooldown > 0) {
+                emp.checkedCooldown -= 6;
+                emp.state = "work";
+                emp.visual = "frozen";
+                emp.clue = "刚被检查，现在坐得像公司门口的石狮子。";
+            } else {
+                rerollEmployee(emp, false);
+            }
+        });
+        stateTimer = 5.5;
+    }
+
+    if (clueTimer <= 0) {
+        employees.forEach(emp => {
+            emp.clue = getVisibleClue(emp);
+            emp.heat = getHeat(emp);
+        });
+        clueTimer = mode === "fakeLeave" ? 1.3 : 2.6;
+    }
+
+    let fishDamage = 0;
+    let workingHelp = 0;
+    employees.forEach(emp => {
+        emp.trait.passive(emp);
+        const st = states[emp.state];
+        if (st.fish) {
+            const multiplier = mode === "fakeLeave" ? 1.35 : 1;
+            fishDamage += st.drain * multiplier;
+        } else {
+            workingHelp += Math.abs(st.drain);
+        }
+    });
+
+    efficiency -= fishDamage * dt;
+    efficiency += workingHelp * dt * 0.75;
+
+    if (mode === "meeting") { efficiency += 0.08 * dt; anger += 0.2 * dt; }
+    anger -= 0.014 * dt;
+    if (wrongChecks > correctChecks) trust -= 0.01 * dt;
+
+    efficiency = clamp(efficiency, 0, 100); anger = clamp(anger, 0, 100); trust = clamp(trust, 0, 100);
+
+    if (eventTimer <= 0) { triggerRandomEvent(); eventTimer = 18 + Math.random() * 14; }
+
+    const remain = TOTAL_TIME - gameTime;
+    if (efficiency <= 0) endGame(false, "公司效率归零。办公室变成了带薪冥想中心。");
+    else if (anger >= 100) endGame(false, "员工怨气爆表。你收到了匿名举报、集体请假和打印机诅咒。");
+    else if (trust <= 0) endGame(false, "老板威信归零。现在你说开会，大家以为是诈骗短信。");
+    else if (remain <= 0) endGame(true, "你撑到了下班。公司还没倒，员工还没造反，已经是管理学奇迹。");
+}
+
+function rerollEmployee(emp, force) {
+    if (!force && Math.random() < 0.32) return;
+    emp.visual = "normal";
+    emp.state = rollState(emp);
+    emp.trait.passive(emp);
+    emp.clue = getVisibleClue(emp);
+    emp.heat = getHeat(emp);
+}
+
+function rollState(emp) {
+    const angerFactor = anger / 100;
+    const traitBias = emp.trait.fishBias;
+    const pool = [
+        ["work", 44 - angerFactor * 16 - traitBias * 40],
+        ["overwork", 12],
+        ["fakeWork", 14 + angerFactor * 8 + traitBias * 22],
+        ["phone", 10 + angerFactor * 8 + traitBias * 16],
+        ["web", 8 + angerFactor * 7 + traitBias * 16],
+        ["sleep", 5 + angerFactor * 5 + traitBias * 8],
+        ["snack", 5 + angerFactor * 3],
+        ["chat", 6 + angerFactor * 6 + traitBias * 10]
+    ];
+    pool.forEach(item => {
+        if (emp.trait.favorite[item[0]]) item[1] *= emp.trait.favorite[item[0]];
+    });
+    if (mode === "meeting") {
+        pool.forEach(item => {
+            if (states[item[0]].fish) item[1] *= 0.35;
+            if (item[0] === "work") item[1] += 20;
+        });
+    }
+    return weightedPick(pool);
+}
+
+function weightedPick(pool) {
+    let total = 0;
+    pool.forEach(item => { item[1] = Math.max(1, item[1]); total += item[1]; });
+    let roll = Math.random() * total;
+    for (const item of pool) { roll -= item[1]; if (roll <= 0) return item[0]; }
+    return pool[0][0];
+}
+
+function getVisibleClue(emp) {
+    const st = states[emp.state];
+    let clue = randomItem(st.clues);
+    if (mode === "fakeLeave" && st.fish) {
+        const obvious = {
+            fakeWork: "你假装离开后，他立刻停止敲键盘，开始发呆。",
+            phone: "你假装离开后，他光明正大掏出了手机。",
+            web: "你假装离开后，他网页滚动速度明显变快。",
+            sleep: "你假装离开后，他直接进入深度省电模式。",
+            snack: "你假装离开后，他开始认真研究零食包装。",
+            chat: "你假装离开后，他和旁边人聊开了。"
+        };
+        clue = obvious[emp.state] || clue;
+    }
+    if (emp.trait.disguise > 0 && st.fish && mode !== "fakeLeave" && Math.random() < emp.trait.disguise) clue = randomItem(states.work.clues);
+    if (emp.trait.nervousFalse > 0 && !st.fish && Math.random() < emp.trait.nervousFalse) clue = "他看起来非常紧张，像刚刚删除了什么东西。";
+    if (emp.visual === "busy") clue = randomItem(["他坐得很正，手也很忙。", "他看起来像在处理重要任务。", "表面上没有破绽，甚至有点过于完美。"]); 
+    if (emp.visual === "suspicious") clue = randomItem(["他动作僵硬，像被老板视线冻住。", "他频繁看门口，非常可疑。", "他明明在工作，却一脸做贼心虚。"]); 
+    return clue;
+}
+
+function getHeat(emp) {
+    const base = states[emp.state].heat;
+    let noise = Math.floor(Math.random() * 18) - 9;
+    if (emp.visual === "busy") noise -= 20;
+    if (emp.visual === "suspicious") noise += 22;
+    if (emp.trait.id === "honest" && !states[emp.state].fish) noise += 18;
+    if (emp.trait.id === "master" && states[emp.state].fish && mode !== "fakeLeave") noise -= 22;
+    return clamp(base + noise, 0, 100);
+}
+
+function renderOffice() {
+    office.innerHTML = "";
+    employees.forEach(emp => {
+        const st = states[emp.state];
+        const visual = getVisual(emp);
+        const card = document.createElement("div");
+        card.className = `employee ${visual.className}`;
+        if (emp.id === selectedId) card.classList.add("selected");
+        if (emp.checkedCooldown > 0) card.classList.add("caught");
+        if (emp.suspicion >= 65) card.classList.add("suspect");
+        if (emp.suspicion <= 20) card.classList.add("calm");
+        // v0.4：这里必须用 pointerdown，而不是 click。
+        // 因为办公室会持续刷新，click 需要 mousedown+mouseup，元素可能在 mouseup 前被重绘替换，导致点击丢失。
+        card.onpointerdown = (event) => {
+            event.preventDefault();
+            selectEmployee(emp.id);
+        };
+        const quickActions = emp.id === selectedId ? `
+            <div class="quickActions" onpointerdown="event.stopPropagation()">
+                <button onpointerdown="quickObserve(event, ${emp.id})">观察</button>
+                <button class="camera" onpointerdown="quickCamera(event, ${emp.id})">监控</button>
+                <button class="check" onpointerdown="quickCheck(event, ${emp.id})">检查</button>
+            </div>` : "";
+        card.innerHTML = `
+            <div class="empName">${emp.name}</div>
+            <div class="trait">${emp.trait.icon} ${emp.trait.name}</div>
+            <div class="bubble">${visual.icon}</div>
+            <div class="clueLine">${emp.clue}</div>
+            <div class="heat"><div class="heatFill" style="width:${emp.heat}%"></div></div>
+            <div class="person"><div class="head"></div><div class="body"></div></div>
+            <div class="screen ${visual.screen}"></div>
+            <div class="desk"></div>
+            ${quickActions}`;
+        office.appendChild(card);
+    });
+}
+
+function getVisual(emp) {
+    const st = states[emp.state];
+    if (emp.visual === "busy") return { icon: "💻", screen: "work", className: "typing" };
+    if (emp.visual === "suspicious") return { icon: "👀", screen: st.screen, className: "nervous" };
+    if (emp.visual === "frozen") return { icon: "🧊", screen: "work", className: "frozen" };
+    return { icon: st.visualIcon, screen: st.screen, className: st.className || "" };
+}
+
+function selectEmployee(id) {
+    selectedId = id;
+    updateSelectedPanel();
+    renderOffice();
+}
+
+function quickObserve(event, id) {
+    event.preventDefault();
+    event.stopPropagation();
+    selectedId = id;
+    observeSelected();
+    renderOffice();
+}
+
+function quickCamera(event, id) {
+    event.preventDefault();
+    event.stopPropagation();
+    selectedId = id;
+    cameraSelected();
+    renderOffice();
+}
+
+function quickCheck(event, id) {
+    event.preventDefault();
+    event.stopPropagation();
+    selectedId = id;
+    checkSelected();
+    renderOffice();
+}
+
+function updateSelectedPanel() {
+    const emp = getSelected();
+    if (!emp) {
+        selectedTitle.textContent = "未选择员工";
+        selectedInfo.innerHTML = `点击一个员工，然后观察、查看监控或突击检查。<br><br>v0.4 提示：点员工卡片任意位置即可选中；选中后卡片底部会出现“观察 / 监控 / 检查”。`;
+        return;
+    }
+    const recent = emp.observed.length === 0 ? "暂无观察记录。" : emp.observed.slice(-5).map(x => `· ${x}`).join("<br>");
+    const riskText = emp.suspicion >= 75 ? "极高" : emp.suspicion >= 55 ? "偏高" : emp.suspicion >= 35 ? "中等" : emp.suspicion >= 18 ? "偏低" : "很低";
+    selectedTitle.textContent = `${emp.name}｜${emp.trait.name}`;
+    selectedInfo.innerHTML = `
+        <b>表面线索：</b><br>${emp.clue}<br>
+        <div class="riskBox"><div class="riskFill" style="width:${emp.suspicion}%"></div></div>
+        <b>当前可疑度：</b>${riskText}（${Math.floor(emp.suspicion)}）<br><br>
+        <b>性格牌：</b><br>${emp.trait.icon} ${emp.trait.desc}<br><br>
+        <b>观察记录：</b><br>${recent}`;
+}
+
+function observeSelected() {
+    const emp = getSelected();
+    if (!emp) { showStatus("先选一个员工。老板的眼神不能散射。"); return; }
+    const st = states[emp.state];
+    let clue = randomItem(st.inspect);
+    let evidence = st.evidence * 0.55 + 12;
+    if (emp.trait.disguise > 0 && st.fish && Math.random() < emp.trait.disguise && mode !== "fakeLeave") { clue = "近看也很正常，甚至显得比你还像老板。"; evidence -= 28; }
+    if (emp.trait.nervousFalse > 0 && !st.fish && Math.random() < emp.trait.nervousFalse) { clue = "他被你盯得更紧张了，但没有明确摸鱼证据。"; evidence += 20; }
+    emp.suspicion = clamp(emp.suspicion + evidence, 0, 100);
+    emp.observed.push(`盯人：${clue}`);
+    anger += emp.trait.angerOnObserve;
+    trust += 0.2;
+    showStatus("观察完成。线索增加，但怨气也微微上涨。");
+    updateSelectedPanel();
+}
+
+function cameraSelected() {
+    const emp = getSelected();
+    if (!emp) { showStatus("先选一个员工。监控不是水晶球。"); return; }
+    const st = states[emp.state];
+    let clue = randomItem(st.camera);
+    let evidence = st.evidence * 0.45 + 8;
+    if (Math.random() < 0.25) {
+        clue = randomItem(["监控画面卡了一下，只看见一团像素在努力上班。", "监控延迟严重，画面可能是几分钟前的。", "角度很差，只能看到他的后脑勺正在做人类行为。"]); 
+        evidence = Math.random() < 0.5 ? -5 : 10;
+    }
+    if (emp.trait.id === "master" && st.fish && Math.random() < 0.25) evidence -= 18;
+    emp.suspicion = clamp(emp.suspicion + evidence, 0, 100);
+    emp.observed.push(`监控：${clue}`);
+    showStatus("监控记录已加入。注意：监控也会骗人。");
+    updateSelectedPanel();
+}
+
+function checkSelected() {
+    const emp = getSelected();
+    if (!emp) { showStatus("先选一个员工再检查。不能对空气发火。"); return; }
+    if (emp.checkedCooldown > 0) { showStatus("这个员工刚被处理过，先让他冷却一下。"); return; }
+    const st = states[emp.state];
+    if (st.fish) {
+        correctChecks++;
+        efficiency += 13;
+        anger += 4;
+        trust += 4;
+        addLog(`抓对了：${emp.name} 正在「${st.label}」。效率上升，怨气小涨。`, "good");
+        showStatus(`抓到 ${emp.name} 摸鱼。空气里响起了 Excel 的哀鸣。`);
+        emp.trait.onCorrect(emp);
+        emp.checkedCooldown = 18;
+        emp.state = "work";
+        emp.visual = "frozen";
+        emp.clue = "刚被检查，现在坐得像参加军训。";
+        emp.observed = [];
+        emp.suspicion = 8;
+    } else {
+        wrongChecks++;
+        efficiency -= 8;
+        anger += 18;
+        trust -= 12;
+        addLog(`抓错了：${emp.name} 实际在「${st.label}」。怨气暴涨，威信下降。`, "bad");
+        showStatus(`冤枉了 ${emp.name}。办公室温度下降三度。`);
+        emp.trait.onWrong(emp);
+        emp.observed.push("刚刚被冤枉，眼神里多了一份劳动仲裁的光。");
+        emp.suspicion = clamp(emp.suspicion - 25, 0, 100);
+    }
+    efficiency = clamp(efficiency, 0, 100); anger = clamp(anger, 0, 100); trust = clamp(trust, 0, 100);
+    updateSelectedPanel();
+}
+
+function fakeLeave() {
+    if (mode !== "normal") { showStatus("当前已经在特殊行动中。老板也不能影分身。"); return; }
+    mode = "fakeLeave"; modeTimer = 12; anger += 3;
+    employees.forEach(emp => { emp.clue = getVisibleClue(emp); emp.heat = getHeat(emp); });
+    addLog("你假装离开办公室。空气开始诚实。", "neutral");
+    showStatus("假装离开：摸鱼线索更明显，但效率掉得更快。");
+}
+
+function holdMeeting() {
+    if (mode !== "normal") { showStatus("当前已经在特殊行动中。再开会就像往咖啡里倒沙子。"); return; }
+    mode = "meeting"; modeTimer = 10; anger += 10; efficiency += 4;
+    employees.forEach(emp => {
+        if (states[emp.state].fish && Math.random() < 0.65) {
+            emp.state = "work"; emp.visual = "frozen"; emp.clue = "会议威压下，他开始认真工作。"; emp.heat = getHeat(emp);
+        }
+    });
+    addLog("你召开临时会议。所有人都醒了，公司也稍微死了一点。", "neutral");
+    showStatus("开会镇压：短期减少摸鱼，但员工怨气明显增加。");
+}
+
+function triggerRandomEvent() {
+    const events = [
+        { text: "打印机卡纸，三个人围观，没人解决。", effect() { efficiency -= 5; anger += 2; }, type: "bad" },
+        { text: "HR 宣布下周团建，办公室出现集体灵魂出窍。", effect() { anger += 7; }, type: "bad" },
+        { text: "老板的老板路过，所有人自动坐直三秒。", effect() { efficiency += 5; anger += 2; }, type: "good" },
+        { text: "有人把奶茶洒进键盘，键盘开始输入自己的遗言。", effect() { efficiency -= 6; }, type: "bad" },
+        { text: "项目突然延期，大家短暂恢复了人类表情。", effect() { anger -= 8; efficiency += 3; }, type: "good" },
+        { text: "客户发来一句“简单改一下”，全员沉默。", effect() { anger += 5; efficiency -= 3; }, type: "bad" },
+        { text: "群里有人发错表情包，全员效率短暂归零。", effect() { efficiency -= 4; anger -= 1; }, type: "bad" },
+        { text: "茶水间传来新八卦：715 大少爷邵轩廷今日临盆，降下一儿母子平安。", effect() { anger -= 3; efficiency -= 2; }, type: "neutral" }
+    ];
+    const ev = randomItem(events);
+    ev.effect();
+    efficiency = clamp(efficiency, 0, 100); anger = clamp(anger, 0, 100); trust = clamp(trust, 0, 100);
+    addLog(`突发事件：${ev.text}`, ev.type);
+}
+
+function updateHud() {
+    const remain = Math.max(0, Math.ceil(TOTAL_TIME - gameTime));
+    effFill.style.width = `${efficiency}%`;
+    angerFill.style.width = `${anger}%`;
+    trustFill.style.width = `${trust}%`;
+    timeText.textContent = `剩余时间：${remain}s`;
+    if (mode === "fakeLeave") modeText.textContent = `状态：假装离开 ${Math.ceil(modeTimer)}s`;
+    else if (mode === "meeting") modeText.textContent = `状态：会议镇压 ${Math.ceil(modeTimer)}s`;
+    else modeText.textContent = "状态：正常巡视";
+}
+
+function endGame(win, reason) {
+    gameState = "end";
+    cancelAnimationFrame(loopId);
+    endPanel.classList.remove("hidden");
+    const score = Math.floor(efficiency * 8 + trust * 6 - anger * 4 + correctChecks * 120 - wrongChecks * 160);
+    endTitle.textContent = win ? "下班结算：公司还活着" : "管理失败";
+    let rank = "普通老板";
+    if (score >= 1100) rank = "办公室鹰眼";
+    else if (score >= 800) rank = "还算靠谱的老板";
+    else if (score >= 500) rank = "会开会的人形天气";
+    else if (score >= 200) rank = "疑心病管理者";
+    else rank = "劳动仲裁宣传大使";
+    endText.innerHTML = `${reason}<br><br>抓对次数：${correctChecks}<br>抓错次数：${wrongChecks}<br>公司效率：${Math.floor(efficiency)}<br>员工怨气：${Math.floor(anger)}<br>老板威信：${Math.floor(trust)}<br><br>最终评分：${score}<br>评价：${rank}`;
+}
+
+function getSelected() { return employees.find(e => e.id === selectedId); }
+function addLog(text, type = "neutral") {
+    const div = document.createElement("div");
+    div.className = `logItem ${type}`;
+    div.textContent = text;
+    logBox.prepend(div);
+    while (logBox.children.length > 16) logBox.removeChild(logBox.lastChild);
+}
+function clearLog() { logBox.innerHTML = ""; }
+function showStatus(text) {
+    statusTag.textContent = text;
+    statusTag.classList.add("show");
+    clearTimeout(showStatus.timer);
+    showStatus.timer = setTimeout(() => statusTag.classList.remove("show"), 1800);
+}
+function randomItem(arr) { return arr[Math.floor(Math.random() * arr.length)]; }
+function clamp(v, min, max) { return Math.max(min, Math.min(max, v)); }
+</script>
+</body>
+</html>

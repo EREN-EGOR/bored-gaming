@@ -1,0 +1,2259 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>生化封锁线 3D FPS v0.7 - 武器库配装</title>
+<style>
+:root{
+  --bg:#05070b;
+  --hud:rgba(5,9,16,.72);
+  --line:rgba(115,173,236,.28);
+  --text:#eaf3ff;
+  --muted:#a6b7cb;
+  --accent:#ffd15f;
+  --human:#69b7ff;
+  --mutant:#ff5270;
+  --good:#6ee7a8;
+  --bad:#ff5f7a;
+}
+html,body{
+  margin:0;height:100%;overflow:hidden;background:#05070b;color:var(--text);
+  font-family:"Microsoft YaHei",system-ui,-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+}
+canvas{display:block;width:100%;height:100%}
+#hud{position:fixed;inset:0;pointer-events:none;z-index:5}
+.topScore{
+  position:absolute;left:50%;top:10px;transform:translateX(-50%);
+  width:min(580px,calc(100vw - 24px));
+  border:1px solid rgba(255,255,255,.16);
+  background:linear-gradient(180deg,rgba(5,9,16,.78),rgba(8,13,22,.55));
+  border-radius:10px;
+  box-shadow:0 14px 34px rgba(0,0,0,.36), inset 0 0 25px rgba(120,190,255,.08);
+  overflow:hidden;
+}
+.scoreRow{
+  display:grid;grid-template-columns:1fr 110px 1fr;align-items:center;text-align:center;
+  height:50px;font-weight:1000;letter-spacing:.5px;
+}
+.teamBox{height:100%;display:flex;align-items:center;justify-content:center;gap:8px;font-size:18px}
+.teamHuman{background:linear-gradient(90deg,rgba(80,150,255,.25),rgba(80,150,255,.06));color:#bfe0ff}
+.teamMutant{background:linear-gradient(270deg,rgba(255,66,98,.25),rgba(255,66,98,.06));color:#ffd0d8}
+.timerBox{
+  height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;
+  border-left:1px solid rgba(255,255,255,.12);border-right:1px solid rgba(255,255,255,.12);
+  background:rgba(0,0,0,.22);
+}
+.timerNum{font-size:21px;color:var(--accent);font-variant-numeric:tabular-nums}
+.phaseText{font-size:11px;color:#d6e4f5}
+.scoreN{font-size:26px;color:#fff}
+.leftHud{
+  position:absolute;left:15px;bottom:18px;
+  width:210px;border:1px solid var(--line);border-radius:8px;background:var(--hud);
+  padding:9px 10px;box-shadow:0 12px 30px rgba(0,0,0,.35);
+}
+.hpLine{display:grid;grid-template-columns:34px 1fr 42px;gap:8px;align-items:center;margin:7px 0}
+.hpLine b{font-size:13px;color:#cfe1f7}
+.bar{height:11px;border:1px solid rgba(255,255,255,.14);background:rgba(255,255,255,.08);overflow:hidden;border-radius:999px}
+.fill{height:100%;width:100%;transition:.16s width}
+.hpFill{background:linear-gradient(90deg,#ff405f,#ff9baa)}
+.acFill{background:linear-gradient(90deg,#6ab6ff,#d1edff)}
+.energyFill{background:linear-gradient(90deg,#6ee7a8,#ffd15f)}
+.num{font-size:13px;text-align:right;color:#fff;font-variant-numeric:tabular-nums}
+.rightHud{
+  position:absolute;right:16px;bottom:17px;
+  min-width:250px;border:1px solid var(--line);border-radius:8px;background:var(--hud);
+  padding:10px 12px;text-align:right;box-shadow:0 12px 30px rgba(0,0,0,.35);
+}
+.weaponName{font-size:16px;font-weight:1000;color:#fff;margin-bottom:2px}
+.ammo{font-size:38px;line-height:1;color:var(--accent);font-weight:1000;font-variant-numeric:tabular-nums}
+.ammo small{font-size:16px;color:#dce8f8}
+.status{font-size:12px;color:var(--muted);margin-top:4px}
+.crosshair{
+  position:absolute;left:50%;top:50%;width:34px;height:34px;transform:translate(-50%,-50%);
+}
+.crosshair span{position:absolute;background:rgba(255,255,255,.88);box-shadow:0 0 8px rgba(255,255,255,.55)}
+.crosshair .t{left:16px;top:0;width:2px;height:10px}
+.crosshair .b{left:16px;bottom:0;width:2px;height:10px}
+.crosshair .l{left:0;top:16px;width:10px;height:2px}
+.crosshair .r{right:0;top:16px;width:10px;height:2px}
+.crosshair.mutant span{background:rgba(255,90,115,.95);box-shadow:0 0 10px rgba(255,70,100,.8)}
+.hitmark{
+  position:absolute;left:50%;top:50%;transform:translate(-50%,-50%) scale(.65);
+  opacity:0;color:white;font-size:38px;font-weight:1000;text-shadow:0 0 12px white;
+  transition:.08s opacity,.08s transform;
+}
+.hitmark.show{opacity:1;transform:translate(-50%,-50%) scale(1.1)}
+.centerMsg{
+  position:absolute;left:50%;top:27%;transform:translate(-50%,-50%);
+  text-align:center;opacity:0;transition:.22s opacity,.22s transform;
+  pointer-events:none;width:min(760px,92vw);
+}
+.centerMsg.show{opacity:1;transform:translate(-50%,-50%) scale(1.02)}
+.centerMsg .main{
+  font-size:31px;font-weight:1000;color:#ffd15f;text-shadow:0 0 16px rgba(255,209,95,.55), 0 3px 0 rgba(0,0,0,.5);
+}
+.centerMsg .sub{
+  margin-top:8px;font-size:15px;color:#ffdde4;text-shadow:0 2px 8px rgba(0,0,0,.85);
+}
+.damageFlash{
+  position:absolute;inset:0;opacity:0;transition:.15s opacity;
+  background:radial-gradient(circle,transparent 42%,rgba(255,31,70,.34) 100%);
+}
+.damageFlash.show{opacity:1}
+.infectFlash{
+  position:absolute;inset:0;opacity:0;transition:.45s opacity;
+  background:radial-gradient(circle,rgba(120,255,100,.10),rgba(255,40,80,.32) 72%,rgba(0,0,0,.72) 100%);
+}
+.infectFlash.show{opacity:1}
+#radarWrap{display:none;
+  position:absolute;left:16px;top:16px;
+  border:1px solid rgba(255,255,255,.18);background:rgba(5,9,16,.62);
+  border-radius:50%;width:150px;height:150px;overflow:hidden;
+  box-shadow:0 12px 30px rgba(0,0,0,.35);
+}
+#radar{width:150px;height:150px}
+.log{
+  position:absolute;right:16px;top:78px;width:min(390px,calc(100vw - 32px));
+  max-height:210px;overflow:hidden;padding:9px 11px;
+  border:1px solid var(--line);background:var(--hud);border-radius:10px;
+  box-shadow:0 12px 30px rgba(0,0,0,.35);
+}
+.logItem{margin:0 0 6px;font-size:12.5px;line-height:1.45;color:#dbe9ff}
+.logItem.good{color:#c5ffdd}.logItem.bad{color:#ffd0d8}.logItem.warn{color:#ffe7a8}
+
+.scopeOverlay{
+  position:absolute;
+  inset:0;
+  display:none;
+  pointer-events:none;
+  background:
+    radial-gradient(circle at center, transparent 0 23%, rgba(0,0,0,.96) 24% 100%);
+}
+.scopeOverlay.show{display:block}
+.scopeOverlay:before{
+  content:"";
+  position:absolute;
+  left:50%;top:50%;
+  width:min(58vw,58vh);
+  height:min(58vw,58vh);
+  transform:translate(-50%,-50%);
+  border:5px solid rgba(8,10,12,.98);
+  border-radius:50%;
+  box-shadow:
+    0 0 0 2px rgba(255,255,255,.22),
+    inset 0 0 24px rgba(255,255,255,.08),
+    0 0 35px rgba(0,0,0,.75);
+}
+.scopeOverlay:after{
+  content:"";
+  position:absolute;
+  left:50%;top:50%;
+  width:min(58vw,58vh);
+  height:min(58vw,58vh);
+  transform:translate(-50%,-50%);
+  border-radius:50%;
+  background:
+    linear-gradient(90deg, transparent calc(50% - 1px), rgba(255,255,255,.78) calc(50% - 1px), rgba(255,255,255,.78) calc(50% + 1px), transparent calc(50% + 1px)),
+    linear-gradient(0deg, transparent calc(50% - 1px), rgba(255,255,255,.78) calc(50% - 1px), rgba(255,255,255,.78) calc(50% + 1px), transparent calc(50% + 1px)),
+    radial-gradient(circle at center, transparent 0 8%, rgba(255,255,255,.18) 8% 8.5%, transparent 9% 100%);
+}
+
+#overlay{
+  position:fixed;inset:0;z-index:10;display:flex;align-items:center;justify-content:center;padding:20px;
+  background:
+    radial-gradient(circle at 18% 12%,rgba(105,183,255,.18),transparent 31%),
+    radial-gradient(circle at 82% 18%,rgba(255,82,112,.16),transparent 30%),
+    linear-gradient(135deg,rgba(4,7,12,.96),rgba(9,15,26,.95));
+}
+.card{
+  width:min(820px,96vw);border:1px solid rgba(126,199,255,.28);
+  background:rgba(8,13,22,.92);border-radius:18px;padding:24px;
+  box-shadow:0 30px 80px rgba(0,0,0,.48);
+}
+.card h1{margin:0 0 8px;font-size:33px}
+.card p{margin:8px 0;color:#d5e2f2;line-height:1.7}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin:14px 0}
+.rule{border:1px solid rgba(255,255,255,.12);background:rgba(255,255,255,.045);border-radius:12px;padding:10px 12px;font-size:13px;line-height:1.55;color:#dbe8f8}
+kbd{background:#111a2a;border:1px solid rgba(255,255,255,.16);border-bottom-width:3px;border-radius:6px;padding:1px 6px;color:#fff;font-weight:900}
+button{
+  pointer-events:auto;appearance:none;border:0;border-radius:12px;padding:13px 17px;
+  background:linear-gradient(135deg,#ffd15f,#eaa93b);color:#15120b;font-family:inherit;font-weight:1000;cursor:pointer;font-size:16px;
+}
+.secondary{background:#25354f;color:#eaf3ff}
+.btnRow{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}
+
+.loadoutPanel{
+  border:1px solid rgba(255,255,255,.14);
+  background:rgba(255,255,255,.035);
+  border-radius:14px;
+  padding:12px;
+  margin:12px 0;
+}
+.loadoutPanel h3{margin:0 0 9px;font-size:15px;color:#ffd15f}
+.loadoutGrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px}
+.weaponPick{
+  pointer-events:auto;
+  border:1px solid rgba(255,255,255,.14);
+  background:rgba(37,53,79,.72);
+  color:#eaf3ff;
+  padding:10px 9px;
+  border-radius:10px;
+  text-align:left;
+  cursor:pointer;
+  font-size:12px;
+  line-height:1.35;
+}
+.weaponPick b{display:block;font-size:14px;color:#fff;margin-bottom:3px}
+.weaponPick.selected{
+  border-color:#ffd15f;
+  background:linear-gradient(135deg,rgba(255,209,95,.32),rgba(255,209,95,.08));
+  box-shadow:0 0 0 3px rgba(255,209,95,.12);
+}
+
+#mobileTip{display:none}
+@media(max-width:820px){
+  .grid{grid-template-columns:1fr}
+  .log{display:none}
+  #radarWrap{display:none;display:none}
+  .topScore{top:8px}
+  .scoreRow{grid-template-columns:1fr 90px 1fr}
+  .teamBox{font-size:14px}.scoreN{font-size:21px}
+  #mobileTip{display:block}
+}
+</style>
+</head>
+<body>
+<div id="hud">
+  <div class="topScore">
+    <div class="scoreRow">
+      <div class="teamBox teamHuman">人类 <span class="scoreN" id="humanScore">0</span></div>
+      <div class="timerBox">
+        <div class="timerNum" id="timerText">20</div>
+        <div class="phaseText" id="phaseText">准备阶段</div>
+      </div>
+      <div class="teamBox teamMutant"><span class="scoreN" id="mutantScore">0</span> 幽灵</div>
+    </div>
+  </div>
+
+  <div id="radarWrap"><canvas id="radar" width="150" height="150"></canvas></div>
+
+  <div class="scopeOverlay" id="scopeOverlay"></div>
+  <div class="crosshair" id="crosshair">
+    <span class="t"></span><span class="b"></span><span class="l"></span><span class="r"></span>
+  </div>
+  <div class="hitmark" id="hitmark">×</div>
+  <div class="centerMsg" id="centerMsg"><div class="main" id="centerMain"></div><div class="sub" id="centerSub"></div></div>
+  <div class="damageFlash" id="damageFlash"></div>
+  <div class="infectFlash" id="infectFlash"></div>
+
+  <div class="leftHud">
+    <div class="hpLine"><b>HP</b><div class="bar"><div class="fill hpFill" id="hpFill"></div></div><div class="num" id="hpText">100</div></div>
+    <div class="hpLine"><b>AC</b><div class="bar"><div class="fill acFill" id="acFill"></div></div><div class="num" id="acText">100</div></div>
+    <div class="hpLine"><b id="energyLabel">SP</b><div class="bar"><div class="fill energyFill" id="energyFill"></div></div><div class="num" id="energyText">100</div></div>
+  </div>
+
+  <div class="rightHud">
+    <div class="weaponName" id="weaponName">AK47-突击</div>
+    <div class="ammo"><span id="ammoText">35</span><small> / <span id="reserveText">175</span></small></div>
+    <div class="status" id="statusText">左键射击，R换弹，1/2/3切枪</div>
+    <div class="status" id="damageText">火力强化：100%</div>
+  </div>
+
+  <div class="log" id="log"></div>
+</div>
+
+<div id="overlay">
+  <div class="card">
+    <h1>生化封锁线 v0.7</h1>
+    <p>这版按 CF 生化模式的骨架重做：<b>20秒准备、随机母体、幽灵近战感染、人类守点、幽灵进化回血、顶部人类/幽灵比分 HUD、研究所地图和补给光柱</b>。</p>
+    <div class="grid">
+      <div class="rule"><b>人类玩法：</b><kbd>WASD</kbd>移动，鼠标瞄准，左键开火/轻刀/拉弓，右键开镜/重刀/枪托，<kbd>R</kbd>换弹，<kbd>Shift</kbd>冲刺，<kbd>1</kbd>/<kbd>2</kbd>/<kbd>3</kbd>切主/副/刀。</div>
+      <div class="rule"><b>幽灵玩法：</b>被感染后继续玩幽灵，左键爪击，<kbd>Shift</kbd>冲刺，<kbd>F</kbd>狂暴技能。母体拥有佣兵位置感知。</div>
+      <div class="rule"><b>胜负：</b>人类撑到倒计时结束或刀杀清掉幽灵胜利；幽灵感染所有人类胜利。</div>
+      <div class="rule"><b>生化味：</b>母体紫色且血量约为普通幽灵 3 倍；残血红闪；枪械击倒会远点复活，小刀/猎手刀杀无法复活。</div>
+    </div>
+
+    <div class="loadoutPanel">
+      <h3>1号武器库：主武器</h3>
+      <div class="loadoutGrid" id="primaryLoadout">
+        <div class="weaponPick selected" data-slot="primary" data-weapon="rifle"><b>AK47</b>均衡，击退较小，适合持续压制。</div>
+        <div class="weaponPick" data-slot="primary" data-weapon="shotgun"><b>S686</b>近距离伤害高，击退小，命中后减速。</div>
+        <div class="weaponPick" data-slot="primary" data-weapon="sniper"><b>AWP</b>右键开镜，无击退；不开镜散布很大。</div>
+      </div>
+      <h3>2号武器库：副武器</h3>
+      <div class="loadoutGrid" id="secondaryLoadout">
+        <div class="weaponPick selected" data-slot="secondary" data-weapon="pistol"><b>USP</b>均衡，击退较小，可靠备用。</div>
+        <div class="weaponPick" data-slot="secondary" data-weapon="magnum"><b>柯尔特巨蟒</b>高伤害但后摇大；右键枪托砸人。</div>
+        <div class="weaponPick" data-slot="secondary" data-weapon="bow"><b>复合弓</b>左键长按蓄力，有下坠，命中减速。</div>
+      </div>
+    </div>
+
+    <p id="mobileTip">手机浏览器很难锁鼠标，建议电脑浏览器打开。</p>
+    <div class="btnRow">
+      <button id="startBtn">开始 / 锁定鼠标</button>
+      <button class="secondary" id="restartBtn">重开一局</button>
+    </div>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three/build/three.module.js"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+
+const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
+const rand=(a,b)=>a+Math.random()*(b-a);
+const pick=a=>a[Math.floor(Math.random()*a.length)];
+
+const hud={
+  phase:document.getElementById('phaseText'),
+  timer:document.getElementById('timerText'),
+  humanScore:document.getElementById('humanScore'),
+  mutantScore:document.getElementById('mutantScore'),
+  hpText:document.getElementById('hpText'),
+  acText:document.getElementById('acText'),
+  energyText:document.getElementById('energyText'),
+  energyLabel:document.getElementById('energyLabel'),
+  hpFill:document.getElementById('hpFill'),
+  acFill:document.getElementById('acFill'),
+  energyFill:document.getElementById('energyFill'),
+  weaponName:document.getElementById('weaponName'),
+  ammoText:document.getElementById('ammoText'),
+  reserveText:document.getElementById('reserveText'),
+  status:document.getElementById('statusText'),
+  damageText:document.getElementById('damageText'),
+  log:document.getElementById('log'),
+  overlay:document.getElementById('overlay'),
+  hitmark:document.getElementById('hitmark'),
+  center:document.getElementById('centerMsg'),
+  centerMain:document.getElementById('centerMain'),
+  centerSub:document.getElementById('centerSub'),
+  damageFlash:document.getElementById('damageFlash'),
+  infectFlash:document.getElementById('infectFlash'),
+  crosshair:document.getElementById('crosshair'),
+  scopeOverlay:document.getElementById('scopeOverlay'),
+  radar:document.getElementById('radar')
+};
+const rctx=hud.radar.getContext('2d');
+
+const scene=new THREE.Scene();
+scene.background=new THREE.Color(0x05070b);
+scene.fog=new THREE.Fog(0x05070b,22,82);
+
+const camera=new THREE.PerspectiveCamera(74,window.innerWidth/window.innerHeight,.05,220);
+scene.add(camera);
+
+const renderer=new THREE.WebGLRenderer({antialias:true});
+renderer.setSize(window.innerWidth,window.innerHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio,1.75));
+renderer.shadowMap.enabled=true;
+document.body.appendChild(renderer.domElement);
+
+const clock=new THREE.Clock();
+const keys=new Set();
+
+const mats={
+  floor:new THREE.MeshStandardMaterial({color:0x1d2634,roughness:.92}),
+  wall:new THREE.MeshStandardMaterial({color:0x121b2b,roughness:.88}),
+  crate:new THREE.MeshStandardMaterial({color:0x4d3823,roughness:.82}),
+  metal:new THREE.MeshStandardMaterial({color:0x3c4d64,metalness:.25,roughness:.66}),
+  glass:new THREE.MeshStandardMaterial({color:0x16435a,metalness:.05,roughness:.25,transparent:true,opacity:.48}),
+  human:new THREE.MeshStandardMaterial({color:0x6bb9ff,roughness:.65}),
+  humanHead:new THREE.MeshStandardMaterial({color:0xf0c6a0,roughness:.75}),
+  mutant:new THREE.MeshStandardMaterial({color:0x69d46b,roughness:.7}),
+  mother:new THREE.MeshStandardMaterial({color:0x8b5cf6,roughness:.6}),
+  black:new THREE.MeshStandardMaterial({color:0x080c12,roughness:.9}),
+  yellow:new THREE.MeshBasicMaterial({color:0xffe4a0}),
+  blood:new THREE.MeshBasicMaterial({color:0xff304f}),
+  greenBlood:new THREE.MeshBasicMaterial({color:0x72ff6d})
+};
+
+const world={half:32, obstacles:[], supplyPads:[], navPoints:[]};
+
+const player={
+  team:'human',
+  pos:new THREE.Vector3(0,1.7,12),
+  vel:new THREE.Vector3(),
+  yaw:Math.PI,
+  pitch:0,
+  hp:100,maxHp:100,ac:100,
+  energy:100,
+  radius:.42,
+  onGround:true,
+  hurtCd:0,
+  infection:0,
+  mutantLevel:0,
+  dead:false,
+  clawCd:0,
+  skillCd:0,
+  skillT:0,
+  hero:false,
+  knifeCd:0,
+  heavyCd:0,
+  slowT:0
+};
+
+const state={
+  running:false,
+  ended:false,
+  phase:'prep',
+  prep:20,
+  time:180,
+  score:0,
+  humanScore:0,
+  mutantScore:0,
+  kills:0,
+  shotDown:0,
+  heroTriggered:false,
+  pendingRespawns:0,
+  mouseDown:false,
+  shake:0,
+  lastAnnouncement:0
+};
+
+const weapons={
+  rifle:{key:'rifle',slot:'primary',name:'AK47-突击',magSize:35,ammo:35,reserve:175,damage:24,rpm:690,reload:1.38,spread:.010,pellets:1,recoil:.011,knock:2.1,range:86,auto:true,kind:'gun'},
+  shotgun:{key:'shotgun',slot:'primary',name:'S686-双管',magSize:7,ammo:7,reserve:35,damage:18,rpm:105,reload:1.08,spread:.080,pellets:9,recoil:.032,knock:1.6,range:32,auto:false,slowDur:1.35,slowMul:.55,kind:'gun'},
+  sniper:{key:'sniper',slot:'primary',name:'AWP-狙击',magSize:5,ammo:5,reserve:30,damage:155,rpm:48,reload:2.05,spread:.002,spreadHip:.115,pellets:1,recoil:.055,knock:0,range:120,auto:false,scoped:true,kind:'gun'},
+  pistol:{key:'pistol',slot:'secondary',name:'USP-战术',magSize:16,ammo:16,reserve:80,damage:22,rpm:420,reload:1.05,spread:.014,pellets:1,recoil:.010,knock:1.25,range:62,auto:false,kind:'gun'},
+  magnum:{key:'magnum',slot:'secondary',name:'柯尔特巨蟒',magSize:6,ammo:6,reserve:36,damage:74,rpm:95,reload:1.65,spread:.018,pellets:1,recoil:.048,knock:1.45,range:70,auto:false,kind:'gun',butt:true},
+  bow:{key:'bow',slot:'secondary',name:'复合弓',magSize:0,ammo:28,reserve:0,damage:116,rpm:60,reload:0,spread:0,pellets:1,recoil:0,knock:0,range:90,auto:false,isBow:true,kind:'bow'},
+  knife:{key:'knife',slot:'melee',name:'军用小刀',magSize:0,ammo:0,reserve:0,damage:999,rpm:90,reload:0,spread:0,pellets:1,recoil:0,knock:0,range:2.15,auto:false,kind:'knife'}
+};
+const baseWeaponStats=Object.fromEntries(Object.entries(weapons).map(([k,w])=>[k,{ammo:w.ammo,reserve:w.reserve,magSize:w.magSize}]));
+const loadout={primary:'rifle',secondary:'pistol'};
+let weapon=weapons[loadout.primary];
+let fireCd=0,reloadT=0;
+
+let entities=[];
+let particles=[];
+let tracers=[];
+let arrows=[];
+let labels=[];
+let gunGroup,clawGroup,knifeGroup,muzzleFlash,weaponModels={};
+
+function addLog(text,cls=''){
+  const p=document.createElement('p');
+  p.className='logItem '+cls;
+  p.textContent='· '+text;
+  hud.log.prepend(p);
+  while(hud.log.children.length>10) hud.log.lastChild.remove();
+}
+
+function announce(main,sub='',ms=2100){
+  hud.centerMain.textContent=main;
+  hud.centerSub.textContent=sub;
+  hud.center.classList.add('show');
+  clearTimeout(state.lastAnnouncement);
+  state.lastAnnouncement=setTimeout(()=>hud.center.classList.remove('show'),ms);
+}
+
+function makeLabel(text,color='#ffffff'){
+  const c=document.createElement('canvas');
+  c.width=256;c.height=64;
+  const ctx=c.getContext('2d');
+  ctx.font='bold 28px Microsoft YaHei, Arial';
+  ctx.textAlign='center';
+  ctx.strokeStyle='rgba(0,0,0,.85)';
+  ctx.lineWidth=6;
+  ctx.strokeText(text,128,39);
+  ctx.fillStyle=color;
+  ctx.fillText(text,128,39);
+  const tex=new THREE.CanvasTexture(c);
+  const mat=new THREE.SpriteMaterial({map:tex,transparent:true,depthTest:false});
+  const sp=new THREE.Sprite(mat);
+  sp.scale.set(2.6,.65,1);
+  scene.add(sp);
+  labels.push(sp);
+  return sp;
+}
+
+function updateLabel(sprite,text,color){
+  const old=sprite.material.map;
+  const c=document.createElement('canvas');
+  c.width=256;c.height=64;
+  const ctx=c.getContext('2d');
+  ctx.font='bold 28px Microsoft YaHei, Arial';
+  ctx.textAlign='center';
+  ctx.strokeStyle='rgba(0,0,0,.85)';
+  ctx.lineWidth=6;
+  ctx.strokeText(text,128,39);
+  ctx.fillStyle=color;
+  ctx.fillText(text,128,39);
+  sprite.material.map=new THREE.CanvasTexture(c);
+  old.dispose();
+}
+
+function addLights(){
+  scene.add(new THREE.HemisphereLight(0x9ccfff,0x0a0f18,1.6));
+  const d=new THREE.DirectionalLight(0xffffff,1.0);
+  d.position.set(18,34,12);
+  d.castShadow=true;
+  d.shadow.mapSize.set(2048,2048);
+  d.shadow.camera.near=1;d.shadow.camera.far=95;
+  d.shadow.camera.left=-48;d.shadow.camera.right=48;d.shadow.camera.top=48;d.shadow.camera.bottom=-48;
+  scene.add(d);
+  const lamps=[[-22,7,-22],[0,7,-24],[22,7,-22],[-22,7,0],[22,7,0],[-22,7,22],[0,7,22],[22,7,22]];
+  for(const [x,y,z] of lamps){
+    const l=new THREE.PointLight(0x74c7ff,1.25,24);
+    l.position.set(x,y,z);scene.add(l);
+    const b=new THREE.Mesh(new THREE.SphereGeometry(.18,12,8),new THREE.MeshBasicMaterial({color:0xa7e6ff}));
+    b.position.copy(l.position);scene.add(b);
+  }
+  const red=new THREE.PointLight(0xff4b65,.9,22);
+  red.position.set(0,5,-29);scene.add(red);
+}
+
+function makeBox(x,y,z,w,h,d,mat,collide=true,climbable=false){
+  const mesh=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);
+  mesh.position.set(x,y+h/2,z);
+  mesh.castShadow=true;mesh.receiveShadow=true;scene.add(mesh);
+  // h 存 top height，不再只存几何高度；这样高架桥/平台才有真实高度。
+  if(collide) world.obstacles.push({x,z,w,d,h:y+h,baseY:y,mesh,climbable});
+  return mesh;
+}
+
+function makeCylinder(x,y,z,r,h,mat,collide=true){
+  const mesh=new THREE.Mesh(new THREE.CylinderGeometry(r,r,h,18),mat);
+  mesh.position.set(x,y+h/2,z);
+  mesh.castShadow=true;mesh.receiveShadow=true;scene.add(mesh);
+  if(collide) world.obstacles.push({x,z,w:r*2,d:r*2,h,mesh});
+  return mesh;
+}
+
+function buildMap(){
+  const floor=new THREE.Mesh(new THREE.PlaneGeometry(world.half*2,world.half*2),mats.floor);
+  floor.rotation.x=-Math.PI/2;floor.receiveShadow=true;scene.add(floor);
+  const grid=new THREE.GridHelper(world.half*2,32,0x31506b,0x1a2636);
+  scene.add(grid);
+
+  makeBox(0,0,-world.half,world.half*2,5,1.2,mats.wall);
+  makeBox(0,0,world.half,world.half*2,5,1.2,mats.wall);
+  makeBox(-world.half,0,0,1.2,5,world.half*2,mats.wall);
+  makeBox(world.half,0,0,1.2,5,world.half*2,mats.wall);
+
+  // 中央研究舱，留出多条绕路
+  makeBox(0,0,-10,12,3.2,2.2,mats.metal);
+  makeBox(0,0,9,14,3.2,2.2,mats.metal);
+  makeBox(-13,0,0,2.2,3.2,14,mats.metal);
+  makeBox(14,0,0,2.2,3.2,14,mats.metal);
+
+  // CF 生化味道：木箱、高台、可守点
+  const crates=[
+    [-22,-18,4,2.8,4],[-18,-18,4,2.2,4],[-20,-14,4,1.6,4],
+    [22,-18,4,2.8,4],[18,-18,4,2.2,4],[20,-14,4,1.6,4],
+    [-22,18,5,2.8,4],[-16,20,4,2.2,4],[20,20,6,2.4,4],
+    [-6,22,5,1.9,5],[7,22,5,1.9,5],
+    [-4,-23,4,1.9,4],[5,-24,4,1.9,4]
+  ];
+  for(const [x,z,w,h,d] of crates) makeBox(x,0,z,w,h,d,mats.crate);
+
+  // 蓝色玻璃管和平台视觉
+  makeCylinder(-24,0,0,1.2,4.2,mats.glass,false);
+  makeCylinder(24,0,0,1.2,4.2,mats.glass,false);
+  makeBox(0,0,0,5,1.2,5,mats.metal);
+  makeBox(0,1.2,0,4.7,.25,4.7,new THREE.MeshStandardMaterial({color:0x354964,roughness:.65}),false);
+
+  // 生化守点：可跳上的箱坡 + 细桥 + 高点。幽灵能被击退摔下桥，前期不必硬杀。
+  makeBox(-10,0,-24,5,1.0,5,mats.crate,true,true);
+  makeBox(-7,0,-24,4,2.0,4,mats.crate,true,true);
+  makeBox(-4.4,0,-24,3,3.0,3,mats.crate,true,true);
+  makeBox(3,3.05,-24,10,.35,2.0,mats.metal,true,true);     // 高处细桥
+  makeBox(11,0,-24,7,3.8,7,mats.metal,true,true);         // 高台
+  makeBox(11,3.8,-24,6.6,.35,6.6,new THREE.MeshStandardMaterial({color:0x425b7a,roughness:.62}),false);
+  makeBox(11,4.15,-20.7,7,.55,.35,mats.metal,false);
+  makeBox(14.3,4.15,-24,.35,.55,7,mats.metal,false);
+
+  makeBox(22,0,8,4,1.0,4,mats.crate,true,true);
+  makeBox(22,0,11,4,2.0,4,mats.crate,true,true);
+  makeBox(22,0,14,4,3.0,4,mats.crate,true,true);
+  makeBox(22,3.05,19,2.1,.35,8,mats.metal,true,true);
+  makeBox(22,0,25,6,3.5,6,mats.metal,true,true);
+  makeBox(22,3.5,25,5.7,.35,5.7,new THREE.MeshStandardMaterial({color:0x425b7a,roughness:.62}),false);
+
+  // 补给光柱
+  addSupplyPad(-25,-25,'ammo');
+  addSupplyPad(25,-25,'armor');
+  addSupplyPad(-25,25,'ammo');
+  addSupplyPad(25,25,'health');
+
+  // 导航点
+  for(let x=-24;x<=24;x+=8){
+    for(let z=-24;z<=24;z+=8){
+      world.navPoints.push(new THREE.Vector3(x,0,z));
+    }
+  }
+}
+
+function addSupplyPad(x,z,type){
+  const base=new THREE.Mesh(new THREE.CylinderGeometry(1.3,1.3,.22,24),new THREE.MeshStandardMaterial({color:type==='ammo'?0x3d7cff:type==='health'?0x32cc77:0xd1d9ee,emissive:type==='ammo'?0x1133aa:type==='health'?0x0b662b:0x555555,roughness:.4}));
+  base.position.set(x,.11,z);base.receiveShadow=true;scene.add(base);
+  const beam=new THREE.Mesh(new THREE.CylinderGeometry(.55,.55,4.5,18),new THREE.MeshBasicMaterial({color:type==='ammo'?0x6baeff:type==='health'?0x66ff9a:0xdce8ff,transparent:true,opacity:.18}));
+  beam.position.set(x,2.35,z);scene.add(beam);
+  world.supplyPads.push({x,z,type,cd:0,base,beam});
+}
+
+
+function buildViewModels(){
+  function handMat(){ return new THREE.MeshStandardMaterial({color:0xe4b58e,roughness:.75}); }
+  function metalMat(c=0x222b36,m=.35,r=.45){ return new THREE.MeshStandardMaterial({color:c,metalness:m,roughness:r}); }
+  function addBox(group,w,h,d,x,y,z,mat,rx=0,ry=0,rz=0){
+    const m=new THREE.Mesh(new THREE.BoxGeometry(w,h,d),mat);
+    m.position.set(x,y,z); m.rotation.set(rx,ry,rz); group.add(m); return m;
+  }
+  function addCyl(group,r1,r2,h,x,y,z,mat,rx=0,ry=0,rz=0,radial=10){
+    const m=new THREE.Mesh(new THREE.CylinderGeometry(r1,r2,h,radial),mat);
+    m.position.set(x,y,z); m.rotation.set(rx,ry,rz); group.add(m); return m;
+  }
+
+  gunGroup=new THREE.Group();
+  camera.add(gunGroup);
+
+  const handL = new THREE.Mesh(new THREE.BoxGeometry(.18,.18,.34), handMat());
+  handL.position.set(.18,-.45,-.58);
+  gunGroup.add(handL);
+
+  weaponModels = {};
+
+  // AK47：长机匣、木枪托、木护木、弯弹匣
+  {
+    const g = new THREE.Group();
+    const steel = metalMat(0x242c35,.34,.42);
+    const wood = metalMat(0x7a4d28,.10,.74);
+
+    addBox(g,.18,.13,1.02,.39,-.35,-.84,steel);
+    addBox(g,.08,.08,.78,.39,-.33,-1.58,metalMat(0x596572,.48,.30));
+    addBox(g,.10,.06,.54,.39,-.25,-1.10,metalMat(0x444d58,.38,.36));
+    addBox(g,.06,.10,.10,.39,-.26,-1.84,metalMat(0x697480,.46,.30));
+
+    addBox(g,.30,.12,.50,.15,-.36,-.26,wood,0,0,.28);
+    addBox(g,.10,.28,.18,.43,-.52,-.54,metalMat(0x141920,.20,.84),.34,0,0);
+    addBox(g,.14,.11,.30,.26,-.37,-1.26,wood,0,0,.08);
+    addBox(g,.12,.09,.18,.24,-.28,-.92,wood,0,0,.10);
+    addBox(g,.10,.18,.22,.34,-.45,-1.02,metalMat(0x5c6670,.36,.34),0,0,.16);
+    addBox(g,.09,.22,.18,.31,-.56,-1.18,metalMat(0x5c6670,.36,.34),0,0,.38);
+
+    g.userData.muzzle = new THREE.Vector3(.39,-.33,-1.98);
+    g.userData.holdPos = new THREE.Vector3(.06,-.01,-.08);
+    g.userData.holdRot = new THREE.Euler(.0,.02,-.03);
+    gunGroup.add(g); weaponModels.rifle = g;
+  }
+
+  // S686：并排双管、折式机匣、木枪托
+  {
+    const g = new THREE.Group();
+    const steel = metalMat(0x6a7480,.48,.28);
+    const wood = metalMat(0x744b27,.10,.74);
+
+    addBox(g,.20,.14,.28,.37,-.34,-.68,metalMat(0x3b4650,.34,.40));
+    addBox(g,.05,.05,1.14,.33,-.32,-1.50,steel);
+    addBox(g,.05,.05,1.14,.41,-.32,-1.50,steel);
+    addBox(g,.11,.08,.20,.37,-.31,-2.10,steel);
+    addBox(g,.30,.12,.60,.15,-.36,-.20,wood,0,0,.26);
+    addBox(g,.11,.30,.18,.41,-.52,-.42,wood,.34,0,0);
+    addBox(g,.12,.10,.26,.37,-.36,-1.00,wood);
+
+    g.userData.muzzle = new THREE.Vector3(.37,-.32,-2.16);
+    g.userData.holdPos = new THREE.Vector3(.07,-.01,-.06);
+    g.userData.holdRot = new THREE.Euler(.0,.02,-.02);
+    gunGroup.add(g); weaponModels.shotgun = g;
+  }
+
+  // AWP：单独精修，缩小镜身、拉低枪位，避免像水管旋钮
+  {
+    const g = new THREE.Group();
+    const body = metalMat(0x2b333c,.30,.44);
+    const stock = metalMat(0x58626e,.18,.58);
+    const steel = metalMat(0x909aa5,.55,.26);
+    const scopeMat = metalMat(0x11161d,.42,.34);
+
+    addBox(g,.18,.11,1.20,.43,-.38,-1.02,body);                          // 机匣/护木
+    addBox(g,.36,.12,.70,.14,-.38,-.20,stock,0,0,.17);                  // 厚枪托
+    addBox(g,.11,.26,.16,.46,-.54,-.56,metalMat(0x141920,.20,.84),.30,0,0); // 握把
+    addBox(g,.12,.14,.34,.31,-.35,-1.22,metalMat(0x3d4753,.22,.52));    // 弹匣区
+    addBox(g,.10,.06,.24,.20,-.30,-.46,stock);                          // 托腮板
+
+    addBox(g,.040,.040,2.28,.40,-.35,-2.24,steel);                       // 枪管更细长
+    addBox(g,.060,.060,.20,.40,-.35,-3.46,steel);                        // 枪口
+
+    addCyl(g,.034,.034,1.04,.40,-.16,-1.22,scopeMat,0,0,Math.PI/2,16);  // 镜筒缩小
+    addCyl(g,.050,.050,.07,.40,-.16,-.68,scopeMat,0,0,Math.PI/2,16);    // 目镜
+    addCyl(g,.050,.050,.07,.40,-.16,-1.76,scopeMat,0,0,Math.PI/2,16);   // 物镜
+    addBox(g,.035,.12,.08,.40,-.25,-.96,scopeMat);                       // 镜座
+    addBox(g,.035,.12,.08,.40,-.25,-1.48,scopeMat);
+
+    addBox(g,.022,.30,.022,.30,-.49,-2.06,steel,0,0,.26);                // 脚架
+    addBox(g,.022,.30,.022,.50,-.49,-2.06,steel,0,0,-.26);
+
+    g.userData.muzzle = new THREE.Vector3(.40,-.35,-3.56);
+    g.userData.holdPos = new THREE.Vector3(.23,-.07,-.34);
+    g.userData.holdRot = new THREE.Euler(.02,.10,-.04);
+    gunGroup.add(g); weaponModels.sniper = g;
+  }
+
+  // USP：长方套筒、扁平枪身、清楚的握把
+  {
+    const g = new THREE.Group();
+    const dark=metalMat(0x1f252d,.34,.46);
+    const frame=metalMat(0x39424d,.22,.54);
+
+    addBox(g,.18,.10,.76,.35,-.31,-.78,dark);
+    addBox(g,.17,.07,.54,.35,-.40,-.58,frame);
+    addBox(g,.07,.05,.20,.35,-.31,-1.20,metalMat(0x768391,.46,.30));
+    addBox(g,.10,.31,.18,.36,-.53,-.42,metalMat(0x141920,.18,.86),.34,0,0);
+    addBox(g,.08,.07,.14,.35,-.44,-.66,frame);
+    addBox(g,.03,.03,.08,.42,-.33,-.42,metalMat(0x6f7a86,.42,.34));
+
+    g.userData.muzzle = new THREE.Vector3(.35,-.31,-1.28);
+    g.userData.holdPos = new THREE.Vector3(.03,0,-.03);
+    g.userData.holdRot = new THREE.Euler(0,.02,-.02);
+    gunGroup.add(g); weaponModels.pistol = g;
+  }
+
+  // 柯尔特巨蟒：厚转轮、长枪管、上导轨、下配重、木握把
+  {
+    const g = new THREE.Group();
+    const steel=metalMat(0x6b7682,.46,.28);
+    addBox(g,.16,.12,.30,.35,-.34,-.54,metalMat(0x2b323b,.36,.40));
+    addCyl(g,.085,.085,.20,.35,-.34,-.78,steel,0,0,Math.PI/2,12);
+    addBox(g,.07,.07,.84,.35,-.34,-1.30,steel);
+    addBox(g,.04,.02,.82,.35,-.27,-1.30,steel);
+    addBox(g,.05,.05,.74,.35,-.40,-1.28,metalMat(0x555f69,.40,.32));
+    addBox(g,.12,.34,.18,.36,-.55,-.38,metalMat(0x5b3a22,.12,.74),.40,0,0);
+    addBox(g,.03,.03,.08,.43,-.30,-.46,steel);
+
+    g.userData.muzzle = new THREE.Vector3(.35,-.34,-1.74);
+    g.userData.holdPos = new THREE.Vector3(.06,-.01,-.05);
+    g.userData.holdRot = new THREE.Euler(0,.03,-.03);
+    gunGroup.add(g); weaponModels.magnum = g;
+  }
+
+  // 复合弓：单独精修，给出更清楚的侧面轮廓，不再像一堆树枝
+  {
+    const g = new THREE.Group();
+    const limbMat = new THREE.MeshStandardMaterial({color:0x6a4727,roughness:.70});
+    const riserMat = metalMat(0x505c68,.34,.40);
+    const camMat = metalMat(0x202832,.38,.38);
+    const stringMat = new THREE.MeshBasicMaterial({color:0xf4f8ff});
+    const arrowMat = new THREE.MeshBasicMaterial({color:0xe2ebf7});
+
+    addBox(g,.08,.74,.07,.34,-.30,-.98,riserMat,0,0,.04);              // 中轴更短更厚
+    addBox(g,.05,.18,.04,.28,-.01,-1.06,limbMat,0,0,.26);              // 上内臂
+    addBox(g,.05,.24,.04,.20,.21,-1.22,limbMat,0,0,.56);               // 上外臂
+    addBox(g,.05,.18,.04,.40,-.59,-1.06,limbMat,0,0,-.26);             // 下内臂
+    addBox(g,.05,.24,.04,.48,-.81,-1.22,limbMat,0,0,-.56);             // 下外臂
+    addCyl(g,.068,.068,.04,.19,.35,-1.26,camMat,Math.PI/2,0,0,12);     // 上滑轮
+    addCyl(g,.068,.068,.04,.49,-.95,-1.26,camMat,Math.PI/2,0,0,12);    // 下滑轮
+
+    const stringUpper = addBox(g,.008,.44,.008,.27,-.05,-1.12,stringMat,0,0,.24);
+    const stringLower = addBox(g,.008,.44,.008,.41,-.55,-1.12,stringMat,0,0,-.24);
+
+    const arrow = addBox(g,.022,.022,1.06,.36,-.29,-1.28,arrowMat,Math.PI/2,0,0);
+    const arrowHead = addBox(g,.05,.05,.10,.36,-.29,-1.84,arrowMat,0,0,.78);
+    const arrowF1 = addBox(g,.05,.01,.04,.36,-.25,-.78,new THREE.MeshBasicMaterial({color:0x9fd7ff}),0,0,.42);
+    const arrowF2 = addBox(g,.05,.01,.04,.36,-.33,-.78,new THREE.MeshBasicMaterial({color:0x9fd7ff}),0,0,-.42);
+
+    g.userData = {
+      muzzle:new THREE.Vector3(.36,-.29,-1.90),
+      holdPos:new THREE.Vector3(.24,-.06,-.26),
+      holdRot:new THREE.Euler(.00,.46,-.18),
+      stringUpper,stringLower,arrow,arrowHead,arrowF1,arrowF2,
+      baseArrowZ:-1.28,
+      baseArrowY:-.29,
+      baseUpperX:.27, baseUpperZ:-1.12,
+      baseLowerX:.41, baseLowerZ:-1.12
+    };
+    gunGroup.add(g); weaponModels.bow = g;
+  }
+
+  // 通用枪口火光
+  muzzleFlash=new THREE.Mesh(new THREE.SphereGeometry(.085,8,8),mats.yellow);
+  muzzleFlash.position.set(.36,-.32,-1.80);
+  muzzleFlash.visible=false;
+  gunGroup.add(muzzleFlash);
+
+  // 生化爪
+  clawGroup=new THREE.Group();
+  const palm=new THREE.Mesh(new THREE.BoxGeometry(.28,.18,.38),new THREE.MeshStandardMaterial({color:0x294a26,roughness:.75}));
+  palm.position.set(.28,-.42,-.52);
+  clawGroup.add(palm);
+  for(let i=0;i<4;i++){
+    const claw=new THREE.Mesh(new THREE.ConeGeometry(.045,.42,8),new THREE.MeshStandardMaterial({color:0x9cff88,emissive:0x1a4413,roughness:.55}));
+    claw.rotation.x=Math.PI/2;
+    claw.position.set(.15+i*.085,-.35,-.79);
+    clawGroup.add(claw);
+  }
+  clawGroup.visible=false;
+  camera.add(clawGroup);
+
+  // 小刀
+  knifeGroup=new THREE.Group();
+  const knifeHandle=new THREE.Mesh(new THREE.BoxGeometry(.13,.36,.16),mats.black);
+  knifeHandle.position.set(.33,-.50,-.48);
+  const knifeBlade=new THREE.Mesh(new THREE.BoxGeometry(.07,.14,.78),new THREE.MeshStandardMaterial({color:0xdce8f8,metalness:.65,roughness:.32}));
+  knifeBlade.position.set(.36,-.35,-.86);
+  knifeBlade.rotation.x=.25;
+  knifeGroup.add(knifeHandle,knifeBlade);
+  knifeGroup.visible=false;
+  camera.add(knifeGroup);
+}
+
+function makeHumanoid(type,pos,mother=false){
+  const group=new THREE.Group();
+  group.position.copy(pos);
+  const baseMat=type==='human'?mats.human:(mother?mats.mother:mats.mutant);
+  const mat=baseMat.clone();
+  const headMat=type==='human'?mats.humanHead.clone():mat;
+  const torso=new THREE.Mesh(new THREE.CylinderGeometry(type==='human'?.34:.43,type==='human'?.42:.52,1.1,12),mat);
+  torso.position.y=.9;torso.castShadow=true;group.add(torso);
+  const head=new THREE.Mesh(new THREE.SphereGeometry(type==='human'?.31:.34,14,12),headMat);
+  head.position.y=1.62;head.castShadow=true;group.add(head);
+  if(type==='human'){
+    const gun=new THREE.Mesh(new THREE.BoxGeometry(.72,.13,.16),mats.black);
+    gun.position.set(.38,1.08,-.18);gun.castShadow=true;group.add(gun);
+  }else{
+    for(let i=0;i<3;i++){
+      const spike=new THREE.Mesh(new THREE.ConeGeometry(.08,.42,8),mat);
+      spike.position.set((i-1)*.16,1.32,.1);
+      spike.rotation.x=-.9;
+      spike.castShadow=true;group.add(spike);
+    }
+  }
+  if(mother) group.scale.set(1.25,1.25,1.25);
+  scene.add(group);
+  const label=makeLabel(type==='human'?'佣兵':mother?'母体':'幽灵',type==='human'?'#9fd8ff':mother?'#c4a7ff':'#aaff92');
+  label.visible=false;
+  return {
+    id:Math.random().toString(36).slice(2),
+    type,mother,
+    level: mother?2:1,
+    mesh:group,label,
+    pos:pos.clone(),vel:new THREE.Vector3(),
+    onGround:true,jumpCd:rand(.1,.6),
+    slowT:0,
+    hp:type==='human'?100:(mother?900:280),
+    maxHp:type==='human'?100:(mother?900:280),
+    radius:type==='human'?.42:(mother?.64:.52),
+    speed:type==='human'?rand(3.0,3.75):(mother?4.7:4.25),
+    shootCd:rand(.1,.8),attackCd:rand(.2,.9),
+    lastHit:0,regenCd:0,hurtFlash:0,
+    wander:new THREE.Vector3(pos.x,0,pos.z),
+    stuck:0,
+    aiPrimary: pick(['rifle','shotgun','sniper']),
+    aiSecondary: pick(['pistol','magnum','bow']),
+    aiUseSecondary: Math.random()<.38,
+    hero:false,
+    meleeCd:rand(.2,.7)
+  };
+}
+
+function spawnHumans(){
+  const points=[
+    [-5,12],[5,12],[-11,16],[11,16],[-20,10],[20,10],[-8,-4],[8,-4]
+  ];
+  for(const [x,z] of points) entities.push(makeHumanoid('human',new THREE.Vector3(x,0,z)));
+}
+
+function clearRoundObjects(){
+  for(const e of entities){
+    scene.remove(e.mesh);
+    scene.remove(e.label);
+    e.label.material.map.dispose();
+    e.label.material.dispose();
+  }
+  for(const p of particles) scene.remove(p.mesh);
+  for(const t of tracers) scene.remove(t.obj);
+  for(const a of arrows) scene.remove(a.mesh);
+  entities=[];particles=[];tracers=[];arrows=[];
+}
+
+function turnEntityToMutant(ent,mother=false,byPlayer=false){
+  if(ent.type!=='human')return;
+  if(ent.hero){
+    ent.hp -= mother ? 52 : 36;
+    ent.hurtFlash=.12;
+    if(ent.hp<=0){
+      const idx=entities.indexOf(ent);
+      if(idx>=0) entities.splice(idx,1);
+      scene.remove(ent.mesh);
+      scene.remove(ent.label);
+      addLog('AI 终极猎手阵亡。','bad');
+    }
+    return;
+  }
+  scene.remove(ent.mesh);
+  scene.remove(ent.label);
+  const idx=entities.indexOf(ent);
+  if(idx>=0) entities.splice(idx,1);
+  const z=makeHumanoid('mutant',ent.pos.clone(),mother);
+  entities.push(z);
+  if(byPlayer) state.score+=45;
+  addLog(mother?'佣兵突变为母体。':'佣兵被感染，变成幽灵。',mother?'bad':'warn');
+  announce(mother?'生化母体出现':'感染扩散',mother?'佣兵阵线开始崩坏':'有人加入幽灵阵营');
+}
+
+function infectPlayer(){
+  if(player.team==='mutant'||state.ended)return;
+  // 终极猎手不再会被感染，只会受到爪击伤害。
+  if(player.hero){
+    hurtPlayer(42,'幽灵爪击');
+    announce('猎手免疫感染','终极猎手不会变幽灵，但只会受到爪击伤害。',900);
+    return;
+  }
+  player.team='mutant';
+  player.maxHp=650;player.hp=650;player.ac=0;player.energy=100;
+  player.mutantLevel=1;
+  reloadT=0;
+  hud.infectFlash.classList.add('show');
+  setTimeout(()=>hud.infectFlash.classList.remove('show'),900);
+  announce('你被感染了','现在使用爪击感染剩余佣兵。按 F 使用狂暴。',3000);
+  addLog('你被感染为生化幽灵。别急，换个阵营继续玩。','bad');
+}
+
+function startMutation(){
+  state.phase='fight';
+  const humans=entities.filter(e=>e.type==='human');
+  if(humans.length){
+    turnEntityToMutant(pick(humans),true);
+    const rem=entities.filter(e=>e.type==='human');
+    if(rem.length) turnEntityToMutant(pick(rem),true);
+  }
+  announce('生化幽灵出现','守住阵地，别被抓到。',2600);
+  addLog('准备结束：两名母体出现，感染开始。','bad');
+}
+
+function evolveMutant(ent){
+  if(ent.level>=3)return;
+  ent.level++;
+  ent.maxHp += ent.mother ? 280 : 160;
+  ent.hp = Math.min(ent.maxHp, ent.hp + 220);
+  ent.speed += .35;
+  ent.mesh.scale.multiplyScalar(1.12);
+  updateLabel(ent.label,ent.mother?'强化母体':'进化幽灵',ent.mother?'#c4a7ff':'#ccff9d');
+  addLog((ent.mother?'母体':'幽灵')+'进化了，速度和血量上升。','warn');
+}
+
+function playBeep(freq=220,dur=.06,type='square',gain=.025){
+  try{
+    const ac=playBeep.ac||(playBeep.ac=new (window.AudioContext||window.webkitAudioContext)());
+    const o=ac.createOscillator(),g=ac.createGain();
+    o.type=type;o.frequency.value=freq;g.gain.value=gain;
+    o.connect(g);g.connect(ac.destination);
+    o.start();
+    g.gain.exponentialRampToValueAtTime(.0001,ac.currentTime+dur);
+    o.stop(ac.currentTime+dur);
+  }catch(e){}
+}
+
+function updateCamera(){
+  camera.rotation.order='YXZ';
+  camera.rotation.y=player.yaw;
+  camera.rotation.x=player.pitch;
+  const sx=(Math.random()-.5)*state.shake;
+  const sy=(Math.random()-.5)*state.shake;
+  camera.position.set(player.pos.x+sx,player.pos.y+sy,player.pos.z);
+}
+
+function floorHeightAt(x,z,currentFeetY=Infinity,maxStep=Infinity){
+  let h=0;
+  for(const o of world.obstacles){
+    // 只有标记为可攀爬、且当前脚部高度够得着的物体，才会被当成地面。
+    // 这防止玩家/AI 贴到高台侧面时直接“吸”上去。
+    if(
+      o.climbable &&
+      x>o.x-o.w/2-.18 && x<o.x+o.w/2+.18 &&
+      z>o.z-o.d/2-.18 && z<o.z+o.d/2+.18 &&
+      o.h <= currentFeetY + maxStep
+    ){
+      h=Math.max(h,o.h);
+    }
+  }
+  return h;
+}
+
+function resolveCollision(pos,radius,eyeOffset=0){
+  pos.x=clamp(pos.x,-world.half+radius+1.2,world.half-radius-1.2);
+  pos.z=clamp(pos.z,-world.half+radius+1.2,world.half-radius-1.2);
+  const feetY=pos.y-eyeOffset;
+  for(const o of world.obstacles){
+    const minX=o.x-o.w/2-radius,maxX=o.x+o.w/2+radius;
+    const minZ=o.z-o.d/2-radius,maxZ=o.z+o.d/2+radius;
+    if(pos.x>minX&&pos.x<maxX&&pos.z>minZ&&pos.z<maxZ){
+      // 高架桥从下面可以通过；实心高台/箱子从侧面会挡住。
+      if((o.baseY??0) > feetY + 1.35) continue;
+      // 已经在可攀爬物体顶面附近时，不做侧面挤出。
+      if(o.climbable && feetY > o.h - .42) continue;
+      if(feetY > o.h + .08) continue;
+      const dx1=Math.abs(pos.x-minX),dx2=Math.abs(maxX-pos.x),dz1=Math.abs(pos.z-minZ),dz2=Math.abs(maxZ-pos.z);
+      const m=Math.min(dx1,dx2,dz1,dz2);
+      if(m===dx1)pos.x=minX;else if(m===dx2)pos.x=maxX;else if(m===dz1)pos.z=minZ;else pos.z=maxZ;
+    }
+  }
+}
+
+function rayAABB(origin,dir,o){
+  const min=new THREE.Vector3(o.x-o.w/2,o.baseY??0,o.z-o.d/2);
+  const max=new THREE.Vector3(o.x+o.w/2,o.h,o.z+o.d/2);
+  let tmin=-Infinity,tmax=Infinity;
+  for(const ax of ['x','y','z']){
+    if(Math.abs(dir[ax])<1e-6){
+      if(origin[ax]<min[ax]||origin[ax]>max[ax])return null;
+    }else{
+      const inv=1/dir[ax];
+      let t1=(min[ax]-origin[ax])*inv,t2=(max[ax]-origin[ax])*inv;
+      if(t1>t2)[t1,t2]=[t2,t1];
+      tmin=Math.max(tmin,t1);tmax=Math.min(tmax,t2);
+      if(tmin>tmax)return null;
+    }
+  }
+  return tmax>=0?Math.max(0,tmin):null;
+}
+
+function segmentBlocked(a,b){
+  const dir=b.clone().sub(a);const len=dir.length();
+  if(len<.001)return false;
+  dir.multiplyScalar(1/len);
+  for(const o of world.obstacles){
+    const t=rayAABB(a,dir,o);
+    if(t!==null&&t>.05&&t<len)return true;
+  }
+  return false;
+}
+
+function raySphere(origin,dir,center,radius){
+  const oc=origin.clone().sub(center);
+  const b=2*oc.dot(dir),c=oc.dot(oc)-radius*radius,disc=b*b-4*c;
+  if(disc<0)return null;
+  const s=Math.sqrt(disc),t1=(-b-s)/2,t2=(-b+s)/2;
+  if(t1>0)return t1;if(t2>0)return t2;return null;
+}
+
+function rayHitEntity(origin,dir,ent,maxRange){
+  const body=ent.pos.clone().setY(ent.pos.y+1.02);
+  const head=ent.pos.clone().setY(ent.pos.y+1.66);
+  let tBody=raySphere(origin,dir,body,ent.radius);
+  let tHead=raySphere(origin,dir,head,ent.radius*.62);
+  let best=null;
+  if(tBody!==null&&tBody<maxRange)best={t:tBody,head:false};
+  if(tHead!==null&&tHead<maxRange&&(!best||tHead<best.t))best={t:tHead,head:true};
+  if(!best)return null;
+  const hitPoint=origin.clone().addScaledVector(dir,best.t);
+  if(segmentBlocked(origin,hitPoint))return null;
+  return best;
+}
+
+function addTracer(from,to,color=0xffd166){
+  const geom=new THREE.BufferGeometry().setFromPoints([from,to]);
+  const mat=new THREE.LineBasicMaterial({color,transparent:true,opacity:.95});
+  const line=new THREE.Line(geom,mat);scene.add(line);
+  tracers.push({obj:line,life:.075,mat});
+}
+
+function addParticles(pos,count,color=0xff3050){
+  for(let i=0;i<count;i++){
+    const mesh=new THREE.Mesh(new THREE.SphereGeometry(rand(.025,.075),6,6),new THREE.MeshBasicMaterial({color}));
+    mesh.position.copy(pos);scene.add(mesh);
+    particles.push({mesh,life:rand(.25,.62),vel:new THREE.Vector3(rand(-1.35,1.35),rand(.45,2.2),rand(-1.35,1.35))});
+  }
+}
+
+function showHit(){
+  hud.hitmark.classList.add('show');
+  setTimeout(()=>hud.hitmark.classList.remove('show'),70);
+}
+
+function countHumans(){
+  return entities.filter(e=>e.type==='human').length+(player.team==='human'?1:0);
+}
+
+function countMutants(){
+  return entities.filter(e=>e.type==='mutant').length+(player.team==='mutant'?1:0);
+}
+
+function humanDamageMultiplier(){
+  // 越多幽灵，人类枪械越疼；前期打不太动，后期越打越像开了火力觉醒。
+  const m=countMutants();
+  return clamp(1 + Math.max(0,m-2)*0.22,1,2.9);
+}
+
+function checkHeroTransform(){
+  if(state.phase!=='fight'||state.heroTriggered)return;
+  const humans=countHumans();
+  if(humans<=2){
+    state.heroTriggered=true;
+
+    if(player.team==='human'){
+      player.hero=true;
+      player.maxHp=620;
+      player.hp=620;
+      player.ac=100;
+      player.energy=100;
+      weapon=weapons.knife;
+      reloadT=0;
+      setScope(false);
+    }
+
+    for(const h of entities){
+      if(h.type==='human'){
+        h.hero=true;
+        h.maxHp=760;
+        h.hp=760;
+        h.speed=Math.max(h.speed,4.65);
+        h.meleeCd=rand(.25,.55);
+        h.mesh.scale.set(1.18,1.18,1.18);
+
+        const bladeMat=new THREE.MeshStandardMaterial({color:0xe9f3ff,metalness:.65,roughness:.28});
+        const handle=new THREE.Mesh(new THREE.BoxGeometry(.10,.24,.10),mats.black);
+        handle.position.set(.38,1.06,-.20);
+        const blade=new THREE.Mesh(new THREE.BoxGeometry(.08,.12,1.20),bladeMat);
+        blade.position.set(.42,1.08,-.82);
+        blade.rotation.x=.18;
+        h.mesh.add(handle,blade);
+      }
+    }
+
+    announce('终极猎手登场','剩余人类全部拔刀，免疫感染。',3600);
+    addLog('终极猎手觉醒：玩家和剩余 AI 佣兵都会变猎手，不再拿枪。','good');
+    playBeep(360,.18,'sawtooth',.04);
+  }
+}
+
+function isLowMutant(ent){
+  return ent.type==='mutant' && ent.hp/ent.maxHp < .25;
+}
+
+function respawnMutant(ent, delay=4.2){
+  const mother=ent.mother;
+  const level=ent.level||1;
+  const oldLabel=ent.label;
+  scene.remove(ent.mesh);
+  scene.remove(oldLabel);
+  const idx=entities.indexOf(ent);
+  if(idx>=0)entities.splice(idx,1);
+
+  state.pendingRespawns++;
+  const ghost={mother,level,life:delay};
+  ghost.timer=setTimeout(()=>{
+    state.pendingRespawns=Math.max(0,state.pendingRespawns-1);
+    if(state.ended)return;
+    const pos=getFarthestRespawnPoint();
+    const z=makeHumanoid('mutant',pos,mother);
+    z.level=level;
+    z.maxHp = mother ? 840 + level*120 : 250 + level*70;
+    z.hp=z.maxHp;
+    if(level>1)z.mesh.scale.multiplyScalar(1+0.08*(level-1));
+    entities.push(z);
+    addLog((mother?'母体':'幽灵')+'在远离人类的位置复活。','warn');
+  },delay*1000);
+}
+
+function getFarthestRespawnPoint(){
+  const candidates=[
+    new THREE.Vector3(-29,0,-29),new THREE.Vector3(29,0,-29),
+    new THREE.Vector3(-29,0,29),new THREE.Vector3(29,0,29),
+    new THREE.Vector3(0,0,-29),new THREE.Vector3(-29,0,0),new THREE.Vector3(29,0,0)
+  ];
+  const humans=[];
+  if(player.team==='human')humans.push(new THREE.Vector3(player.pos.x,0,player.pos.z));
+  for(const e of entities)if(e.type==='human')humans.push(e.pos.clone());
+  let best=candidates[0],bestD=-1;
+  for(const c of candidates){
+    let nearest=Infinity;
+    for(const h of humans)nearest=Math.min(nearest,c.distanceTo(h));
+    if(nearest>bestD){bestD=nearest;best=c;}
+  }
+  const p=best.clone().add(new THREE.Vector3(rand(-1.4,1.4),0,rand(-1.4,1.4))); p.y=floorHeightAt(p.x,p.z,Infinity,Infinity); return p;
+}
+
+function meleeSlash(heavy=false){
+  if(!state.running||state.ended||player.team!=='human')return;
+  if(!player.hero && weapon.key!=='knife')return;
+
+  if(heavy){
+    if(player.heavyCd>0)return;
+    player.heavyCd=1.45;
+    announce('重刀蓄力','命中普通幽灵一刀封喉。',650);
+    setTimeout(()=>applyKnifeHit(true),360);
+  }else{
+    if(player.knifeCd>0)return;
+    // 轻击不是单划，而是“刷刷”两下；普通小刀和终极猎手都一样。
+    player.knifeCd=player.hero?.68:.86;
+    setTimeout(()=>applyKnifeHit(false),35);
+    setTimeout(()=>applyKnifeHit(false),185);
+  }
+
+  if(knifeGroup){
+    // 轻击：快速双连击，第一刀横划，第二刀反向回划。
+    // 重击：先明显前摇，再下劈/突刺，方便玩家通过动画区分左右键。
+    knifeGroup.rotation.set(0,0,0);
+    knifeGroup.position.set(0,0,0);
+
+    if(heavy){
+      knifeGroup.rotation.x=-0.72;
+      knifeGroup.rotation.z=-0.18;
+      knifeGroup.position.y=0.08;
+      knifeGroup.position.z=0.18;
+
+      setTimeout(()=>{
+        knifeGroup.rotation.x=0.62;
+        knifeGroup.rotation.z=-1.05;
+        knifeGroup.position.y=-0.10;
+        knifeGroup.position.z=-0.48;
+      },180);
+
+      setTimeout(()=>{
+        knifeGroup.rotation.set(0,0,0);
+        knifeGroup.position.set(0,0,0);
+      },520);
+    }else{
+      // 第一刀：右向左快速横划
+      knifeGroup.rotation.y=0.42;
+      knifeGroup.rotation.z=-0.76;
+      knifeGroup.position.x=0.18;
+      knifeGroup.position.z=-0.12;
+
+      setTimeout(()=>{
+        // 第二刀：左向右反划，角度和位移明显不同
+        knifeGroup.rotation.y=-0.46;
+        knifeGroup.rotation.z=0.82;
+        knifeGroup.position.x=-0.10;
+        knifeGroup.position.z=-0.20;
+      },115);
+
+      setTimeout(()=>{
+        knifeGroup.rotation.set(0,0,0);
+        knifeGroup.position.set(0,0,0);
+      },285);
+    }
+  }
+  playBeep(heavy?115:210,heavy?.12:.045,'sawtooth',heavy?.035:.022);
+  if(!heavy)setTimeout(()=>playBeep(245,.045,'sawtooth',.022),145);
+}
+
+function applyKnifeHit(heavy=false){
+  const origin=camera.position.clone();
+  const forward=new THREE.Vector3();camera.getWorldDirection(forward);
+  let best=null;
+  for(const ent of entities){
+    if(ent.type!=='mutant')continue;
+    const target=ent.pos.clone().setY(ent.pos.y+1.1);
+    const to=target.clone().sub(origin);
+    const dist=to.length();
+    const facing=to.normalize().dot(forward);
+    const range = player.hero ? (heavy ? 4.25 : 3.35) : (heavy ? 2.65 : 2.25);
+    if(dist<range && facing>.48 && !segmentBlocked(origin,target)){
+      if(!best||dist<best.dist)best={ent,dist};
+    }
+  }
+  if(!best)return;
+  const ent=best.ent;
+  const normalMutantRef = 320;
+  const base = player.hero
+    ? (heavy ? normalMutantRef * 1.12 : normalMutantRef * 0.53)
+    : (heavy ? normalMutantRef * 0.42 : normalMutantRef * 0.23);
+  ent.hp-=base;
+  ent.lastHit=0;
+  ent.hurtFlash=.1;
+  ent.vel.add(forward.clone().setY(0).normalize().multiplyScalar(heavy?12:7));
+  addParticles(ent.pos.clone().setY(ent.pos.y+1.05),heavy?18:10,0xff3154);
+  showHit();
+  if(ent.hp<=0){
+    killEntity(ent,'knife');
+    announce(heavy?'重刀击杀':'小刀击杀','刀杀幽灵无法复活。',1400);
+  }
+}
+
+
+function selectedPrimary(){ return weapons[loadout.primary] || weapons.rifle; }
+function selectedSecondary(){ return weapons[loadout.secondary] || weapons.pistol; }
+
+function setLoadout(slot,key){
+  if(!weapons[key])return;
+  loadout[slot]=key;
+  document.querySelectorAll(`.weaponPick[data-slot="${slot}"]`).forEach(el=>{
+    el.classList.toggle('selected',el.dataset.weapon===key);
+  });
+  if(!state.running && !state.ended){
+    weapon=selectedPrimary();
+    updateHUD();
+  }
+}
+
+function resetWeaponAmmo(){
+  for(const [k,w] of Object.entries(weapons)){
+    const b=baseWeaponStats[k];
+    if(!b)continue;
+    w.ammo=b.ammo;
+    w.reserve=b.reserve;
+    w.magSize=b.magSize;
+  }
+}
+
+function setScope(on){
+  state.scoped=on && weapon.key==='sniper' && player.team==='human' && !player.hero;
+  camera.fov=state.scoped?26:74;
+  camera.updateProjectionMatrix();
+  if(hud.scopeOverlay) hud.scopeOverlay.classList.toggle('show',state.scoped);
+  if(gunGroup) gunGroup.visible = !state.scoped && player.team==='human' && weapon.key!=='knife' && !player.hero;
+}
+
+function applySlow(ent,dur=1,mul=.65){
+  if(!ent)return;
+  ent.slowT=Math.max(ent.slowT||0,dur);
+  ent.slowMul=Math.min(ent.slowMul||1,mul);
+}
+
+function magnumButt(){
+  if(!state.running||state.ended||player.team!=='human'||weapon.key!=='magnum')return;
+  if(player.heavyCd>0)return;
+  player.heavyCd=1.25;
+  announce('枪托前摇','砸中伤害等同小刀重击。',520);
+  gunGroup.rotation.x=-0.42;
+  gunGroup.position.z=.18;
+  setTimeout(()=>{
+    gunGroup.rotation.x=.58;
+    gunGroup.position.z=-.34;
+    applyButtHit();
+  },260);
+  setTimeout(()=>{
+    gunGroup.rotation.x=0;
+    gunGroup.position.z=0;
+  },520);
+}
+
+function applyButtHit(){
+  const origin=camera.position.clone();
+  const forward=new THREE.Vector3();camera.getWorldDirection(forward);
+  let best=null;
+  for(const ent of entities){
+    if(ent.type!=='mutant')continue;
+    const target=ent.pos.clone().setY(ent.pos.y+1.1);
+    const to=target.clone().sub(origin);
+    const dist=to.length();
+    const facing=to.normalize().dot(forward);
+    if(dist<2.25&&facing>.48&&!segmentBlocked(origin,target)){
+      if(!best||dist<best.dist)best={ent,dist};
+    }
+  }
+  if(!best)return;
+  const ent=best.ent;
+  const normalMutantRef=320;
+  ent.hp-=normalMutantRef*.42;
+  ent.lastHit=0;
+  ent.hurtFlash=.1;
+  ent.vel.add(forward.clone().setY(0).normalize().multiplyScalar(6));
+  addParticles(ent.pos.clone().setY(ent.pos.y+1.05),10,0xff3154);
+  showHit();
+  if(ent.hp<=0)killEntity(ent,'knife');
+}
+
+function startBowCharge(){
+  if(!state.running||state.ended||player.team!=='human'||weapon.key!=='bow')return;
+  if(weapon.ammo<=0){hud.status.textContent='箭矢耗尽。';return;}
+  state.bowCharging=true;
+  state.bowCharge=0;
+  hud.status.textContent='拉弓蓄力中……';
+  playBeep(180,.03,'triangle',.012);
+}
+
+function releaseBow(){
+  if(!state.bowCharging)return;
+  state.bowCharging=false;
+  if(player.team!=='human'||weapon.key!=='bow'||weapon.ammo<=0)return;
+  const charge=clamp(state.bowCharge/1.15,0.12,1);
+  weapon.ammo--;
+  fireCd=.22;
+  const origin=camera.position.clone();
+  const dir=new THREE.Vector3();camera.getWorldDirection(dir);
+  const speed=24+charge*44;
+  const damage=28+charge*(weapon.damage-28);
+  const mesh=new THREE.Mesh(new THREE.BoxGeometry(.045,.045,.55),new THREE.MeshBasicMaterial({color:0xdff7ff}));
+  mesh.position.copy(origin).addScaledVector(dir,.75);
+  mesh.lookAt(mesh.position.clone().add(dir));
+  scene.add(mesh);
+  arrows.push({mesh,pos:mesh.position.clone(),vel:dir.clone().multiplyScalar(speed),damage,life:2.6,slowDur:1.1+charge*.9,slowMul:.62-charge*.14});
+  hud.status.textContent = charge>.9 ? '满蓄力射出！' : '箭矢射出';
+  playBeep(240+charge*220,.09,'triangle',.030);
+}
+
+function updateArrows(dt){
+  for(let i=arrows.length-1;i>=0;i--){
+    const a=arrows[i];
+    const old=a.pos.clone();
+    a.life-=dt;
+    a.vel.y-=13.5*dt;
+    a.pos.addScaledVector(a.vel,dt);
+    const dir=a.pos.clone().sub(old);
+    const len=dir.length();
+    if(len>.001){
+      dir.multiplyScalar(1/len);
+      let best=null;
+      for(const ent of entities){
+        if(ent.type!=='mutant')continue;
+        const hit=rayHitEntity(old,dir,ent,len+.2);
+        if(hit&&(!best||hit.t<best.hit.t))best={ent,hit};
+      }
+      if(best){
+        const ent=best.ent;
+        ent.hp-=a.damage*(best.hit.head?1.35:1);
+        ent.lastHit=0;
+        applySlow(ent,a.slowDur,a.slowMul);
+        addParticles(a.pos.clone(),9,0x7cff74);
+        showHit();
+        if(ent.hp<=0)killEntity(ent,'gun');
+        scene.remove(a.mesh);
+        arrows.splice(i,1);
+        continue;
+      }
+      if(segmentBlocked(old,a.pos)){
+        scene.remove(a.mesh);
+        arrows.splice(i,1);
+        continue;
+      }
+      a.mesh.position.copy(a.pos);
+      a.mesh.lookAt(a.pos.clone().add(a.vel));
+    }
+    if(a.life<=0){
+      scene.remove(a.mesh);
+      arrows.splice(i,1);
+    }
+  }
+}
+
+function fire(){
+  if(!state.running||state.ended||player.team!=='human'||reloadT>0||fireCd>0)return;
+  if(weapon.key==='knife'||player.hero){meleeSlash(false);return;}
+  if(weapon.key==='bow'){startBowCharge();return;}
+  if(weapon.ammo<=0){reload();return;}
+  weapon.ammo--;
+  fireCd=60/weapon.rpm;
+  state.shake=Math.max(state.shake,weapon.recoil*2.2);
+  player.pitch=clamp(player.pitch+weapon.recoil*rand(.72,1.15),-1.35,1.25);
+  muzzleFlash.visible=true;
+  setTimeout(()=>muzzleFlash.visible=false,36);
+  gunGroup.position.z=.04;
+  playBeep(weapon.key==='sniper'?60:weapon.key==='magnum'?75:weapon.key==='rifle'?95:70,weapon.key==='sniper'?.08:weapon.key==='rifle'?.035:.06,'square',weapon.key==='sniper'?.035:.02);
+
+  const origin=camera.position.clone();
+  const forward=new THREE.Vector3();camera.getWorldDirection(forward);
+  const right=new THREE.Vector3(1,0,0).applyQuaternion(camera.quaternion);
+  const up=new THREE.Vector3(0,1,0).applyQuaternion(camera.quaternion);
+
+  let didHit=false;
+  for(let p=0;p<weapon.pellets;p++){
+    let spread=weapon.spread*(weapon.pellets>1?rand(.35,1.12):1);
+    if(weapon.key==='sniper'&&!state.scoped)spread=weapon.spreadHip;
+    const dir=forward.clone().addScaledVector(right,rand(-spread,spread)).addScaledVector(up,rand(-spread,spread)).normalize();
+
+    let best=null;
+    for(const ent of entities){
+      if(ent.type!=='mutant')continue;
+      const hit=rayHitEntity(origin,dir,ent,weapon.range);
+      if(hit&&(!best||hit.t<best.hit.t))best={ent,hit};
+    }
+
+    if(best){
+      didHit=true;
+      const ent=best.ent;
+      let multiplier=humanDamageMultiplier();
+      if(weapon.key==='sniper')multiplier=Math.min(multiplier,1.25); // 保留“两枪小怪、六枪母体”的狙击定位，避免后期过度膨胀
+      const dmg=weapon.damage*multiplier*(best.hit.head?1.45:1)*rand(.94,1.04);
+      ent.hp-=dmg;
+      ent.lastHit=0;
+      ent.hurtFlash=.08;
+      if(weapon.slowDur)applySlow(ent,weapon.slowDur,weapon.slowMul);
+      const hitPoint=origin.clone().addScaledVector(dir,best.hit.t);
+      const shield = ent.mother && ent.lastHit>4 ? .55 : 1;
+      ent.vel.add(dir.clone().setY(0).normalize().multiplyScalar((weapon.knock||0)*shield));
+      addParticles(hitPoint,best.hit.head?12:6,0xff3154);
+      addTracer(origin,hitPoint,best.hit.head?0xfff0aa:0xffd166);
+      showHit();
+      if(ent.hp<=0) killEntity(ent,'gun');
+    }else if(p===0){
+      let blockedT=null;
+      for(const o of world.obstacles){
+        const t=rayAABB(origin,dir,o);
+        if(t!==null&&t>0&&t<weapon.range&&(blockedT===null||t<blockedT))blockedT=t;
+      }
+      const end=origin.clone().addScaledVector(dir,blockedT??weapon.range);
+      addTracer(origin,end,0xffd166);
+    }
+  }
+  updateHUD();
+}
+
+function killEntity(ent,method='gun'){
+  state.kills++;
+  const gain=ent.mother?160:45;
+  state.score+=gain;
+  addParticles(ent.pos.clone().setY(1.1),22,ent.mother?0x9f7aea:0x7cff74);
+  if(method==='knife'){
+    const idx=entities.indexOf(ent);
+    if(idx>=0)entities.splice(idx,1);
+    scene.remove(ent.mesh);
+    scene.remove(ent.label);
+    addLog(ent.mother?`刀杀母体，无法复活 +${gain}`:`刀杀幽灵，无法复活 +${gain}`,'good');
+  }else{
+    addLog(ent.mother?`母体被枪械击倒，即将复活 +${gain}`:`幽灵被枪械击倒，即将复活 +${gain}`,'warn');
+    respawnMutant(ent, ent.mother?5.5:4.0);
+  }
+  playBeep(ent.mother?180:240,.08,'sawtooth',.025);
+}
+
+function reload(){
+  if(player.team!=='human'||weapon.key==='knife'||weapon.key==='bow'||reloadT>0||weapon.ammo===weapon.magSize||weapon.reserve<=0)return;
+  reloadT=weapon.reload;
+  hud.status.textContent='换弹中……';
+  playBeep(180,.06,'triangle',.018);
+}
+
+function switchWeapon(slot){
+  if(player.team!=='human'||reloadT>0)return;
+  setScope(false);
+  state.bowCharging=false;state.bowCharge=0;
+  if(slot==='primary'||slot==='1')weapon=selectedPrimary();
+  else if(slot==='secondary'||slot==='2')weapon=selectedSecondary();
+  else if(slot==='knife'||slot==='3')weapon=weapons.knife;
+  else if(weapons[slot])weapon=weapons[slot];
+  fireCd=.18;
+  updateHUD();
+}
+
+function clawAttack(){
+  if(!state.running||state.ended||player.team!=='mutant'||player.clawCd>0)return;
+  player.clawCd=.72;
+  clawGroup.rotation.z=-.55;
+  setTimeout(()=>clawGroup.rotation.z=0,110);
+  playBeep(85,.08,'sawtooth',.03);
+
+  const origin=camera.position.clone();
+  const forward=new THREE.Vector3();camera.getWorldDirection(forward);
+  let result='';
+  for(const ent of [...entities]){
+    if(ent.type!=='human')continue;
+    const to=ent.pos.clone().setY(1.1).sub(origin);
+    const dist=to.length();
+    const facing=to.normalize().dot(forward);
+    if(dist<2.45&&facing>.55&&!segmentBlocked(origin,ent.pos.clone().setY(1.1))){
+      if(ent.hero){
+        ent.hp-=34;
+        ent.hurtFlash=.12;
+        player.hp=Math.min(player.maxHp,player.hp+12);
+        addParticles(ent.pos.clone().setY(ent.pos.y+1.05),10,0xff8a65);
+        if(ent.hp<=0){
+          const idx=entities.indexOf(ent);
+          if(idx>=0)entities.splice(idx,1);
+          scene.remove(ent.mesh);
+          scene.remove(ent.label);
+          addLog('AI 终极猎手被幽灵撕裂。','bad');
+        }
+        result='hero';
+      }else{
+        turnEntityToMutant(ent,false,true);
+        player.hp=Math.min(player.maxHp,player.hp+80);
+        state.mutantScore++;
+        result='infect';
+      }
+      break;
+    }
+  }
+  if(result==='infect'){
+    announce('感染成功','幽灵阵营扩大。',1500);
+    addParticles(origin.clone().addScaledVector(forward,1.25),14,0x79ff6d);
+  }else if(result==='hero'){
+    announce('抓伤猎手','终极猎手不会被感染，只会掉血。',1200);
+  }
+}
+
+function mutantSkill(){
+  if(player.team!=='mutant'||player.skillCd>0||player.hp<120)return;
+  player.hp-=80;
+  player.skillCd=9;
+  player.skillT=4.2;
+  announce('狂暴启动','速度提升。若你是母体，还会获得抗击退护盾。',1500);
+  playBeep(130,.18,'sawtooth',.035);
+}
+
+function updatePlayer(dt){
+  const input=new THREE.Vector3();
+  if(keys.has('KeyW'))input.z-=1;
+  if(keys.has('KeyS'))input.z+=1;
+  if(keys.has('KeyA'))input.x-=1;
+  if(keys.has('KeyD'))input.x+=1;
+  if(input.lengthSq()>0)input.normalize();
+
+  const yawQ=new THREE.Quaternion().setFromAxisAngle(new THREE.Vector3(0,1,0),player.yaw);
+  const move=input.applyQuaternion(yawQ);
+  const sprint=keys.has('ShiftLeft')&&player.energy>2&&move.lengthSq()>0;
+  let baseSpeed=player.team==='human'?5.35:6.0+player.mutantLevel*.35;
+  if(player.skillT>0)baseSpeed+=2.6;
+  const slowFactor=player.slowT>0?.62:1;
+  const speed=(sprint?baseSpeed*1.55:baseSpeed)*slowFactor;
+  if(sprint)player.energy=Math.max(0,player.energy-(player.team==='human'?27:19)*dt);
+  else player.energy=Math.min(100,player.energy+(player.team==='human'?16:22)*dt);
+
+  player.vel.x=move.x*speed;
+  player.vel.z=move.z*speed;
+
+  if(keys.has('Space')&&player.onGround){
+    player.vel.y=player.team==='human'?5.35:6.15;
+    player.onGround=false;
+  }
+  player.vel.y-=18*dt;
+  player.pos.x+=player.vel.x*dt;resolveCollision(player.pos,player.radius,1.7);
+  player.pos.z+=player.vel.z*dt;resolveCollision(player.pos,player.radius,1.7);
+  player.pos.y+=player.vel.y*dt;
+  const feetY=player.pos.y-1.7;
+  const groundY=1.7+floorHeightAt(player.pos.x,player.pos.z,feetY,.52);
+  if(player.pos.y<groundY){player.pos.y=groundY;player.vel.y=0;player.onGround=true;}
+
+  if(player.hurtCd>0)player.hurtCd-=dt;
+  if(player.slowT>0)player.slowT-=dt;
+  if(player.clawCd>0)player.clawCd-=dt;
+  if(player.knifeCd>0)player.knifeCd-=dt;
+  if(player.heavyCd>0)player.heavyCd-=dt;
+  if(player.skillCd>0)player.skillCd-=dt;
+  if(player.skillT>0)player.skillT-=dt;
+
+  // 补给
+  if(player.team==='human'){
+    for(const pad of world.supplyPads){
+      if(pad.cd>0)continue;
+      const d=Math.hypot(player.pos.x-pad.x,player.pos.z-pad.z);
+      if(d<1.8){
+        if(pad.type==='ammo'){
+          weapons.rifle.reserve=Math.min(245,weapons.rifle.reserve+70);
+          weapons.shotgun.reserve=Math.min(56,weapons.shotgun.reserve+14);
+          addLog('拾取弹药补给。','good');
+        }else if(pad.type==='armor'){
+          player.ac=Math.min(100,player.ac+45);
+          addLog('拾取 AC 护甲补给。','good');
+        }else{
+          player.hp=Math.min(player.maxHp,player.hp+38);
+          addLog('拾取医疗补给。','good');
+        }
+        pad.cd=24;
+        playBeep(420,.09,'triangle',.025);
+      }
+    }
+  }
+}
+
+function nearestHumanTarget(from,seeker=null){
+  let best=null;
+  const candidates=[];
+  if(player.team==='human')candidates.push({kind:'player',pos:new THREE.Vector3(player.pos.x,player.pos.y-1.7,player.pos.z)});
+  for(const h of entities)if(h.type==='human')candidates.push({kind:'human',ent:h,pos:h.pos});
+
+  for(const c of candidates){
+    const d=from.distanceTo(c.pos);
+    let visible=true;
+    if(seeker && !seeker.mother){
+      const a=seeker.pos.clone().setY(seeker.pos.y+1.35);
+      const b=c.pos.clone().setY(c.pos.y+1.15);
+      visible = d<7.5 || (!segmentBlocked(a,b) && d<24);
+    }
+    if(!visible)continue;
+    if(!best||d<best.d)best={...c,d};
+  }
+  return best;
+}
+
+function nearestMutant(from,seeker=null){
+  let best=null;
+  const candidates=[];
+  if(player.team==='mutant')candidates.push({kind:'player',pos:new THREE.Vector3(player.pos.x,player.pos.y-1.7,player.pos.z)});
+  for(const z of entities)if(z.type==='mutant')candidates.push({kind:'mutant',ent:z,pos:z.pos});
+
+  for(const c of candidates){
+    const d=from.distanceTo(c.pos);
+    let visible=true;
+    if(seeker){
+      const a=seeker.pos.clone().setY(seeker.pos.y+1.35);
+      const b=c.pos.clone().setY(c.pos.y+1.15);
+      visible = d<8.5 || (!segmentBlocked(a,b) && d<30);
+    }
+    if(!visible)continue;
+    if(!best||d<best.d)best={...c,d};
+  }
+  return best;
+}
+
+function aiMove(ent,desired,dt){
+  if(desired.lengthSq()<.001)return;
+  desired.normalize();
+
+  // AI 会判断前方地面高度：遇到箱坡、细桥、高台会主动跳/爬，不再在下面罚站。
+  ent.jumpCd-=dt;
+  const curGround=floorHeightAt(ent.pos.x,ent.pos.z,ent.pos.y,.25);
+  const probeX=ent.pos.x+desired.x*1.15;
+  const probeZ=ent.pos.z+desired.z*1.15;
+  const nextGround=floorHeightAt(probeX,probeZ,ent.pos.y,1.05);
+  if(ent.onGround && ent.jumpCd<=0 && nextGround>curGround+.28 && nextGround-curGround<=1.15){
+    ent.vel.y=ent.type==='mutant'?5.75:5.05;
+    ent.onGround=false;
+    ent.jumpCd=rand(.82,1.35);
+  }
+
+  const before=ent.pos.clone();
+  const slowFactor=ent.slowT>0?(ent.slowMul||.6):1;
+  ent.pos.addScaledVector(desired,ent.speed*slowFactor*dt);
+  resolveCollision(ent.pos,ent.radius);
+  if(ent.pos.distanceTo(before)<.03){
+    ent.stuck-=dt;
+    if(ent.stuck<=0){
+      ent.stuck=rand(.18,.45);
+      const side=new THREE.Vector3(-desired.z,0,desired.x).multiplyScalar(Math.random()<.5?1:-1);
+      ent.vel.add(side.multiplyScalar(ent.speed*.8));
+      if(ent.onGround && ent.jumpCd<=0){
+        ent.vel.y=4.85;
+        ent.onGround=false;
+        ent.jumpCd=rand(.9,1.4);
+      }
+    }
+  }
+}
+
+function updateEntityVertical(ent,dt){
+  const ground=floorHeightAt(ent.pos.x,ent.pos.z,ent.pos.y,.48);
+  if(!ent.onGround || ent.pos.y>ground+.02 || ent.vel.y>0){
+    ent.vel.y-=18*dt;
+    ent.pos.y+=ent.vel.y*dt;
+    const newGround=floorHeightAt(ent.pos.x,ent.pos.z,ent.pos.y,.48);
+    if(ent.pos.y<=newGround){
+      ent.pos.y=newGround;
+      ent.vel.y=0;
+      ent.onGround=true;
+    }
+  }else{
+    ent.pos.y=ground;
+    ent.vel.y=0;
+    ent.onGround=true;
+  }
+}
+
+function updateEntities(dt){
+  for(const ent of [...entities]){
+    ent.shootCd-=dt;ent.attackCd-=dt;ent.hurtFlash-=dt;ent.lastHit+=dt;ent.regenCd-=dt;if(ent.slowT>0){ent.slowT-=dt;if(ent.slowT<=0)ent.slowMul=1;}
+    if(ent.type==='mutant'){
+      const target=nearestHumanTarget(ent.pos,ent);
+      if(target){
+        let desired=target.pos.clone().sub(ent.pos);desired.y=0;
+        if(ent.vel.lengthSq()>.05)desired.add(ent.vel.clone().setY(0).multiplyScalar(.25));
+        aiMove(ent,desired,dt);
+        const targetY = target.kind==='player' ? (player.pos.y-1.7) : target.ent.pos.y;
+        const verticalGap = Math.abs(targetY - ent.pos.y);
+        const horizontalGap = Math.hypot(target.pos.x-ent.pos.x, target.pos.z-ent.pos.z);
+        if(horizontalGap<ent.radius+0.70 && verticalGap<1.05 && ent.attackCd<=0){
+          ent.attackCd=ent.mother?.72:.92;
+          if(target.kind==='player'){
+            if(player.hero){
+              hurtPlayer(ent.mother?56:38,'幽灵爪击');
+            }else if(ent.mother||Math.random()<.58){
+              infectPlayer();
+            }else{
+              hurtPlayer(45,'幽灵爪击');
+            }
+          }else{
+            turnEntityToMutant(target.ent,false);
+            evolveMutant(ent);
+            state.mutantScore++;
+          }
+        }
+        const look=target.pos.clone().sub(ent.pos);
+        if(look.lengthSq()>0.01)ent.mesh.rotation.y=Math.atan2(look.x,look.z);
+      }else{
+        let desired=new THREE.Vector3();
+        if(!ent.mother){
+          const mothers=entities.filter(e=>e.type==='mutant'&&e.mother);
+          if(mothers.length){
+            const m=mothers.sort((a,b)=>a.pos.distanceTo(ent.pos)-b.pos.distanceTo(ent.pos))[0];
+            desired.copy(m.pos).sub(ent.pos);
+          }
+        }
+        if(desired.lengthSq()<.01){
+          if(!ent.wander || ent.pos.distanceTo(ent.wander)<2){
+            ent.wander=pick(world.navPoints).clone();
+          }
+          desired.copy(ent.wander).sub(ent.pos);
+        }
+        desired.y=0;
+        aiMove(ent,desired,dt);
+        if(desired.lengthSq()>0.01)ent.mesh.rotation.y=Math.atan2(desired.x,desired.z);
+      }
+      ent.vel.multiplyScalar(Math.pow(.07,dt));
+      ent.pos.addScaledVector(ent.vel.clone().setY(0),dt);resolveCollision(ent.pos,ent.radius);
+      updateEntityVertical(ent,dt);
+
+      // 幽灵回血：不被打几秒后恢复
+      if(ent.lastHit>4 && ent.hp<ent.maxHp){
+        ent.hp=Math.min(ent.maxHp,ent.hp+(ent.mother?28:18)*dt);
+      }
+      // 低血红闪
+      if(ent.hp/ent.maxHp<.25){
+        ent.mesh.traverse(o=>{if(o.isMesh&&o.material.emissive)o.material.emissive.setHex(Math.sin(performance.now()/70)>0?0x551111:0x000000);});
+      }
+    }
+
+    if(ent.type==='human'){
+      ent.meleeCd-=dt;
+      const target=nearestMutant(ent.pos,ent);
+      if(target){
+        const to=target.pos.clone().sub(ent.pos);
+        const dist=to.length();
+        let desired=new THREE.Vector3();
+
+        if(ent.hero){
+          if(dist>2.75) desired.copy(target.pos).sub(ent.pos);
+          else desired.set(0,0,0);
+          aiMove(ent,desired,dt);
+
+          const verticalGap=Math.abs((target.kind==='player'?player.pos.y-1.7:target.ent.pos.y)-ent.pos.y);
+          if(dist<3.35 && verticalGap<1.25 && ent.meleeCd<=0){
+            ent.meleeCd=.62;
+            const dmg=target.ent?.mother?190:360;
+            if(target.kind==='player'&&player.team==='mutant'){
+              hurtPlayer(rand(160,260),'AI 终极猎手');
+            }else if(target.ent){
+              target.ent.hp-=dmg;
+              target.ent.lastHit=0;
+              target.ent.vel.add(target.pos.clone().sub(ent.pos).setY(0).normalize().multiplyScalar(7.5));
+              addParticles(target.ent.pos.clone().setY(target.ent.pos.y+1.05),12,0xff3154);
+              if(target.ent.hp<=0)killEntity(target.ent,'knife');
+            }
+          }
+        }else{
+          if(dist<6.8)desired.copy(ent.pos).sub(target.pos);
+          else desired.set(0,0,0);
+          aiMove(ent,desired,dt);
+
+          if(dist<30&&ent.shootCd<=0&&!segmentBlocked(ent.pos.clone().setY(ent.pos.y+1.35),target.pos.clone().setY(target.pos.y+1.05))){
+            const aiKey = (dist<9 && Math.random()<.45) ? ent.aiSecondary : ent.aiPrimary;
+            const aw = weapons[aiKey] || weapons.rifle;
+            ent.shootCd = aw.key==='sniper'?rand(1.25,1.95):aw.key==='magnum'?rand(1.05,1.65):aw.key==='shotgun'?rand(.82,1.25):aw.key==='bow'?rand(1.15,1.8):rand(.62,1.05);
+            const from=ent.pos.clone().setY(ent.pos.y+1.35),toP=target.pos.clone().setY(target.pos.y+1.05);
+            const accuracy = aw.key==='sniper'?.38:aw.key==='magnum'?.34:aw.key==='shotgun'?.48:aw.key==='bow'?.42:aw.key==='pistol'?.46:.52;
+            const miss = Math.random()>accuracy;
+            const missOffset = new THREE.Vector3(rand(-2.2,2.2),rand(-.8,.8),rand(-2.2,2.2));
+            addTracer(from,miss?toP.clone().add(missOffset):toP,0x84caff);
+            playBeep(150,.025,'square',.005);
+            if(!miss){
+              const aiDmgBase = aw.key==='sniper'?95:aw.key==='magnum'?46:aw.key==='shotgun'?32:aw.key==='bow'?42:aw.key==='pistol'?18:16;
+              if(target.kind==='player'&&player.team==='mutant'){
+                hurtPlayer(rand(aiDmgBase*.55,aiDmgBase*.9),'佣兵火力');
+                if(aw.slowDur||aw.key==='bow')player.slowT=Math.max(player.slowT,aw.slowDur||1.2);
+              }else if(target.ent){
+                target.ent.hp-=rand(aiDmgBase*.8,aiDmgBase*1.15);
+                target.ent.lastHit=0;
+                if(aw.slowDur||aw.key==='bow')applySlow(target.ent,aw.slowDur||1.3,aw.slowMul||.6);
+                const shield = target.ent.mother && target.ent.lastHit>4 ? .55 : 1;
+                target.ent.vel.add(toP.clone().sub(from).setY(0).normalize().multiplyScalar((aw.knock||1.2)*shield));
+                if(target.ent.hp<=0)killEntity(target.ent,'gun');
+              }
+            }
+          }
+        }
+        if(dist>0.01)ent.mesh.rotation.y=Math.atan2(to.x,to.z);
+      }else{
+        if(!ent.wander || ent.pos.distanceTo(ent.wander)<2){
+          const holdPoints=[new THREE.Vector3(11,0,-24),new THREE.Vector3(22,0,25),new THREE.Vector3(-20,0,-18),new THREE.Vector3(20,0,-18),new THREE.Vector3(0,0,9)];
+          ent.wander=pick(holdPoints).clone();
+        }
+        const desired=ent.wander.clone().sub(ent.pos);desired.y=0;
+        if(desired.length()>3)aiMove(ent,desired,dt);
+      }
+      updateEntityVertical(ent,dt);
+    }
+
+    // 独立材质红闪：低血幽灵红光更明显，母体紫色时尤其清楚。
+    if(ent.type==='mutant'){
+      const low=ent.hp/ent.maxHp<.25;
+      ent.mesh.traverse(o=>{
+        if(o.isMesh&&o.material&&o.material.emissive){
+          o.material.emissive.setHex(low && Math.sin(performance.now()/70)>0 ? 0xff1010 : 0x000000);
+          if(low)o.material.emissiveIntensity=1.35;
+        }
+      });
+    }
+
+    ent.mesh.position.copy(ent.pos);
+    ent.label.visible=false;
+    ent.label.position.copy(ent.pos).add(new THREE.Vector3(0,2.35,0));
+  }
+}
+
+function hurtPlayer(amount,source){
+  if(player.hurtCd>0||state.ended)return;
+  player.hurtCd=.38;
+  if(player.team==='human'){
+    let left=amount;
+    const acHit=Math.min(player.ac,left*.55);
+    player.ac-=acHit;left-=acHit;
+    player.hp-=left;
+  }else{
+    player.hp-=amount;
+  }
+  state.shake=Math.max(state.shake,.08);
+  hud.damageFlash.classList.add('show');
+  setTimeout(()=>hud.damageFlash.classList.remove('show'),110);
+  addLog(source+'命中你。','bad');
+  if(player.hp<=0){
+    player.hp=0;
+    if(player.team==='human'){
+      if(player.hero) endRound(false,'终极猎手阵亡');
+      else infectPlayer();
+    }
+    else endRound(false,'你作为幽灵被击杀');
+  }
+}
+
+function updateSupply(dt){
+  for(const pad of world.supplyPads){
+    if(pad.cd>0)pad.cd-=dt;
+    const on=pad.cd<=0;
+    pad.beam.visible=on;pad.base.visible=on;
+    if(on)pad.beam.rotation.y+=dt;
+  }
+}
+
+function updateParticles(dt){
+  for(let i=particles.length-1;i>=0;i--){
+    const p=particles[i];p.life-=dt;p.vel.y-=4.8*dt;p.mesh.position.addScaledVector(p.vel,dt);
+    if(p.life<=0){scene.remove(p.mesh);particles.splice(i,1);}
+  }
+  for(let i=tracers.length-1;i>=0;i--){
+    const t=tracers[i];t.life-=dt;t.mat.opacity=Math.max(0,t.life/.075);
+    if(t.life<=0){scene.remove(t.obj);t.obj.geometry.dispose();t.mat.dispose();tracers.splice(i,1);}
+  }
+}
+
+function updateViewModel(dt){
+  const bob=Math.sin(performance.now()/120)*.006;
+  if(player.team==='human'){
+    clawGroup.visible=false;
+    if(weapon.key==='knife'||player.hero){
+      gunGroup.visible=false;knifeGroup.visible=true;
+      if(player.hero){
+        knifeGroup.scale.set(1.22,1.16,1.85);
+        knifeGroup.position.y=bob-.03;
+        knifeGroup.position.z=-.18;
+      }else{
+        knifeGroup.scale.set(1,1,1);
+        knifeGroup.position.y=bob;
+        knifeGroup.position.z=0;
+      }
+    }else{
+      gunGroup.visible=!state.scoped;knifeGroup.visible=false;
+      const active = weaponModels[weapon.key];
+      const holdPos = active?.userData?.holdPos || new THREE.Vector3(0,0,0);
+      const holdRot = active?.userData?.holdRot || new THREE.Euler(0,0,0);
+
+      gunGroup.position.x += (holdPos.x-gunGroup.position.x)*Math.min(1,dt*12);
+      gunGroup.position.y += ((holdPos.y+bob)-gunGroup.position.y)*Math.min(1,dt*12);
+      gunGroup.position.z += (holdPos.z-gunGroup.position.z)*Math.min(1,dt*12);
+      gunGroup.rotation.x += (holdRot.x-gunGroup.rotation.x)*Math.min(1,dt*10);
+      gunGroup.rotation.y += (holdRot.y-gunGroup.rotation.y)*Math.min(1,dt*10);
+      gunGroup.rotation.z += (holdRot.z-gunGroup.rotation.z)*Math.min(1,dt*10);
+
+      for(const [key,g] of Object.entries(weaponModels)){
+        g.visible = key===weapon.key && !state.scoped;
+      }
+      if(active && active.userData && active.userData.muzzle){
+        muzzleFlash.position.copy(active.userData.muzzle);
+      }
+
+      if(weapon.key==='bow' && active && active.userData){
+        const ud=active.userData;
+        const c=state.bowCharging?clamp(state.bowCharge/1.15,0,1):0;
+        ud.arrow.position.z = ud.baseArrowZ + c*0.40;
+        ud.arrowHead.position.z = -1.48 + c*0.40;
+        ud.arrowF1.position.z = -0.64 + c*0.40;
+        ud.arrowF2.position.z = -0.64 + c*0.40;
+        ud.arrow.position.y = ud.baseArrowY - c*0.01;
+        ud.arrowHead.position.y = ud.baseArrowY - c*0.01;
+        ud.arrowF1.position.y = -0.25 - c*0.01;
+        ud.arrowF2.position.y = -0.33 - c*0.01;
+        ud.stringUpper.position.x = ud.baseUpperX + c*0.05;
+        ud.stringUpper.position.z = ud.baseUpperZ + c*0.20;
+        ud.stringUpper.rotation.z = 0.20 + c*0.35;
+        ud.stringLower.position.x = ud.baseLowerX - c*0.05;
+        ud.stringLower.position.z = ud.baseLowerZ + c*0.20;
+        ud.stringLower.rotation.z = -0.20 - c*0.35;
+        active.rotation.z = -0.03 - c*0.10;
+        active.position.y = c*0.015;
+      }
+    }
+  }else{
+    gunGroup.visible=false;knifeGroup.visible=false;clawGroup.visible=true;
+    clawGroup.position.y=bob;
+  }
+  hud.crosshair.classList.toggle('mutant',player.team==='mutant');
+}
+
+function updateGame(dt){
+  if(!state.running||state.ended)return;
+  if(state.phase==='prep'){
+    state.prep-=dt;
+    if(state.prep<=0)startMutation();
+  }else{
+    state.time-=dt;
+    if(state.time<=0){
+      state.time=0;
+      endRound(true,'人类撑到最后');
+    }
+  }
+
+  if(state.bowCharging)state.bowCharge=Math.min(1.15,state.bowCharge+dt);
+  if(weapon.key!=='sniper'&&state.scoped)setScope(false);
+  if(player.team==='human' && weapon.key==='bow' && state.bowCharging){
+    const t=clamp(state.bowCharge/1.15,0,1);
+    const bowFov=74-t*6;
+    if(Math.abs(camera.fov-bowFov)>.05){camera.fov=bowFov;camera.updateProjectionMatrix();}
+  }else if(!state.scoped && camera.fov!==74){
+    camera.fov=74;camera.updateProjectionMatrix();
+  }
+  if(fireCd>0)fireCd-=dt;
+  if(reloadT>0){
+    reloadT-=dt;
+    if(reloadT<=0){
+      const need=weapon.magSize-weapon.ammo;
+      const take=Math.min(need,weapon.reserve);
+      weapon.ammo+=take;weapon.reserve-=take;
+      hud.status.textContent='换弹完成。';
+    }
+  }else{
+    hud.status.textContent=player.team==='human'
+      ? (player.hero?'终极猎手：免疫感染，长刀；左键双连轻击，右键重刀。':weapon.key==='knife'?'小刀：左键快速双连击，右键重击；残血刀杀可封印复活。'
+        :weapon.key==='sniper'?'狙击枪：右键开镜；不开镜散布很大。'
+        :weapon.key==='shotgun'?'霰弹枪：击退小，命中减速。'
+        :weapon.key==='magnum'?'马格南：高伤高后摇，右键枪托。'
+        :weapon.key==='bow'?'弓箭：左键长按蓄力，命中减速。'
+        :weapon.key==='pistol'?'手枪：稳定备用。'
+        :'步枪：均衡压制。')
+      :'幽灵：左键感染，F狂暴。';
+  }
+
+  if(state.mouseDown){
+    if(player.team==='human'&&weapon.auto&&weapon.key!=='knife'&&weapon.key!=='bow')fire();
+    if(player.team==='mutant')clawAttack();
+  }
+
+  // 胜负检查
+  if(state.phase==='fight'){
+    const humanCount=entities.filter(e=>e.type==='human').length+(player.team==='human'?1:0);
+    const mutantCount=entities.filter(e=>e.type==='mutant').length+(player.team==='mutant'?1:0);
+    if(humanCount<=0)endRound(false,'全部人类被感染');
+    if(mutantCount<=0 && state.pendingRespawns<=0)endRound(true,'幽灵被全部清除');
+    checkHeroTransform();
+  }
+
+  state.shake=Math.max(0,state.shake-dt*.18);
+  updateHUD();
+}
+
+function endRound(humansWin,title){
+  if(state.ended)return;
+  state.ended=true;state.running=false;
+  if(humansWin)state.humanScore++;else state.mutantScore++;
+  const side=humansWin?'人类胜利':'幽灵胜利';
+  const final=state.score+(humansWin&&player.team==='human'?Math.ceil(state.time)*2:0);
+  state.score=final;
+  document.exitPointerLock?.();
+  hud.overlay.style.display='flex';
+  hud.overlay.querySelector('h1').textContent=side+'：'+title;
+  hud.overlay.querySelector('p').innerHTML=`最终分数：<b>${final}</b>，击杀：<b>${state.kills}</b>。`+(player.team==='mutant'?'你最后属于幽灵阵营。':'你最后属于人类阵营。');
+  announce(side,title,4000);
+  updateHUD();
+}
+
+function updateHUD(){
+  // 顶部两边数字显示当前阵营人数，不再显示回合比分。
+  hud.humanScore.textContent=countHumans();
+  hud.mutantScore.textContent=countMutants();
+  hud.phase.textContent=state.phase==='prep'?'准备阶段':'生化模式';
+  hud.timer.textContent=Math.ceil(Math.max(0,state.phase==='prep'?state.prep:state.time));
+  hud.hpText.textContent=Math.ceil(player.hp);
+  hud.acText.textContent=Math.ceil(player.ac);
+  hud.energyLabel.textContent=player.team==='human'?'SP':'狂';
+  hud.energyText.textContent=Math.ceil(player.energy);
+  hud.hpFill.style.width=clamp(player.hp/player.maxHp*100,0,100)+'%';
+  hud.acFill.style.width=clamp(player.ac,0,100)+'%';
+  hud.energyFill.style.width=clamp(player.energy,0,100)+'%';
+  if(player.team==='human'){
+    hud.weaponName.textContent=player.hero?'终极猎手双刃':weapon.name;
+    if(weapon.key==='knife'||player.hero){
+      hud.ammoText.textContent='刀';
+      hud.reserveText.textContent=player.hero?'猎手':'封印';
+    }else if(weapon.key==='bow'){
+      hud.ammoText.textContent=weapon.ammo;
+      hud.reserveText.textContent=state.bowCharging?Math.round(clamp(state.bowCharge/1.15,0,1)*100)+'%':'箭';
+    }else{
+      hud.ammoText.textContent=reloadT>0?'...':weapon.ammo;
+      hud.reserveText.textContent=weapon.reserve;
+    }
+    hud.damageText.textContent=weapon.key==='sniper'
+      ? (state.scoped?'狙击：开镜精准':'狙击：未开镜散布大')
+      : weapon.key==='bow'
+        ? (state.bowCharging ? '拉弓中：伤害/射程持续上升' : '弓箭：长按左键拉弓，松开发射')
+        : '火力强化：'+Math.round(humanDamageMultiplier()*100)+'%';
+  }else{
+    hud.weaponName.textContent='生化幽灵爪';
+    hud.ammoText.textContent='∞';
+    hud.reserveText.textContent='F';
+    hud.damageText.textContent='幽灵回血：脱战后自动恢复';
+  }
+}
+
+function drawRadar(){
+  const c=hud.radar,w=c.width,h=c.height;
+  rctx.clearRect(0,0,w,h);
+  rctx.fillStyle='rgba(0,0,0,.35)';
+  rctx.beginPath();rctx.arc(w/2,h/2,w/2-2,0,Math.PI*2);rctx.fill();
+  rctx.strokeStyle='rgba(126,199,255,.28)';rctx.lineWidth=1;
+  for(let r=25;r<=70;r+=25){rctx.beginPath();rctx.arc(w/2,h/2,r,0,Math.PI*2);rctx.stroke();}
+  rctx.strokeStyle='rgba(126,199,255,.18)';
+  rctx.beginPath();rctx.moveTo(w/2,0);rctx.lineTo(w/2,h);rctx.moveTo(0,h/2);rctx.lineTo(w,h/2);rctx.stroke();
+
+  const scale=2.05;
+  function dot(x,z,color,size=4){
+    const dx=(x-player.pos.x)*scale,dz=(z-player.pos.z)*scale;
+    const px=w/2+dx,pz=h/2+dz;
+    if(Math.hypot(px-w/2,pz-h/2)>w/2-6)return;
+    rctx.fillStyle=color;rctx.beginPath();rctx.arc(px,pz,size,0,Math.PI*2);rctx.fill();
+  }
+  // 不显示队友/敌人位置，避免佣兵拥有透视信息。
+  dot(player.pos.x,player.pos.z,player.team==='human'?'#ffffff':'#ff8095',5);
+}
+
+function resetRound(){
+  clearRoundObjects();
+  player.team='human';
+  player.pos.set(0,1.7,12);player.vel.set(0,0,0);player.yaw=Math.PI;player.pitch=0;
+  player.maxHp=100;player.hp=100;player.ac=100;player.energy=100;player.radius=.42;player.mutantLevel=0;
+  player.hurtCd=0;player.clawCd=0;player.skillCd=0;player.skillT=0;player.hero=false;player.knifeCd=0;player.heavyCd=0;
+  if(knifeGroup){knifeGroup.scale.set(1,1,1);knifeGroup.position.set(0,0,0);}player.slowT=0;
+  resetWeaponAmmo();
+  weapon=selectedPrimary();fireCd=0;reloadT=0;setScope(false);state.bowCharging=false;state.bowCharge=0;
+  state.phase='prep';state.prep=20;state.time=180;state.score=0;state.kills=0;state.heroTriggered=false;state.pendingRespawns=0;state.ended=false;state.running=false;
+  state.mouseDown=false;state.shake=0;state.scoped=false;
+  for(const pad of world.supplyPads)pad.cd=0;
+  hud.log.innerHTML='';
+  addLog('准备阶段：20秒内找守点，补给光柱可补弹/护甲/血。','warn');
+  addLog('武器模型已区分：步枪、霰弹、狙击、手枪、马格南、弓箭外形不同。');
+  addLog('剩余 AI 佣兵触发猎手后会收枪拔刀，不再继续开枪。','good');
+  addLog('v1.4：顶部左右数字改为实时阵营人数；免费模型改造准备转向 Quaternius/Poly Pizza 的 CC0 枪械包。','good');
+  addLog('准备结束后随机两名佣兵变母体。别太信蓝名队友。');
+  spawnHumans();
+  announce('准备阶段','20秒后随机出现母体。',2400);
+  updateHUD();
+}
+
+function start(){
+  if(state.ended)resetRound();
+  hud.overlay.style.display='none';
+  state.running=true;
+  renderer.domElement.requestPointerLock?.();
+}
+
+function animate(){
+  const dt=Math.min(.04,clock.getDelta());
+  updatePlayer(dt);
+  updateEntities(dt);
+  updateSupply(dt);
+  updateParticles(dt);
+  updateArrows(dt);
+  updateGame(dt);
+  updateViewModel(dt);
+  updateCamera();
+  drawRadar();
+  renderer.render(scene,camera);
+  requestAnimationFrame(animate);
+}
+
+document.querySelectorAll('.weaponPick').forEach(el=>{
+  el.addEventListener('click',()=>{
+    setLoadout(el.dataset.slot,el.dataset.weapon);
+  });
+});
+
+document.getElementById('startBtn').addEventListener('click',start);
+document.getElementById('restartBtn').addEventListener('click',()=>{resetRound();start();});
+
+renderer.domElement.addEventListener('mousedown',e=>{
+  if(document.pointerLockElement!==renderer.domElement){
+    renderer.domElement.requestPointerLock?.();
+    return;
+  }
+  if(e.button===0){
+    state.mouseDown=true;
+    if(player.team==='human'){
+      if(weapon.key==='knife'||player.hero)meleeSlash(false);
+      else if(weapon.key==='bow')startBowCharge();
+      else fire();
+    }
+    else clawAttack();
+  }
+  if(e.button===2){
+    if(player.team==='human'){
+      if(weapon.key==='sniper')setScope(true);
+      else if(weapon.key==='magnum')magnumButt();
+      else if(weapon.key==='knife'||player.hero)meleeSlash(true);
+    }
+  }
+});
+window.addEventListener('mouseup',e=>{
+  if(e.button===0){
+    state.mouseDown=false;
+    if(player.team==='human'&&weapon.key==='bow')releaseBow();
+  }
+  if(e.button===2)setScope(false);
+});
+window.addEventListener('contextmenu',e=>e.preventDefault());
+
+window.addEventListener('keydown',e=>{
+  keys.add(e.code);
+  if(e.code==='KeyR')reload();
+  if(e.code==='Digit1')switchWeapon('primary');
+  if(e.code==='Digit2')switchWeapon('secondary');
+  if(e.code==='Digit3')switchWeapon('knife');
+  if(e.code==='KeyF')mutantSkill();
+});
+window.addEventListener('keyup',e=>keys.delete(e.code));
+
+window.addEventListener('mousemove',e=>{
+  if(document.pointerLockElement!==renderer.domElement||!state.running)return;
+  const sens=.0021;
+  player.yaw-=e.movementX*sens;
+  player.pitch-=e.movementY*sens;
+  player.pitch=clamp(player.pitch,-1.35,1.25);
+});
+
+document.addEventListener('pointerlockchange',()=>{
+  if(document.pointerLockElement!==renderer.domElement&&state.running&&!state.ended){
+    hud.overlay.style.display='flex';
+    hud.overlay.querySelector('h1').textContent='暂停 / 鼠标已释放';
+    hud.overlay.querySelector('p').textContent='点击开始继续。';
+  }
+});
+
+window.addEventListener('resize',()=>{
+  camera.aspect=window.innerWidth/window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth,window.innerHeight);
+});
+
+addLights();
+buildMap();
+buildViewModels();
+resetRound();
+animate();
+</script>
+</body>
+</html>
