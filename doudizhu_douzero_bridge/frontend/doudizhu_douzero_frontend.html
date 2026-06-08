@@ -1,0 +1,1888 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>单机斗地主 v6 DouZero 接入版</title>
+<style>
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    background: radial-gradient(circle at top, #236447 0%, #12412f 44%, #09261d 100%);
+    font-family: "Microsoft YaHei", "PingFang SC", Arial, sans-serif;
+    color: #fff;
+    user-select: none;
+  }
+  .app {
+    width: min(1280px, 100vw);
+    margin: 0 auto;
+    padding: 14px;
+  }
+  .topbar {
+    display: grid;
+    grid-template-columns: 1fr auto 1fr;
+    align-items: center;
+    gap: 12px;
+    margin-bottom: 10px;
+  }
+  .title {
+    font-weight: 900;
+    font-size: 28px;
+    letter-spacing: 1px;
+  }
+  .status {
+    padding: 10px 16px;
+    border-radius: 999px;
+    background: rgba(255,255,255,.14);
+    border: 1px solid rgba(255,255,255,.2);
+    text-align: center;
+    min-width: 420px;
+    box-shadow: 0 8px 24px rgba(0,0,0,.18);
+  }
+  .status .main { font-size: 16px; font-weight: 800; }
+  .status .sub { font-size: 12px; color: rgba(255,255,255,.72); margin-top: 3px; }
+  .top-actions { text-align: right; }
+  button {
+    border: 0;
+    border-radius: 10px;
+    padding: 10px 16px;
+    font-weight: 900;
+    color: #172117;
+    background: linear-gradient(#ffe08a, #ffbd3a);
+    box-shadow: 0 4px 0 #ad7514;
+    cursor: pointer;
+    margin-left: 6px;
+  }
+  button:disabled {
+    opacity: .45;
+    cursor: not-allowed;
+    filter: grayscale(.5);
+  }
+  button:active:not(:disabled) { transform: translateY(3px); box-shadow: 0 1px 0 #ad7514; }
+  .danger { background: linear-gradient(#ffa0a0, #ff6262); box-shadow: 0 4px 0 #9a3434; }
+  .ghost { background: linear-gradient(#e8eef9, #b6c8ef); box-shadow: 0 4px 0 #657aaf; }
+  .table {
+    position: relative;
+    height: calc(100vh - 95px);
+    min-height: 660px;
+    border-radius: 28px;
+    background:
+      radial-gradient(ellipse at center, rgba(255,255,255,.1) 0%, rgba(255,255,255,.02) 52%, rgba(0,0,0,.18) 100%),
+      linear-gradient(135deg, #1d7e55, #125f42);
+    border: 10px solid rgba(74, 42, 19, .85);
+    box-shadow: inset 0 0 70px rgba(0,0,0,.32), 0 18px 45px rgba(0,0,0,.28);
+    overflow: hidden;
+  }
+  .player-area {
+    position: absolute;
+    padding: 12px;
+    border-radius: 18px;
+    background: rgba(0,0,0,.12);
+    border: 1px solid rgba(255,255,255,.11);
+  }
+  .ai-left { left: 18px; top: 122px; width: 230px; min-height: 270px; }
+  .ai-right { right: 18px; top: 122px; width: 230px; min-height: 270px; }
+  .user-area { left: 18px; right: 18px; bottom: 16px; min-height: 196px; }
+  .name-row {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 8px;
+    font-weight: 900;
+  }
+  .role {
+    font-size: 12px;
+    padding: 4px 8px;
+    border-radius: 999px;
+    background: rgba(255,255,255,.16);
+  }
+  .landlord { background: #ffcf4a; color: #241800; }
+  .turn {
+    box-shadow: 0 0 0 3px rgba(255,226,99,.75), inset 0 0 28px rgba(255,226,99,.12);
+  }
+  .count {
+    font-size: 44px;
+    font-weight: 900;
+    text-align: center;
+    margin: 42px auto 10px;
+  }
+  .back-cards {
+    display: flex;
+    justify-content: center;
+    gap: 4px;
+    margin-top: 12px;
+  }
+  .card-back {
+    width: 34px; height: 48px;
+    border-radius: 7px;
+    background: linear-gradient(135deg, #d33 0%, #8d0f20 100%);
+    border: 2px solid rgba(255,255,255,.85);
+    box-shadow: 0 4px 10px rgba(0,0,0,.3);
+  }
+  .center {
+    position: absolute;
+    left: 270px;
+    right: 270px;
+    top: 85px;
+    bottom: 232px;
+    display: grid;
+    grid-template-rows: auto 1fr auto;
+    gap: 12px;
+  }
+  .bottom-cards {
+    justify-self: center;
+    display: flex;
+    gap: 8px;
+    padding: 10px 14px;
+    border-radius: 16px;
+    background: rgba(0,0,0,.14);
+    border: 1px solid rgba(255,255,255,.14);
+    min-height: 88px;
+  }
+  .play-zone {
+    position: relative;
+    border-radius: 24px;
+    background: rgba(0,0,0,.08);
+    border: 1px dashed rgba(255,255,255,.16);
+    overflow: hidden;
+  }
+  .played {
+    position: absolute;
+    display: flex;
+    gap: 6px;
+    justify-content: center;
+    align-items: center;
+    min-height: 82px;
+    max-width: 100%;
+  }
+  .played.p0 { left: 50%; bottom: 18px; transform: translateX(-50%); }
+  .played.p1 { left: 20px; top: 23%; transform: translateY(-50%); justify-content: flex-start; }
+  .played.p2 { right: 20px; top: 55%; transform: translateY(-50%); justify-content: flex-end; }
+  .pass-text {
+    position: absolute;
+    padding: 9px 16px;
+    border-radius: 999px;
+    background: rgba(0,0,0,.28);
+    color: rgba(255,255,255,.78);
+    font-weight: 900;
+  }
+  .pass-text.p0 { left: 50%; bottom: 46px; transform: translateX(-50%); }
+  .pass-text.p1 { left: 48px; top: 23%; transform: translateY(-50%); }
+  .pass-text.p2 { right: 48px; top: 55%; transform: translateY(-50%); }
+  .action-text {
+    position: absolute;
+    padding: 5px 10px;
+    border-radius: 999px;
+    background: rgba(255,255,255,.13);
+    border: 1px solid rgba(255,255,255,.15);
+    color: rgba(255,255,255,.88);
+    font-size: 13px;
+    font-weight: 800;
+    display: none;
+    pointer-events: none;
+    white-space: nowrap;
+  }
+  .action-text.p0 { left: 50%; bottom: 105px; transform: translateX(-50%); }
+  .action-text.p1 { left: 22px; top: calc(23% - 58px); }
+  .action-text.p2 { right: 22px; top: calc(55% - 58px); }
+  .tipline {
+    justify-self: center;
+    align-self: end;
+    color: rgba(255,255,255,.7);
+    font-size: 13px;
+    padding-bottom: 6px;
+  }
+  .hand {
+    display: flex;
+    align-items: flex-end;
+    gap: 0;
+    min-height: 118px;
+    padding: 6px 6px 0;
+    overflow-x: auto;
+    overflow-y: visible;
+  }
+  .card {
+    flex: 0 0 auto;
+    width: 58px;
+    height: 82px;
+    margin-right: -15px;
+    border-radius: 9px;
+    background: #fffdf7;
+    color: #111;
+    border: 2px solid #ebe1cd;
+    box-shadow: 0 6px 12px rgba(0,0,0,.25);
+    position: relative;
+    cursor: pointer;
+    transition: transform .12s ease, box-shadow .12s ease;
+  }
+  .card.small {
+    width: 44px; height: 64px;
+    margin-right: -10px;
+    border-radius: 8px;
+    pointer-events: none;
+  }
+  .card.selected { transform: translateY(-20px); box-shadow: 0 12px 20px rgba(0,0,0,.35); border-color: #ffd84e; }
+  .card.disabled { cursor: default; opacity: .7; }
+  .rank {
+    position: absolute;
+    top: 5px; left: 6px;
+    font-weight: 900;
+    font-size: 17px;
+    line-height: 1;
+  }
+  .suit {
+    position: absolute;
+    top: 24px; left: 8px;
+    font-size: 18px;
+    line-height: 1;
+  }
+  .big {
+    position: absolute;
+    left: 0; right: 0; bottom: 7px;
+    text-align: center;
+    font-size: 28px;
+  }
+  .small .rank { font-size: 13px; }
+  .small .suit { top: 20px; font-size: 14px; }
+  .small .big { font-size: 21px; bottom: 5px; }
+  .red { color: #c51c2b; }
+  .black { color: #111; }
+  .joker-red { color: #b80022; }
+  .joker-black { color: #111; }
+  .controls {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 8px;
+    margin-top: 10px;
+  }
+  .selected-info {
+    color: rgba(255,255,255,.75);
+    font-size: 13px;
+    min-width: 210px;
+    text-align: center;
+  }
+  .rules {
+    position: absolute;
+    right: 18px;
+    top: 18px;
+    width: 250px;
+    color: rgba(255,255,255,.74);
+    font-size: 12px;
+    line-height: 1.6;
+    padding: 10px 12px;
+    border-radius: 14px;
+    background: rgba(0,0,0,.16);
+    border: 1px solid rgba(255,255,255,.1);
+  }
+  .toast {
+    position: absolute;
+    left: 50%; top: 50%;
+    transform: translate(-50%, -50%);
+    min-width: 520px;
+    max-width: min(900px, calc(100vw - 48px));
+    padding: 28px 34px;
+    border-radius: 24px;
+    background: rgba(8, 14, 12, .92);
+    border: 1px solid rgba(255,255,255,.18);
+    text-align: center;
+    box-shadow: 0 18px 55px rgba(0,0,0,.45);
+    display: none;
+    z-index: 20;
+  }
+  .toast.show { display: block; }
+  .toast h2 { margin: 0 0 10px; font-size: 34px; }
+  .toast p { margin: 0 0 18px; color: rgba(255,255,255,.78); }
+
+  .toast-body {
+    margin: 0 0 18px;
+    color: rgba(255,255,255,.82);
+    line-height: 1.55;
+    text-align: left;
+  }
+  .reveal-summary {
+    text-align: center;
+    margin-bottom: 12px;
+    color: rgba(255,255,255,.82);
+  }
+  .reveal-hands {
+    display: grid;
+    gap: 10px;
+    margin-top: 10px;
+  }
+  .reveal-row {
+    padding: 10px;
+    border-radius: 14px;
+    background: rgba(255,255,255,.08);
+    border: 1px solid rgba(255,255,255,.12);
+  }
+  .reveal-title {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 8px;
+    font-weight: 900;
+    color: #ffe08a;
+  }
+  .reveal-cards {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 5px;
+    min-height: 66px;
+    align-items: center;
+  }
+  .reveal-cards .card.small {
+    margin-right: 0;
+  }
+  .empty-hand {
+    color: rgba(255,255,255,.65);
+    font-weight: 800;
+  }
+
+  @media (max-width: 900px) {
+    .status { min-width: auto; }
+    .table { min-height: 720px; height: calc(100vh - 85px); }
+    .ai-left, .ai-right { width: 165px; }
+    .center { left: 190px; right: 190px; }
+    .card { width: 50px; height: 72px; margin-right: -17px; }
+    .rules { display: none; }
+  }
+</style>
+</head>
+<body>
+<div class="app">
+  <div class="topbar">
+    <div class="title">单机斗地主 v6</div>
+    <div class="status">
+      <div id="statusMain" class="main">准备开始</div>
+      <div id="statusSub" class="sub">v6：拆牌博弈 AI，结算可查看剩余手牌</div>
+    </div>
+    <div class="top-actions">
+      <button id="newGameBtn">新一局</button>
+    </div>
+  </div>
+
+  <div class="table">
+    <div class="rules">
+      <b>已支持牌型</b><br>
+      单张、对子、三张、三带一、三带二、顺子、连对、飞机、飞机带单、飞机带对、炸弹、王炸。<br>
+      v6：每家出牌会保留在场上；电脑会先拆牌评估，再模拟出牌。
+    </div>
+
+    <div id="ai1Area" class="player-area ai-left">
+      <div class="name-row"><span>电脑A</span><span id="role1" class="role">农民</span></div>
+      <div id="count1" class="count">17</div>
+      <div id="back1" class="back-cards"></div>
+    </div>
+
+    <div id="ai2Area" class="player-area ai-right">
+      <div class="name-row"><span>电脑B</span><span id="role2" class="role">农民</span></div>
+      <div id="count2" class="count">17</div>
+      <div id="back2" class="back-cards"></div>
+    </div>
+
+    <div class="center">
+      <div id="bottomCards" class="bottom-cards"></div>
+      <div id="playZone" class="play-zone">
+        <div id="played0" class="played p0"></div>
+        <div id="played1" class="played p1"></div>
+        <div id="played2" class="played p2"></div>
+        <div id="pass0" class="pass-text p0" style="display:none;">不要</div>
+        <div id="pass1" class="pass-text p1" style="display:none;">不要</div>
+        <div id="pass2" class="pass-text p2" style="display:none;">不要</div>
+        <div id="action0" class="action-text p0"></div>
+        <div id="action1" class="action-text p1"></div>
+        <div id="action2" class="action-text p2"></div>
+      </div>
+      <div id="tipline" class="tipline">点击手牌选择，点击“出牌”提交。</div>
+    </div>
+
+    <div id="userArea" class="player-area user-area">
+      <div class="name-row"><span>你</span><span id="role0" class="role">农民</span></div>
+      <div id="hand" class="hand"></div>
+      <div class="controls">
+        <button id="playBtn">出牌</button>
+        <button id="passBtn" class="ghost">不要</button>
+        <button id="hintBtn" class="ghost">提示</button>
+        <button id="clearBtn" class="ghost">取消选择</button>
+        <span id="selectedInfo" class="selected-info">未选择</span>
+      </div>
+    </div>
+
+    <div id="toast" class="toast">
+      <h2 id="toastTitle">游戏结束</h2>
+      <div id="toastText" class="toast-body"></div>
+      <button id="toastBtn">再来一局</button>
+    </div>
+  </div>
+</div>
+
+<script>
+
+(() => {
+  const RANKS = [
+    { key: '3', value: 3 }, { key: '4', value: 4 }, { key: '5', value: 5 }, { key: '6', value: 6 },
+    { key: '7', value: 7 }, { key: '8', value: 8 }, { key: '9', value: 9 }, { key: '10', value: 10 },
+    { key: 'J', value: 11 }, { key: 'Q', value: 12 }, { key: 'K', value: 13 }, { key: 'A', value: 14 },
+    { key: '2', value: 16 }
+  ];
+  const SUITS = [
+    { key: '♠', color: 'black' },
+    { key: '♥', color: 'red' },
+    { key: '♣', color: 'black' },
+    { key: '♦', color: 'red' }
+  ];
+  const TYPE_NAME = {
+    single: '单张', pair: '对子', triple: '三张', triple_single: '三带一', triple_pair: '三带二',
+    straight: '顺子', pair_seq: '连对', airplane: '飞机', airplane_single: '飞机带单', airplane_pair: '飞机带对',
+    four_two_single: '四带二', four_two_pair: '四带两对', bomb: '炸弹', rocket: '王炸'
+  };
+
+  const el = {
+    statusMain: document.getElementById('statusMain'),
+    statusSub: document.getElementById('statusSub'),
+    newGameBtn: document.getElementById('newGameBtn'),
+    hand: document.getElementById('hand'),
+    selectedInfo: document.getElementById('selectedInfo'),
+    playBtn: document.getElementById('playBtn'),
+    passBtn: document.getElementById('passBtn'),
+    hintBtn: document.getElementById('hintBtn'),
+    clearBtn: document.getElementById('clearBtn'),
+    bottomCards: document.getElementById('bottomCards'),
+    tipline: document.getElementById('tipline'),
+    toast: document.getElementById('toast'),
+    toastTitle: document.getElementById('toastTitle'),
+    toastText: document.getElementById('toastText'),
+    toastBtn: document.getElementById('toastBtn'),
+    areas: [document.getElementById('userArea'), document.getElementById('ai1Area'), document.getElementById('ai2Area')],
+    roles: [document.getElementById('role0'), document.getElementById('role1'), document.getElementById('role2')],
+    counts: [null, document.getElementById('count1'), document.getElementById('count2')],
+    backs: [null, document.getElementById('back1'), document.getElementById('back2')],
+    played: [document.getElementById('played0'), document.getElementById('played1'), document.getElementById('played2')],
+    pass: [document.getElementById('pass0'), document.getElementById('pass1'), document.getElementById('pass2')],
+    actions: [document.getElementById('action0'), document.getElementById('action1'), document.getElementById('action2')]
+  };
+
+  const state = {
+    players: [],
+    bottom: [],
+    landlord: 0,
+    current: 0,
+    lastPlay: null,
+    passCount: 0,
+    selected: new Set(),
+    gameOver: false,
+    aiTimer: null,
+    historyText: ['', '', ''],
+    actionHistory: [],
+    initialHands: [[], [], []],
+    douzeroUrl: 'http://127.0.0.1:8765'
+  };
+
+  function makeDeck() {
+    let id = 0;
+    const deck = [];
+    for (const rank of RANKS) {
+      for (const suit of SUITS) {
+        deck.push({ id: id++, rank: rank.key, value: rank.value, suit: suit.key, color: suit.color, joker: false });
+      }
+    }
+    deck.push({ id: id++, rank: '小王', value: 17, suit: '', color: 'joker-black', joker: true });
+    deck.push({ id: id++, rank: '大王', value: 18, suit: '', color: 'joker-red', joker: true });
+    return deck;
+  }
+
+  function shuffle(arr) {
+    for (let i = arr.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [arr[i], arr[j]] = [arr[j], arr[i]];
+    }
+    return arr;
+  }
+
+  function sortHand(hand) {
+    hand.sort((a, b) => {
+      if (a.value !== b.value) return a.value - b.value;
+      return suitOrder(a.suit) - suitOrder(b.suit);
+    });
+  }
+
+  function suitOrder(suit) {
+    return { '♦': 0, '♣': 1, '♥': 2, '♠': 3, '': 4 }[suit] ?? 0;
+  }
+
+  function nextPlayer(p) { return (p + 1) % 3; }
+  function playerName(p) { return p === 0 ? '你' : (p === 1 ? '电脑A' : '电脑B'); }
+  function sameTeam(a, b) { return a !== state.landlord && b !== state.landlord; }
+  function actionName(p) { return `${playerName(p)}${p === state.landlord ? '（地主）' : '（农民）'}`; }
+
+
+  function cardToBackendRank(card) {
+    if (card.rank === '小王') return 'X';
+    if (card.rank === '大王') return 'D';
+    return card.rank;
+  }
+
+  function normalizeBackendRank(rank) {
+    const s = String(rank);
+    if (s === '20' || s === 'X' || s === 'x' || s === '小王') return '小王';
+    if (s === '30' || s === 'D' || s === 'd' || s === '大王') return '大王';
+    if (s === '17') return '2';
+    if (s === '11') return 'J';
+    if (s === '12') return 'Q';
+    if (s === '13') return 'K';
+    if (s === '14') return 'A';
+    return s;
+  }
+
+  function recordAction(player, cards) {
+    state.actionHistory.push({
+      player,
+      cards: cards.map(cardToBackendRank)
+    });
+  }
+
+  function cardsFromBackendRanks(player, ranks) {
+    const wanted = ranks.map(normalizeBackendRank);
+    const hand = [...state.players[player].hand];
+    const chosen = [];
+    for (const rank of wanted) {
+      const idx = hand.findIndex(c => c.rank === rank);
+      if (idx < 0) {
+        throw new Error(`DouZero 返回了 ${playerName(player)} 手牌中不存在的牌：${rank}`);
+      }
+      chosen.push(hand[idx]);
+      hand.splice(idx, 1);
+    }
+    return chosen;
+  }
+
+  async function requestDouZeroAction(player) {
+    const payload = {
+      landlord: state.landlord,
+      aiPlayer: player,
+      initialHands: state.initialHands,
+      bottom: state.bottom.map(cardToBackendRank),
+      history: state.actionHistory
+    };
+    const response = await fetch(`${state.douzeroUrl}/act`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(payload)
+    });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok || data.ok === false) {
+      throw new Error(data.error || `DouZero 后端请求失败：HTTP ${response.status}`);
+    }
+    return data.action || [];
+  }
+
+  async function checkDouZeroBackend() {
+    try {
+      const response = await fetch(`${state.douzeroUrl}/health`, { method: 'GET' });
+      const data = await response.json();
+      if (data && data.ok) {
+        el.tipline.textContent = 'DouZero 后端已连接。';
+        return true;
+      }
+    } catch (err) {
+      el.tipline.textContent = 'DouZero 后端未连接：请先运行 backend/server.py。';
+    }
+    return false;
+  }
+
+  // 当前玩家需要压的牌型。
+  // 如果轮到上一手出牌的人，说明其他两家都不要，本轮应重置为自由出牌。
+  function getRequiredType(player = state.current) {
+    if (!state.lastPlay || state.lastPlay.player === player) return null;
+    return state.lastPlay.type;
+  }
+
+  function isFreeTurn(player = state.current) {
+    return getRequiredType(player) === null;
+  }
+
+  function rankCounts(cards) {
+    const map = new Map();
+    for (const c of cards) {
+      if (!map.has(c.value)) map.set(c.value, []);
+      map.get(c.value).push(c);
+    }
+    return map;
+  }
+
+  function isConsecutive(values) {
+    for (let i = 1; i < values.length; i++) {
+      if (values[i] !== values[i - 1] + 1) return false;
+    }
+    return true;
+  }
+
+  function detectType(cards) {
+    if (!cards || cards.length === 0) return null;
+    const n = cards.length;
+    const values = cards.map(c => c.value).sort((a, b) => a - b);
+    const counts = rankCounts(cards);
+    const groups = [...counts.entries()].map(([value, list]) => ({ value, count: list.length, list })).sort((a, b) => a.value - b.value);
+    const countList = groups.map(g => g.count).sort((a, b) => a - b);
+
+    if (n === 2 && values[0] === 17 && values[1] === 18) return { type: 'rocket', rank: 99, len: 2 };
+    if (n === 4 && groups.length === 1) return { type: 'bomb', rank: groups[0].value, len: 4 };
+    if (n === 1) return { type: 'single', rank: values[0], len: 1 };
+    if (n === 2 && groups.length === 1) return { type: 'pair', rank: groups[0].value, len: 2 };
+    if (n === 3 && groups.length === 1) return { type: 'triple', rank: groups[0].value, len: 3 };
+    if (n === 4 && groups.length === 2 && countList.join(',') === '1,3') {
+      return { type: 'triple_single', rank: groups.find(g => g.count === 3).value, len: 4 };
+    }
+    if (n === 5 && groups.length === 2 && countList.join(',') === '2,3') {
+      return { type: 'triple_pair', rank: groups.find(g => g.count === 3).value, len: 5 };
+    }
+
+    if (n >= 5 && groups.length === n && values.every(v => v < 16) && isConsecutive(values)) {
+      return { type: 'straight', rank: values[values.length - 1], len: n };
+    }
+
+    if (n >= 6 && n % 2 === 0 && groups.every(g => g.count === 2 && g.value < 16)) {
+      const vals = groups.map(g => g.value);
+      if (vals.length >= 3 && isConsecutive(vals)) return { type: 'pair_seq', rank: vals[vals.length - 1], len: vals.length };
+    }
+
+    const tripleGroups = groups.filter(g => g.count === 3 && g.value < 16);
+    if (tripleGroups.length >= 2) {
+      const tvals = tripleGroups.map(g => g.value).sort((a, b) => a - b);
+      if (isConsecutive(tvals)) {
+        const k = tvals.length;
+        if (n === k * 3 && groups.every(g => g.count === 3)) {
+          return { type: 'airplane', rank: tvals[tvals.length - 1], len: k };
+        }
+        if (n === k * 4) {
+          const nonTripleCards = groups.filter(g => g.count !== 3).reduce((s, g) => s + g.count, 0);
+          if (nonTripleCards === k) return { type: 'airplane_single', rank: tvals[tvals.length - 1], len: k };
+        }
+        if (n === k * 5) {
+          const others = groups.filter(g => g.count !== 3);
+          if (others.length === k && others.every(g => g.count === 2)) {
+            return { type: 'airplane_pair', rank: tvals[tvals.length - 1], len: k };
+          }
+        }
+      }
+    }
+
+    if (n === 6 && groups.some(g => g.count === 4)) {
+      return { type: 'four_two_single', rank: groups.find(g => g.count === 4).value, len: 6 };
+    }
+    if (n === 8 && groups.some(g => g.count === 4)) {
+      const others = groups.filter(g => g.count !== 4);
+      if (others.length === 2 && others.every(g => g.count === 2)) {
+        return { type: 'four_two_pair', rank: groups.find(g => g.count === 4).value, len: 8 };
+      }
+    }
+
+    return null;
+  }
+
+  function canBeat(candidate, last) {
+    if (!candidate) return false;
+    if (!last) return true;
+    if (candidate.type === 'rocket') return true;
+    if (last.type === 'rocket') return false;
+    if (candidate.type === 'bomb' && last.type !== 'bomb') return true;
+    if (candidate.type !== last.type) return false;
+    if (candidate.len !== last.len) return false;
+    return candidate.rank > last.rank;
+  }
+
+  function cardHTML(card, small = false, selected = false) {
+    const cls = ['card'];
+    if (small) cls.push('small');
+    if (selected) cls.push('selected');
+    cls.push(card.color);
+    const suit = card.joker ? '★' : card.suit;
+    const big = card.joker ? (card.rank === '大王' ? '🃏' : 'J') : suit;
+    return `<div class="${cls.join(' ')}" data-id="${card.id}">
+      <div class="rank">${card.rank}</div>
+      <div class="suit">${suit}</div>
+      <div class="big">${big}</div>
+    </div>`;
+  }
+
+  function renderCards(container, cards, small = false) {
+    container.innerHTML = cards.map(c => cardHTML(c, small, state.selected.has(c.id))).join('');
+  }
+
+  function renderBacks(container, count) {
+    const show = Math.min(count, 8);
+    container.innerHTML = Array.from({ length: show }, () => '<div class="card-back"></div>').join('');
+  }
+
+  function updateStatus(main, sub = '') {
+    el.statusMain.textContent = main;
+    el.statusSub.textContent = sub;
+  }
+
+  function updateUI() {
+    for (let i = 0; i < 3; i++) {
+      el.areas[i].classList.toggle('turn', state.current === i && !state.gameOver);
+      el.roles[i].textContent = i === state.landlord ? '地主' : '农民';
+      el.roles[i].classList.toggle('landlord', i === state.landlord);
+    }
+
+    renderCards(el.hand, state.players[0].hand, false);
+    el.hand.querySelectorAll('.card').forEach(node => {
+      node.addEventListener('click', () => {
+        if (state.current !== 0 || state.gameOver) return;
+        const id = Number(node.dataset.id);
+        if (state.selected.has(id)) state.selected.delete(id);
+        else state.selected.add(id);
+        updateUI();
+      });
+    });
+
+    for (let i = 1; i < 3; i++) {
+      el.counts[i].textContent = state.players[i].hand.length;
+      renderBacks(el.backs[i], state.players[i].hand.length);
+    }
+
+    renderCards(el.bottomCards, state.bottom, true);
+
+    for (let i = 0; i < 3; i++) {
+      el.played[i].innerHTML = '';
+      el.pass[i].style.display = 'none';
+      if (state.players[i].lastShown && state.players[i].lastShown.length) {
+        renderCards(el.played[i], state.players[i].lastShown, true);
+      }
+      if (state.players[i].passed) el.pass[i].style.display = 'block';
+      el.actions[i].textContent = state.historyText[i] || '';
+      el.actions[i].style.display = state.historyText[i] ? 'block' : 'none';
+    }
+
+    const selectedCards = getSelectedCards();
+    const t = detectType(selectedCards);
+    if (!selectedCards.length) el.selectedInfo.textContent = '未选择';
+    else if (!t) el.selectedInfo.textContent = `已选 ${selectedCards.length} 张：不合法牌型`;
+    else el.selectedInfo.textContent = `已选 ${selectedCards.length} 张：${TYPE_NAME[t.type]}`;
+
+    const isPlayerTurn = state.current === 0 && !state.gameOver;
+    const freeTurn = isFreeTurn(0);
+    el.playBtn.disabled = !isPlayerTurn;
+    el.passBtn.disabled = !isPlayerTurn || freeTurn;
+    el.hintBtn.disabled = !isPlayerTurn;
+    el.clearBtn.disabled = !isPlayerTurn || state.selected.size === 0;
+
+    if (!state.gameOver) {
+      const required = getRequiredType(state.current);
+      const lastText = required
+        ? `上家：${playerName(state.lastPlay.player)} ${TYPE_NAME[required.type]}，${state.lastPlay.cards.length} 张`
+        : '当前为自由出牌';
+      updateStatus(`轮到：${playerName(state.current)}`, `${lastText}。地主：${playerName(state.landlord)}`);
+    }
+  }
+
+  function getSelectedCards() {
+    return state.players[0].hand.filter(c => state.selected.has(c.id));
+  }
+
+  function removeCardsFromHand(playerIndex, cards) {
+    const ids = new Set(cards.map(c => c.id));
+    state.players[playerIndex].hand = state.players[playerIndex].hand.filter(c => !ids.has(c.id));
+  }
+
+  function clearRoundDisplays() {
+    for (let i = 0; i < 3; i++) {
+      state.players[i].passed = false;
+      state.players[i].lastShown = [];
+    }
+    state.historyText = ['', '', ''];
+  }
+
+  function playCards(player, cards) {
+    const type = detectType(cards);
+    if (!type) return false;
+    const requiredBefore = getRequiredType(player);
+    if (!canBeat(type, requiredBefore)) return false;
+    recordAction(player, cards);
+
+    // 新一轮自由出牌时，先清掉上一轮三家的出牌/不要显示；
+    // 当前这一手会重新显示在对应玩家区域。
+    if (!requiredBefore) clearRoundDisplays();
+
+    removeCardsFromHand(player, cards);
+    state.players[player].lastShown = [...cards];
+    state.players[player].passed = false;
+    state.lastPlay = { player, cards: [...cards], type };
+    state.passCount = 0;
+    state.historyText[player] = `${actionName(player)}：${TYPE_NAME[type.type]}（${cards.length}张）`;
+
+    if (state.players[player].hand.length === 0) {
+      endGame(player);
+      return true;
+    }
+
+    state.current = nextPlayer(player);
+    updateUI();
+    scheduleAI();
+    return true;
+  }
+
+  function pass(player) {
+    if (isFreeTurn(player)) return false;
+    recordAction(player, []);
+    state.players[player].passed = true;
+    state.players[player].lastShown = [];
+    state.historyText[player] = `${actionName(player)}：不要`;
+    state.passCount++;
+
+    if (state.passCount >= 2) {
+      // 两家都不要后，本轮结束；先保留场上显示，方便玩家看清上一轮发生了什么。
+      // 等下一位真正出牌时，再清空旧显示并开始新一轮。
+      const leader = state.lastPlay.player;
+      state.lastPlay = null;
+      state.passCount = 0;
+      state.current = leader;
+    } else {
+      state.current = nextPlayer(player);
+    }
+    updateUI();
+    scheduleAI();
+    return true;
+  }
+
+  function renderRevealHand(playerIndex) {
+    const hand = [...state.players[playerIndex].hand];
+    sortHand(hand);
+    const role = playerIndex === state.landlord ? '地主' : '农民';
+    const cardsHtml = hand.length
+      ? hand.map(c => cardHTML(c, true, false)).join('')
+      : '<span class="empty-hand">已出完</span>';
+    return `<div class="reveal-row">
+      <div class="reveal-title">
+        <span>${playerName(playerIndex)}（${role}）</span>
+        <span>剩余 ${hand.length} 张</span>
+      </div>
+      <div class="reveal-cards">${cardsHtml}</div>
+    </div>`;
+  }
+
+  function buildEndReveal(winner, landlordWin) {
+    return `<div class="reveal-summary">
+      ${playerName(winner)} 最先出完。${landlordWin ? '地主胜利。' : '农民胜利。'}
+    </div>
+    <div class="reveal-hands">
+      ${[0, 1, 2].map(renderRevealHand).join('')}
+    </div>`;
+  }
+
+  function endGame(winner) {
+    state.gameOver = true;
+    clearTimeout(state.aiTimer);
+    const landlordWin = winner === state.landlord;
+    const playerWin = (state.landlord === 0 && landlordWin) || (state.landlord !== 0 && !landlordWin);
+    updateStatus('游戏结束', `${playerName(winner)} 出完了牌`);
+    el.toastTitle.textContent = playerWin ? '你赢了' : '你输了';
+    el.toastText.innerHTML = buildEndReveal(winner, landlordWin);
+    el.toast.classList.add('show');
+    updateUI();
+  }
+
+  function handGroups(hand) {
+    sortHand(hand);
+    const counts = rankCounts(hand);
+    return [...counts.entries()]
+      .map(([value, list]) => ({ value, cards: [...list].sort((a,b)=>a.id-b.id), count: list.length }))
+      .sort((a, b) => a.value - b.value);
+  }
+
+  function takeCardsOfRank(hand, rank, count) {
+    return hand.filter(c => c.value === rank).slice(0, count);
+  }
+
+  function takeLowestSingles(hand, count, excludeRanks = new Set()) {
+    const candidates = [...hand]
+      .filter(c => !excludeRanks.has(c.value))
+      .sort((a, b) => cardKickerCost(hand, a, excludeRanks) - cardKickerCost(hand, b, excludeRanks) || a.value - b.value || a.id - b.id);
+    const result = candidates.slice(0, count);
+    return result.length === count ? result : null;
+  }
+
+  function takeLowestPairs(hand, count, excludeRanks = new Set()) {
+    const groups = handGroups([...hand])
+      .filter(g => g.count >= 2 && !excludeRanks.has(g.value))
+      .sort((a, b) => pairKickerCost(hand, a, excludeRanks) - pairKickerCost(hand, b, excludeRanks) || a.value - b.value);
+    const result = [];
+    for (const g of groups) {
+      result.push(...g.cards.slice(0, 2));
+      if (result.length === count * 2) return result;
+    }
+    return result.length === count * 2 ? result : null;
+  }
+
+  function findStraightSequence(groups, needLen, minHigh, needCount) {
+    const values = groups.filter(g => g.value < 16 && g.count >= needCount).map(g => g.value);
+    for (let i = 0; i <= values.length - needLen; i++) {
+      const seq = values.slice(i, i + needLen);
+      if (isConsecutive(seq) && seq[seq.length - 1] > minHigh) return seq;
+    }
+    return null;
+  }
+
+  function allSequences(groups, minLen, needCount, minHigh = -1) {
+    const values = groups.filter(g => g.value < 16 && g.count >= needCount).map(g => g.value);
+    const runs = [];
+    let cur = [];
+    for (const v of values) {
+      if (!cur.length || v === cur[cur.length - 1] + 1) cur.push(v);
+      else { if (cur.length >= minLen) runs.push(cur); cur = [v]; }
+    }
+    if (cur.length >= minLen) runs.push(cur);
+
+    const seqs = [];
+    for (const run of runs) {
+      for (let len = minLen; len <= run.length; len++) {
+        for (let i = 0; i <= run.length - len; i++) {
+          const seq = run.slice(i, i + len);
+          if (seq[seq.length - 1] > minHigh) seqs.push(seq);
+        }
+      }
+    }
+    return seqs;
+  }
+
+  function buildSequenceCards(hand, seq, count) {
+    let cards = [];
+    for (const v of seq) cards = cards.concat(takeCardsOfRank(hand, v, count));
+    return cards;
+  }
+
+  function findRocket(hand) {
+    const small = hand.find(c => c.value === 17);
+    const big = hand.find(c => c.value === 18);
+    return small && big ? [small, big] : null;
+  }
+
+  function findBomb(hand, minRank = -1) {
+    const groups = handGroups([...hand]);
+    const g = groups.find(x => x.count === 4 && x.value > minRank);
+    return g ? g.cards.slice(0, 4) : null;
+  }
+
+  function removeCardsCopy(hand, cards) {
+    const ids = new Set(cards.map(c => c.id));
+    return hand.filter(c => !ids.has(c.id));
+  }
+
+
+  // v6：手牌结构分析。
+  // 重点不是“有啥出啥”，而是先把手牌拆成自然组合，出牌时评估是否破坏了顺子、连对、飞机、三张、炸弹等结构。
+  const handPlanCache = new Map();
+
+  function handPlanKey(hand) {
+    return hand.map(c => c.id).sort((a, b) => a - b).join(',');
+  }
+
+  function removeCardsByIds(list, cards) {
+    const ids = new Set(cards.map(c => c.id));
+    return list.filter(c => !ids.has(c.id));
+  }
+
+  function maximalRuns(values, minLen) {
+    const sorted = [...new Set(values)].sort((a, b) => a - b);
+    const runs = [];
+    let cur = [];
+    for (const v of sorted) {
+      if (!cur.length || v === cur[cur.length - 1] + 1) cur.push(v);
+      else {
+        if (cur.length >= minLen) runs.push(cur);
+        cur = [v];
+      }
+    }
+    if (cur.length >= minLen) runs.push(cur);
+    return runs.sort((a, b) => b.length - a.length || a[0] - b[0]);
+  }
+
+  function analyzeHandPlan(hand) {
+    const key = handPlanKey(hand);
+    if (handPlanCache.has(key)) return handPlanCache.get(key);
+
+    let rest = [...hand].sort((a, b) => a.value - b.value || a.id - b.id);
+    const components = [];
+    const protection = new Map();
+
+    function addComponent(kind, cards, strength) {
+      if (!cards || !cards.length) return;
+      const comp = { kind, cards: [...cards], strength };
+      components.push(comp);
+      for (const c of cards) protection.set(c.id, comp);
+      rest = removeCardsByIds(rest, cards);
+    }
+
+    // 王炸和炸弹先保护。它们不是必须先出，而是拆开代价极高。
+    const rocket = findRocket(rest);
+    if (rocket) addComponent('rocket', rocket, 42);
+
+    for (const g of handGroups([...rest]).filter(x => x.count === 4).sort((a, b) => a.value - b.value)) {
+      addComponent('bomb', g.cards.slice(0, 4), 34);
+    }
+
+    // 飞机：优先保护连续三张。
+    let changed = true;
+    while (changed) {
+      changed = false;
+      const gs = handGroups([...rest]);
+      const runs = maximalRuns(gs.filter(g => g.value < 16 && g.count >= 3).map(g => g.value), 2);
+      if (runs.length) {
+        const run = runs[0];
+        let cards = [];
+        for (const v of run) cards = cards.concat(takeCardsOfRank(rest, v, 3));
+        addComponent('airplane_body', cards, 29 + run.length * 2);
+        changed = true;
+      }
+    }
+
+    // 连对优先于单顺，因为拆连对通常很亏。
+    changed = true;
+    while (changed) {
+      changed = false;
+      const gs = handGroups([...rest]);
+      const runs = maximalRuns(gs.filter(g => g.value < 16 && g.count >= 2).map(g => g.value), 3);
+      if (runs.length) {
+        const run = runs[0];
+        let cards = [];
+        for (const v of run) cards = cards.concat(takeCardsOfRank(rest, v, 2));
+        addComponent('pair_seq', cards, 23 + run.length * 1.5);
+        changed = true;
+      }
+    }
+
+    // 单顺：把低到中等牌尽量连起来，减少散牌。
+    changed = true;
+    while (changed) {
+      changed = false;
+      const gs = handGroups([...rest]);
+      const runs = maximalRuns(gs.filter(g => g.value < 16 && g.count >= 1).map(g => g.value), 5);
+      if (runs.length) {
+        const run = runs[0];
+        let cards = [];
+        for (const v of run) cards = cards.concat(takeCardsOfRank(rest, v, 1));
+        addComponent('straight', cards, 18 + run.length);
+        changed = true;
+      }
+    }
+
+    // 剩下的三张、对子、单张。
+    for (const g of handGroups([...rest]).filter(x => x.count >= 3).sort((a, b) => a.value - b.value)) {
+      addComponent('triple', g.cards.slice(0, 3), 17);
+    }
+    for (const g of handGroups([...rest]).filter(x => x.count >= 2).sort((a, b) => a.value - b.value)) {
+      addComponent('pair', g.cards.slice(0, 2), 9);
+    }
+    for (const c of [...rest].sort((a, b) => a.value - b.value || a.id - b.id)) {
+      addComponent('single', [c], c.value >= 16 ? 7 : 3);
+    }
+
+    const result = { components, protection };
+    if (handPlanCache.size > 4000) handPlanCache.clear();
+    handPlanCache.set(key, result);
+    return result;
+  }
+
+  function componentTakenInfo(component, moveCards) {
+    const moveIds = new Set(moveCards.map(c => c.id));
+    let taken = 0;
+    for (const c of component.cards) if (moveIds.has(c.id)) taken++;
+    return taken;
+  }
+
+  function splitPenaltyForMove(hand, moveCards) {
+    if (!moveCards || !moveCards.length) return 0;
+    const plan = analyzeHandPlan(hand);
+    let penalty = 0;
+    for (const comp of plan.components) {
+      const taken = componentTakenInfo(comp, moveCards);
+      if (!taken) continue;
+      if (taken === comp.cards.length) continue; // 整组一起出，不算拆牌。
+
+      // 拆炸弹/王炸/飞机/连对/顺子惩罚最高；拆对子、三张次之。
+      const ratio = taken / comp.cards.length;
+      penalty += comp.strength * (0.75 + ratio);
+      if (comp.kind === 'rocket' || comp.kind === 'bomb') penalty += 35;
+      if (comp.kind === 'airplane_body') penalty += 18;
+      if (comp.kind === 'pair_seq' || comp.kind === 'straight') penalty += 12;
+    }
+    return penalty;
+  }
+
+  function cardKickerCost(hand, card, excludeRanks = new Set()) {
+    if (excludeRanks.has(card.value)) return 9999;
+    const plan = analyzeHandPlan(hand);
+    const comp = plan.protection.get(card.id);
+    let cost = card.value;
+    if (card.value >= 16) cost += 35; // 2 和王尽量别当翅膀/散带。
+    if (!comp) return cost;
+    if (comp.kind === 'single') return cost + (card.value >= 16 ? 20 : 0);
+    if (comp.kind === 'pair') return cost + 18;
+    if (comp.kind === 'triple') return cost + 28;
+    if (comp.kind === 'straight') return cost + 38;
+    if (comp.kind === 'pair_seq') return cost + 46;
+    if (comp.kind === 'airplane_body') return cost + 56;
+    if (comp.kind === 'bomb') return cost + 90;
+    if (comp.kind === 'rocket') return cost + 100;
+    return cost + 25;
+  }
+
+  function pairKickerCost(hand, group, excludeRanks = new Set()) {
+    if (excludeRanks.has(group.value) || group.count < 2) return 9999;
+    const cards = group.cards.slice(0, 2);
+    return cards.reduce((s, c) => s + cardKickerCost(hand, c, excludeRanks), 0) + group.value * 0.2;
+  }
+
+  function strategicHandPenalty(hand) {
+    if (!hand.length) return -999;
+    const plan = analyzeHandPlan(hand);
+    let score = plan.components.length * 13 + hand.length * 1.35;
+    let singles = 0;
+    let highSingles = 0;
+
+    for (const comp of plan.components) {
+      const vals = comp.cards.map(c => c.value);
+      const high = Math.max(...vals);
+      switch (comp.kind) {
+        case 'rocket': score -= 18; break;
+        case 'bomb': score -= 15; break;
+        case 'airplane_body': score -= 16 + comp.cards.length * 0.65; break;
+        case 'pair_seq': score -= 11 + comp.cards.length * 0.55; break;
+        case 'straight': score -= 8 + comp.cards.length * 0.45; break;
+        case 'triple': score -= 4; break;
+        case 'pair': score += high >= 16 ? 4 : 0; break;
+        case 'single':
+          singles++;
+          score += high >= 16 ? 9 : 5;
+          if (high >= 16) highSingles++;
+          break;
+      }
+    }
+
+    score += singles * 2.4 + highSingles * 4.8;
+    return score;
+  }
+
+  function isBombLikeAction(action) {
+    return action && !action.pass && action.type && (action.type.type === 'bomb' || action.type.type === 'rocket');
+  }
+
+  function bombUseAllowedInState(player, action, required) {
+    if (!isBombLikeAction(action)) return true;
+    const hand = state.players[player].hand;
+    const remain = removeCardsCopy(hand, action.cards);
+    if (remain.length === 0) return true;
+    if (!required) return false;
+    if (required.type === 'bomb' || required.type === 'rocket') return true;
+
+    const lastPlayer = state.lastPlay ? state.lastPlay.player : -1;
+    const enemyPlayed = lastPlayer >= 0 && !sameTeam(player, lastPlayer);
+    const enemyLeft = enemyPlayed ? state.players[lastPlayer].hand.length : 99;
+    const enemiesMin = minCardsOf(enemyPlayers(player));
+
+    // 只有敌方马上要跑、或自己炸完能快速收尾，才允许用炸弹/王炸压普通牌。
+    if (enemyPlayed && enemyLeft <= 2) return true;
+    if (enemiesMin <= 1) return true;
+    if (remain.length <= 2 && strategicHandPenalty(remain) < 22) return true;
+    return false;
+  }
+
+  function simBombUseAllowed(sim, player, action, required) {
+    if (!isBombLikeAction(action)) return true;
+    const remain = removeCardsCopy(sim.hands[player], action.cards);
+    if (remain.length === 0) return true;
+    if (!required) return false;
+    if (required.type === 'bomb' || required.type === 'rocket') return true;
+
+    const lastPlayer = sim.lastPlay ? sim.lastPlay.player : -1;
+    const enemyPlayed = lastPlayer >= 0 && !simSameTeam(sim, player, lastPlayer);
+    const enemyLeft = enemyPlayed ? sim.hands[lastPlayer].length : 99;
+    const enemies = simEnemyPlayers(sim, player);
+    const enemiesMin = Math.min(...enemies.map(p => sim.hands[p].length));
+
+    if (enemyPlayed && enemyLeft <= 2) return true;
+    if (enemiesMin <= 1) return true;
+    if (remain.length <= 2 && strategicHandPenalty(remain) < 22) return true;
+    return false;
+  }
+
+  function cardsKey(cards) {
+    return cards.map(c => c.id).sort((a,b)=>a-b).join('-');
+  }
+
+  function addCandidate(list, seen, cards, required = null) {
+    if (!cards || !cards.length) return;
+    const type = detectType(cards);
+    if (!type) return;
+    if (!canBeat(type, required)) return;
+    const key = cardsKey(cards);
+    if (seen.has(key)) return;
+    seen.add(key);
+    list.push({ cards: [...cards], type });
+  }
+
+  function enumerateLegalMoves(hand, required = null, options = {}) {
+    const groups = handGroups([...hand]);
+    const list = [];
+    const seen = new Set();
+    const exactType = required ? required.type : null;
+    const needBombOnly = exactType === 'bomb' || exactType === 'rocket';
+
+    function allow(type) {
+      if (!required) return true;
+      if (type === 'bomb' || type === 'rocket') return true;
+      return type === exactType;
+    }
+
+    if (!required || exactType === 'single') {
+      for (const g of groups) if (!required || g.value > required.rank) addCandidate(list, seen, [g.cards[0]], required);
+    }
+    if (!required || exactType === 'pair') {
+      for (const g of groups) if (g.count >= 2 && (!required || g.value > required.rank)) addCandidate(list, seen, g.cards.slice(0, 2), required);
+    }
+    if (!required || exactType === 'triple') {
+      for (const g of groups) if (g.count >= 3 && (!required || g.value > required.rank)) addCandidate(list, seen, g.cards.slice(0, 3), required);
+    }
+    if (!required || exactType === 'triple_single') {
+      for (const g of groups) if (g.count >= 3 && (!required || g.value > required.rank)) {
+        const attach = takeLowestSingles(hand, 1, new Set([g.value]));
+        if (attach) addCandidate(list, seen, [...g.cards.slice(0, 3), ...attach], required);
+      }
+    }
+    if (!required || exactType === 'triple_pair') {
+      for (const g of groups) if (g.count >= 3 && (!required || g.value > required.rank)) {
+        const attach = takeLowestPairs(hand, 1, new Set([g.value]));
+        if (attach) addCandidate(list, seen, [...g.cards.slice(0, 3), ...attach], required);
+      }
+    }
+
+    const straightLens = required && exactType === 'straight' ? [required.len] : null;
+    if (!required || exactType === 'straight') {
+      const seqs = straightLens
+        ? allSequences(groups, required.len, 1, required.rank).filter(seq => seq.length === required.len)
+        : allSequences(groups, 5, 1);
+      for (const seq of seqs) addCandidate(list, seen, buildSequenceCards(hand, seq, 1), required);
+    }
+
+    if (!required || exactType === 'pair_seq') {
+      const seqs = required
+        ? allSequences(groups, required.len, 2, required.rank).filter(seq => seq.length === required.len)
+        : allSequences(groups, 3, 2);
+      for (const seq of seqs) addCandidate(list, seen, buildSequenceCards(hand, seq, 2), required);
+    }
+
+    if (!required || ['airplane','airplane_single','airplane_pair'].includes(exactType)) {
+      const seqs = required
+        ? allSequences(groups, required.len, 3, required.rank).filter(seq => seq.length === required.len)
+        : allSequences(groups, 2, 3);
+      for (const seq of seqs) {
+        const body = buildSequenceCards(hand, seq, 3);
+        const exclude = new Set(seq);
+        if (!required || exactType === 'airplane') addCandidate(list, seen, body, required);
+        if (!required || exactType === 'airplane_single') {
+          const attach = takeLowestSingles(hand, seq.length, exclude);
+          if (attach) addCandidate(list, seen, [...body, ...attach], required);
+        }
+        if (!required || exactType === 'airplane_pair') {
+          const attach = takeLowestPairs(hand, seq.length, exclude);
+          if (attach) addCandidate(list, seen, [...body, ...attach], required);
+        }
+      }
+    }
+
+    if (!required || exactType === 'four_two_single') {
+      for (const g of groups) if (g.count === 4 && (!required || g.value > required.rank)) {
+        const attach = takeLowestSingles(hand, 2, new Set([g.value]));
+        if (attach) addCandidate(list, seen, [...g.cards.slice(0, 4), ...attach], required);
+      }
+    }
+    if (!required || exactType === 'four_two_pair') {
+      for (const g of groups) if (g.count === 4 && (!required || g.value > required.rank)) {
+        const attach = takeLowestPairs(hand, 2, new Set([g.value]));
+        if (attach) addCandidate(list, seen, [...g.cards.slice(0, 4), ...attach], required);
+      }
+    }
+
+    // 炸弹和王炸作为兜底候选；自由出牌时也加入，但评分会尽量保留。
+    for (const g of groups) {
+      if (g.count === 4 && (!required || required.type !== 'bomb' || g.value > required.rank)) {
+        addCandidate(list, seen, g.cards.slice(0, 4), required);
+      }
+    }
+    const rocket = findRocket(hand);
+    if (rocket) addCandidate(list, seen, rocket, required);
+
+    return list;
+  }
+
+  function roughHandTurns(hand) {
+    let rest = [...hand];
+    let turns = 0;
+    for (let guard = 0; guard < 30 && rest.length; guard++) {
+      const moves = enumerateLegalMoves(rest, null).filter(m => m.type.type !== 'rocket' && m.type.type !== 'bomb');
+      if (!moves.length) {
+        turns += Math.ceil(rest.length / 2);
+        break;
+      }
+      moves.sort((a, b) => {
+        const aw = a.cards.length + comboValueBonus(a.type);
+        const bw = b.cards.length + comboValueBonus(b.type);
+        if (bw !== aw) return bw - aw;
+        return a.type.rank - b.type.rank;
+      });
+      rest = removeCardsCopy(rest, moves[0].cards);
+      turns++;
+    }
+    return turns;
+  }
+
+  function comboValueBonus(type) {
+    const table = {
+      airplane_pair: 4.4, airplane_single: 4.0, airplane: 3.8,
+      straight: 2.8, pair_seq: 3.2, triple_pair: 2.5, triple_single: 2.1,
+      triple: 1.8, four_two_pair: 1.4, four_two_single: 1.2,
+      pair: .6, single: 0, bomb: -2.4, rocket: -3.0
+    };
+    return table[type.type] ?? 0;
+  }
+
+  function handValuePenalty(hand) {
+    return strategicHandPenalty(hand);
+  }
+
+  function moveBasePenalty(move, context) {
+    const type = move.type;
+    let p = 0;
+    if (type.type === 'rocket') p += context.critical ? 10 : 80;
+    if (type.type === 'bomb') p += context.critical ? 6 : 58;
+    if (type.type.startsWith('four_two')) p += 20;
+    if (type.type === 'single' && type.rank >= 16) p += 8;
+    if (type.type === 'pair' && type.rank >= 16) p += 9;
+    if (type.type.includes('airplane') || type.type === 'straight' || type.type === 'pair_seq') p -= 8;
+    if (type.type === 'triple_single' || type.type === 'triple_pair') p -= 4;
+    p += type.rank * 0.18;
+    return p;
+  }
+
+  function canWinWithMove(player, move) {
+    return move.cards.length === state.players[player].hand.length;
+  }
+
+  function enemyPlayers(player) {
+    if (player === state.landlord) return [0,1,2].filter(x => x !== player);
+    return [state.landlord];
+  }
+
+  function minCardsOf(players) {
+    return Math.min(...players.map(p => state.players[p].hand.length));
+  }
+
+  function isCriticalDefense(player) {
+    const enemies = enemyPlayers(player);
+    return minCardsOf(enemies) <= 2;
+  }
+
+  function shouldPassToPartner(player) {
+    if (!state.lastPlay || player === state.landlord) return false;
+    const lastPlayer = state.lastPlay.player;
+    if (!sameTeam(player, lastPlayer)) return false;
+    // 队友只剩很少牌时尽量放行；自己能直接走完则不放。
+    if (state.players[player].hand.length <= 2) return false;
+    return true;
+  }
+
+  function chooseBestMove(player, required) {
+    const hand = state.players[player].hand;
+    let moves = enumerateLegalMoves(hand, required);
+    if (!moves.length) return null;
+
+    const critical = isCriticalDefense(player);
+    const free = !required;
+    const lastByEnemy = state.lastPlay && !sameTeam(player, state.lastPlay.player);
+
+    // 能一手走完，优先直接走。
+    const winMove = moves.find(m => canWinWithMove(player, m));
+    if (winMove) return winMove.cards;
+
+    // 非关键时刻不要随便用炸弹/王炸，除非它是当前牌型必须比较的炸弹。
+    if (!critical && required && required.type !== 'bomb') {
+      const nonBombs = moves.filter(m => m.type.type !== 'bomb' && m.type.type !== 'rocket');
+      if (nonBombs.length) moves = nonBombs;
+    }
+    if (free) {
+      const nonBombs = moves.filter(m => m.type.type !== 'bomb' && m.type.type !== 'rocket');
+      if (nonBombs.length) moves = nonBombs;
+    }
+
+    const scored = moves.map(move => {
+      const remain = removeCardsCopy(hand, move.cards);
+      let score = handValuePenalty(remain) + moveBasePenalty(move, { critical }) + splitPenaltyForMove(hand, move.cards);
+
+      // 自由出牌鼓励一次甩多一点，少出高单张。
+      if (free) {
+        score -= move.cards.length * 2.6;
+        if (move.type.type === 'single' && hand.length > 5) score += 10;
+        if (move.type.type === 'pair' && hand.length > 7) score += 3;
+      } else {
+        // 跟牌时倾向最小代价压制，不乱拆大结构。
+        score += move.cards.length * 0.6;
+        if (lastByEnemy && critical) score -= 12;
+      }
+
+      // 敌方只剩 1-2 张时，能压就更积极；但仍尽量选代价低的。
+      if (critical && required) score -= 16;
+
+      // 农民不要乱压农民，这里理论上外层已 pass，留作保险。
+      if (state.lastPlay && sameTeam(player, state.lastPlay.player) && player !== state.landlord) score += 40;
+
+      return { move, score };
+    });
+
+    scored.sort((a, b) => a.score - b.score);
+    return scored[0].move.cards;
+  }
+
+  function findBeat(hand, lastType) {
+    // 给“提示”按钮用：只看合法性和手牌结构，不考虑队友放行。
+    const saved = state.players[0]?.hand;
+    const tempPlayer = 0;
+    if (state.players[tempPlayer]) state.players[tempPlayer].hand = hand;
+    const moves = enumerateLegalMoves(hand, lastType);
+    if (state.players[tempPlayer]) state.players[tempPlayer].hand = saved;
+    if (!moves.length) return null;
+    const scored = moves.map(move => {
+      const remain = removeCardsCopy(hand, move.cards);
+      return { move, score: handValuePenalty(remain) + moveBasePenalty(move, { critical: true }) + splitPenaltyForMove(hand, move.cards) };
+    });
+    scored.sort((a, b) => a.score - b.score);
+    return scored[0].move.cards;
+  }
+
+  function chooseLead(hand) {
+    const moves = enumerateLegalMoves(hand, null).filter(m => m.type.type !== 'rocket' && m.type.type !== 'bomb');
+    if (!moves.length) return [handGroups([...hand])[0].cards[0]];
+    moves.sort((a, b) => {
+      const ar = handValuePenalty(removeCardsCopy(hand, a.cards)) + moveBasePenalty(a, { critical: false }) + splitPenaltyForMove(hand, a.cards) - a.cards.length * 2;
+      const br = handValuePenalty(removeCardsCopy(hand, b.cards)) + moveBasePenalty(b, { critical: false }) + splitPenaltyForMove(hand, b.cards) - b.cards.length * 2;
+      return ar - br;
+    });
+    return moves[0].cards;
+  }
+
+  // v6：结构化拆牌 + 轻量蒙特卡洛 AI。
+  // 真正 DouZero 用训练好的神经网络估计 Q(s,a)；这里不接模型，改用：
+  // 手牌结构分析 -> 枚举合法动作 -> 拆牌代价评估 -> 多次随机模拟到终局 -> 选择胜率最高的动作。
+  // 为了让单文件 HTML 也能有强一点的电脑，这里允许 AI 使用完整手牌信息，属于“强度优先”的单机作弊 AI。
+
+  const AI_CONFIG = {
+    maxCandidates: 14,
+    rollouts: 18,
+    maxRolloutSteps: 90,
+    noise: 0.55
+  };
+
+  function simClone() {
+    return {
+      hands: state.players.map(p => p.hand.slice()),
+      current: state.current,
+      lastPlay: state.lastPlay ? {
+        player: state.lastPlay.player,
+        cards: state.lastPlay.cards.slice(),
+        type: { ...state.lastPlay.type }
+      } : null,
+      passCount: state.passCount,
+      landlord: state.landlord
+    };
+  }
+
+  function simSameTeam(sim, a, b) {
+    return a !== sim.landlord && b !== sim.landlord;
+  }
+
+  function simRequired(sim, player = sim.current) {
+    if (!sim.lastPlay || sim.lastPlay.player === player) return null;
+    return sim.lastPlay.type;
+  }
+
+  function simEnemyPlayers(sim, player) {
+    if (player === sim.landlord) return [0, 1, 2].filter(x => x !== player);
+    return [sim.landlord];
+  }
+
+  function simTeamWin(sim, perspective, winner) {
+    if (perspective === sim.landlord) return winner === sim.landlord;
+    return winner !== sim.landlord;
+  }
+
+  function simApply(sim, action) {
+    const p = sim.current;
+    const required = simRequired(sim, p);
+
+    if (!action || action.pass) {
+      if (!required) return null;
+      sim.passCount++;
+      if (sim.passCount >= 2) {
+        const leader = sim.lastPlay.player;
+        sim.lastPlay = null;
+        sim.passCount = 0;
+        sim.current = leader;
+      } else {
+        sim.current = nextPlayer(p);
+      }
+      return null;
+    }
+
+    const type = detectType(action.cards);
+    if (!type || !canBeat(type, required)) return null;
+    sim.hands[p] = removeCardsCopy(sim.hands[p], action.cards);
+    sim.lastPlay = { player: p, cards: action.cards.slice(), type };
+    sim.passCount = 0;
+    if (sim.hands[p].length === 0) return p;
+    sim.current = nextPlayer(p);
+    return null;
+  }
+
+  function quickHandPenalty(hand) {
+    return strategicHandPenalty(hand);
+  }
+
+  function quickMoveCost(move, critical) {
+    if (!move || move.pass) return 0;
+    const t = move.type;
+    let cost = 0;
+    if (t.type === 'rocket') cost += critical ? 8 : 65;
+    if (t.type === 'bomb') cost += critical ? 5 : 48;
+    if (t.type.startsWith('four_two')) cost += 16;
+    if (t.type === 'single' && t.rank >= 16) cost += 10;
+    if (t.type === 'pair' && t.rank >= 16) cost += 9;
+    if (['straight','pair_seq','airplane','airplane_single','airplane_pair'].includes(t.type)) cost -= 9;
+    if (['triple_single','triple_pair'].includes(t.type)) cost -= 5;
+    cost += t.rank * 0.12;
+    return cost;
+  }
+
+  function simCritical(sim, player) {
+    const enemies = simEnemyPlayers(sim, player);
+    return Math.min(...enemies.map(p => sim.hands[p].length)) <= 2;
+  }
+
+  function simHeuristicScore(sim, player, action, required) {
+    const critical = simCritical(sim, player);
+    const lastPlayer = sim.lastPlay ? sim.lastPlay.player : -1;
+
+    if (action && action.pass) {
+      let score = -0.05;
+      if (!required) return -9999;
+      if (lastPlayer >= 0 && simSameTeam(sim, player, lastPlayer) && player !== sim.landlord) {
+        // 队友出的牌，默认放一手；队友越接近出完，越该放。
+        score += sim.hands[lastPlayer].length <= 3 ? 4.2 : 2.0;
+      } else if (lastPlayer >= 0 && !simSameTeam(sim, player, lastPlayer)) {
+        // 敌方出了牌，敌方快没牌时不要轻易放。
+        score -= sim.hands[lastPlayer].length <= 3 ? 5.5 : 0.8;
+      }
+      return score;
+    }
+
+    if (!action || !action.cards) return -9999;
+    if (action.cards.length === sim.hands[player].length) return 9999;
+
+    const remain = removeCardsCopy(sim.hands[player], action.cards);
+    let score = -quickHandPenalty(remain) - quickMoveCost(action, critical) - splitPenaltyForMove(sim.hands[player], action.cards) * 0.9;
+
+    const free = !required;
+    if (free) {
+      score += action.cards.length * 0.85;
+      if (action.type.type === 'single' && sim.hands[player].length > 5) score -= 4.0;
+      if (action.type.type === 'pair' && sim.hands[player].length > 8) score -= 1.2;
+    } else {
+      if (lastPlayer >= 0 && simSameTeam(sim, player, lastPlayer) && player !== sim.landlord) score -= 7.5;
+      if (lastPlayer >= 0 && !simSameTeam(sim, player, lastPlayer)) {
+        const enemyLeft = sim.hands[lastPlayer].length;
+        if (enemyLeft <= 2) score += 8.0;
+        else if (enemyLeft <= 5) score += 2.5;
+      }
+    }
+
+    // 自己快没牌时更愿意抢出牌权。
+    if (remain.length <= 3) score += 4.0;
+    return score;
+  }
+
+  function simLegalActions(sim, player) {
+    const required = simRequired(sim, player);
+    const moves = enumerateLegalMoves(sim.hands[player], required).map(m => ({ cards: m.cards, type: m.type, pass: false }));
+    if (required) moves.push({ pass: true });
+    return moves;
+  }
+
+  function pickSimAction(sim, player) {
+    let actions = simLegalActions(sim, player);
+    if (!actions.length) return { pass: true };
+
+    // 直接能赢就赢。
+    const win = actions.find(a => !a.pass && a.cards.length === sim.hands[player].length);
+    if (win) return win;
+
+    const required = simRequired(sim, player);
+    const critical = simCritical(sim, player);
+
+    // 随机模拟时也别无限乱交炸弹，除非关键或只剩炸弹能压。
+    if (!critical && required && required.type !== 'bomb') {
+      const nonBomb = actions.filter(a => a.pass || !isBombLikeAction(a));
+      const allowedBombs = actions.filter(a => isBombLikeAction(a) && simBombUseAllowed(sim, player, a, required));
+      if (nonBomb.length) actions = nonBomb.concat(allowedBombs.slice(0, 1));
+    }
+    if (!required) {
+      const nonBomb = actions.filter(a => a.type && a.type.type !== 'bomb' && a.type.type !== 'rocket');
+      if (nonBomb.length) actions = nonBomb;
+    }
+
+    const scored = actions.map(a => ({ action: a, score: simHeuristicScore(sim, player, a, required) + (Math.random() - 0.5) * AI_CONFIG.noise }));
+    scored.sort((a, b) => b.score - a.score);
+
+    // 让 rollout 有一点随机性，避免每次模拟完全一样。
+    const r = Math.random();
+    if (r < 0.74) return scored[0].action;
+    if (r < 0.92 && scored[1]) return scored[1].action;
+    if (scored[2]) return scored[2].action;
+    return scored[0].action;
+  }
+
+  function rolloutFrom(sim, perspective) {
+    for (let step = 0; step < AI_CONFIG.maxRolloutSteps; step++) {
+      for (let i = 0; i < 3; i++) {
+        if (sim.hands[i].length === 0) return i;
+      }
+      const p = sim.current;
+      const action = pickSimAction(sim, p);
+      const winner = simApply(sim, action);
+      if (winner !== null) return winner;
+    }
+
+    // 超过步数还没结束，用剩余手牌估值判定，防止极端循环。
+    const values = [0, 1, 2].map(p => ({ p, score: quickHandPenalty(sim.hands[p]) + sim.hands[p].length * 5 }));
+    values.sort((a, b) => a.score - b.score);
+    return values[0].p;
+  }
+
+  function preScoreCandidate(player, action, required) {
+    const sim = simClone();
+    const p = sim.current;
+    const immediate = action && !action.pass && action.cards.length === sim.hands[p].length;
+    if (immediate) return 99999;
+    return simHeuristicScore(sim, player, action, required);
+  }
+
+  function pruneCandidates(player, actions, required) {
+    const immediate = actions.filter(a => !a.pass && a.cards.length === state.players[player].hand.length);
+    if (immediate.length) return immediate;
+
+    const critical = isCriticalDefense(player);
+    let pool = actions;
+
+    // 非关键时刻，跟牌先考虑非炸弹动作；炸弹仍保留 1-2 个作为候选，避免完全不会炸。
+    if (!critical && required && required.type !== 'bomb') {
+      const nonBomb = pool.filter(a => a.pass || !isBombLikeAction(a));
+      const allowedBombs = pool.filter(a => isBombLikeAction(a) && bombUseAllowedInState(player, a, required));
+      pool = nonBomb.concat(allowedBombs.slice(0, 1));
+    }
+    if (!required) {
+      const nonBomb = pool.filter(a => !a.pass && a.type.type !== 'bomb' && a.type.type !== 'rocket');
+      if (nonBomb.length) pool = nonBomb;
+    }
+
+    const scored = pool.map(a => ({ action: a, score: preScoreCandidate(player, a, required) }));
+    scored.sort((a, b) => b.score - a.score);
+
+    const keep = scored.slice(0, AI_CONFIG.maxCandidates).map(x => x.action);
+    const pass = pool.find(a => a.pass);
+    if (pass && !keep.includes(pass)) keep.push(pass);
+    return keep;
+  }
+
+  function chooseMonteCarloMove(player, required) {
+    let actions = enumerateLegalMoves(state.players[player].hand, required).map(m => ({ cards: m.cards, type: m.type, pass: false }));
+    if (required) actions.push({ pass: true });
+    if (!actions.length) return null;
+
+    const directWin = actions.find(a => !a.pass && a.cards.length === state.players[player].hand.length);
+    if (directWin) return directWin.cards;
+
+    // 农民队友出的牌，默认先放行；除非地主只剩 1-2 张必须抢控制权。
+    if (required && shouldPassToPartner(player) && state.players[state.landlord].hand.length > 2) {
+      return null;
+    }
+
+    actions = actions.filter(a => !isBombLikeAction(a) || bombUseAllowedInState(player, a, required));
+    if (!actions.length) return null;
+
+    actions = pruneCandidates(player, actions, required);
+
+    // 根据候选数动态减少模拟次数，避免页面卡住。
+    const rollouts = Math.max(8, Math.floor(AI_CONFIG.rollouts * Math.min(1, 12 / Math.max(1, actions.length))));
+    const results = [];
+
+    for (const action of actions) {
+      let total = 0;
+      let wins = 0;
+      for (let i = 0; i < rollouts; i++) {
+        const sim = simClone();
+        const winnerNow = simApply(sim, action);
+        const winner = winnerNow !== null ? winnerNow : rolloutFrom(sim, player);
+        const win = simTeamWin(sim, player, winner);
+        if (win) wins++;
+        total += win ? 1 : -1;
+
+        // 快速结束有一点点奖励，避免赢面差不多时拖。
+        if (winnerNow !== null && win) total += 0.2;
+      }
+
+      // 加一点启发式作为平局破坏项。
+      const h = preScoreCandidate(player, action, required) * 0.015;
+      results.push({ action, score: total / rollouts + h, wins, rollouts });
+    }
+
+    results.sort((a, b) => b.score - a.score);
+    const best = results[0].action;
+    return best.pass ? null : best.cards;
+  }
+
+  async function aiAct() {
+    if (state.gameOver || state.current === 0) return;
+    const p = state.current;
+    try {
+      updateStatus(`DouZero 思考中：${playerName(p)}`, `地主：${playerName(state.landlord)}。如果卡住，请检查 Python 后端。`);
+      const ranks = await requestDouZeroAction(p);
+      if (!ranks || ranks.length === 0) {
+        pass(p);
+        return;
+      }
+      const play = cardsFromBackendRanks(p, ranks);
+      playCards(p, play);
+    } catch (err) {
+      console.error(err);
+      el.tipline.textContent = err.message || 'DouZero 后端错误。';
+      updateStatus('DouZero 后端错误', '请检查 backend/server.py 是否运行，以及模型路径是否正确。');
+    }
+  }
+
+  function scheduleAI() {
+    clearTimeout(state.aiTimer);
+    if (!state.gameOver && state.current !== 0) {
+      state.aiTimer = setTimeout(aiAct, 1150);
+    }
+  }
+
+  function tryPlayerPlay() {
+    if (state.current !== 0 || state.gameOver) return;
+    const cards = getSelectedCards();
+    const type = detectType(cards);
+    if (!cards.length) {
+      el.tipline.textContent = '请先选择要出的牌。';
+      return;
+    }
+    if (!type) {
+      el.tipline.textContent = '牌型不合法。';
+      return;
+    }
+    if (!canBeat(type, getRequiredType(0))) {
+      el.tipline.textContent = '这手牌压不过上家。';
+      return;
+    }
+    state.selected.clear();
+    el.tipline.textContent = '出牌成功。';
+    playCards(0, cards);
+  }
+
+  function useHint() {
+    if (state.current !== 0 || state.gameOver) return;
+    const hint = findBeat(state.players[0].hand, getRequiredType(0));
+    state.selected.clear();
+    if (hint && hint.length) {
+      hint.forEach(c => state.selected.add(c.id));
+      el.tipline.textContent = '已选择一组可出的牌。';
+    } else {
+      el.tipline.textContent = '没有可压的牌，可以不要。';
+    }
+    updateUI();
+  }
+
+  function startGame() {
+    clearTimeout(state.aiTimer);
+    el.toast.classList.remove('show');
+    state.selected.clear();
+    state.lastPlay = null;
+    state.passCount = 0;
+    state.gameOver = false;
+    state.historyText = ['', '', ''];
+    state.actionHistory = [];
+    state.initialHands = [[], [], []];
+
+    const deck = shuffle(makeDeck());
+    state.players = [
+      { hand: [], lastShown: [], passed: false },
+      { hand: [], lastShown: [], passed: false },
+      { hand: [], lastShown: [], passed: false }
+    ];
+    for (let i = 0; i < 51; i++) state.players[i % 3].hand.push(deck[i]);
+    state.bottom = deck.slice(51);
+    state.landlord = Math.floor(Math.random() * 3);
+    state.players[state.landlord].hand.push(...state.bottom);
+    state.current = state.landlord;
+    for (const p of state.players) sortHand(p.hand);
+    state.initialHands = state.players.map(p => p.hand.map(cardToBackendRank));
+
+    el.tipline.textContent = '新一局开始。随机地主，地主先出。正在使用 DouZero 后端。';
+    updateUI();
+    checkDouZeroBackend();
+    scheduleAI();
+  }
+
+  el.newGameBtn.addEventListener('click', startGame);
+  el.toastBtn.addEventListener('click', startGame);
+  el.playBtn.addEventListener('click', tryPlayerPlay);
+  el.passBtn.addEventListener('click', () => {
+    if (state.current !== 0 || state.gameOver) return;
+    if (isFreeTurn(0)) {
+      el.tipline.textContent = '当前为自由出牌，不能不要。';
+      return;
+    }
+    state.selected.clear();
+    pass(0);
+  });
+  el.hintBtn.addEventListener('click', useHint);
+  el.clearBtn.addEventListener('click', () => {
+    state.selected.clear();
+    el.tipline.textContent = '已取消选择。';
+    updateUI();
+  });
+
+  window.addEventListener('keydown', e => {
+    if (e.code === 'Space') {
+      e.preventDefault();
+      tryPlayerPlay();
+    }
+    if (e.code === 'KeyP') {
+      e.preventDefault();
+      if (!el.passBtn.disabled) el.passBtn.click();
+    }
+    if (e.code === 'KeyH') {
+      e.preventDefault();
+      useHint();
+    }
+    if (e.code === 'Escape') {
+      state.selected.clear();
+      updateUI();
+    }
+  });
+
+  startGame();
+})();
+
+</script>
+</body>
+</html>

@@ -1,0 +1,1295 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>裂隙佣兵团 - 小战棋 Roguelike v4</title>
+<style>
+  :root{
+    --bg0:#090b13;
+    --bg1:#141827;
+    --panel:#1b1a25cc;
+    --panel2:#252235f2;
+    --gold:#d7b56d;
+    --gold2:#f3d995;
+    --red:#d65b5b;
+    --green:#64d68a;
+    --blue:#75a7ff;
+    --text:#f4ead3;
+    --muted:#b6a989;
+    --line:#514461;
+  }
+  *{box-sizing:border-box;user-select:none}
+  body{
+    margin:0;
+    min-height:100vh;
+    overflow:hidden;
+    font-family: "Microsoft YaHei", "Segoe UI", system-ui, sans-serif;
+    color:var(--text);
+    background:
+      radial-gradient(circle at 18% 12%, #4b2f64 0, transparent 26%),
+      radial-gradient(circle at 80% 18%, #173c5c 0, transparent 28%),
+      radial-gradient(circle at 50% 100%, #4f241f 0, transparent 34%),
+      linear-gradient(135deg, var(--bg0), var(--bg1) 56%, #100d18);
+  }
+  body::before{
+    content:"";
+    position:fixed;inset:0;
+    background:
+      linear-gradient(transparent 0 96%, #ffffff05 97% 100%),
+      linear-gradient(90deg, transparent 0 96%, #ffffff04 97% 100%);
+    background-size:46px 46px;
+    opacity:.18;
+    pointer-events:none;
+  }
+  body::after{
+    content:"";
+    position:fixed;inset:-80px;
+    background: radial-gradient(circle at center, transparent 38%, #000a 79%);
+    pointer-events:none;
+  }
+  #app{
+    position:relative;
+    z-index:2;
+    display:grid;
+    grid-template-columns:minmax(760px, 1fr) 360px;
+    gap:20px;
+    height:100vh;
+    padding:22px;
+  }
+  .game-wrap{
+    position:relative;
+    border:1px solid #806c4388;
+    border-radius:24px;
+    background:linear-gradient(145deg, #121321cc, #21192ccc);
+    box-shadow:0 22px 70px #000b, inset 0 0 60px #0008, 0 0 0 1px #ffffff10;
+    overflow:hidden;
+  }
+  .game-wrap::before{
+    content:"";
+    position:absolute;inset:0;
+    background: radial-gradient(circle at 50% 42%, transparent 0 56%, #0008 100%);
+    pointer-events:none;
+  }
+  canvas{
+    width:100%;height:100%;display:block;
+  }
+
+  .cell-tip{
+    position:absolute;
+    z-index:4;
+    width:260px;
+    max-width:calc(100% - 28px);
+    pointer-events:none;
+    display:none;
+    border:1px solid #f3d995aa;
+    border-radius:14px;
+    padding:10px 12px;
+    background:linear-gradient(160deg,#121522f8,#241b31f4);
+    color:#f4ead3;
+    box-shadow:0 14px 32px #000b,0 0 18px #d7b56d33;
+    font-size:13px;
+    line-height:1.45;
+  }
+  .cell-tip.show{display:block}
+  .cell-tip b{display:block;color:#ffe39d;font-size:15px;margin-bottom:4px}
+  .cell-tip small{display:block;color:#94d7ff;margin-bottom:4px}
+  .cell-tip span{color:#d8ccb0}
+
+  .side{
+    display:flex;
+    flex-direction:column;
+    gap:14px;
+    overflow-y:auto;
+    padding-right:4px;
+  }
+  .card{
+    border:1px solid #75613d99;
+    border-radius:20px;
+    padding:16px;
+    background:linear-gradient(160deg, var(--panel2), var(--panel));
+    box-shadow:0 14px 38px #0008, inset 0 0 34px #0005;
+  }
+  h1{
+    margin:0 0 4px;
+    font-size:27px;
+    letter-spacing:2px;
+    color:var(--gold2);
+    text-shadow:0 0 16px #e1ad4655;
+  }
+  .subtitle{font-size:13px;color:var(--muted);line-height:1.55}
+  .row{display:flex;align-items:center;justify-content:space-between;gap:10px;margin:8px 0;color:#dacda9;font-size:14px}
+  .bar{
+    height:15px;border-radius:99px;background:#0b0b10;border:1px solid #625039;overflow:hidden;box-shadow:inset 0 0 12px #000;
+  }
+  .bar > span{display:block;height:100%;width:50%;background:linear-gradient(90deg,#8f2626,#e16a5d,#ffd2a6);box-shadow:0 0 14px #ff6555aa;transition:width .25s}
+  .bar.shield > span{background:linear-gradient(90deg,#31508d,#75a7ff,#d8edff);box-shadow:0 0 14px #75a7ff88}
+  .stat-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px}
+  .stat{
+    padding:10px 11px;border:1px solid #574863;border-radius:14px;background:#0f111bcc;
+    color:#eadfbe;font-size:13px;
+  }
+  .stat b{display:block;color:#fff2bc;font-size:18px;margin-top:2px}
+  .actions{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  button{
+    border:1px solid #8d7448;
+    border-radius:14px;
+    color:#fff0ce;
+    background:linear-gradient(180deg,#43324d,#241e31);
+    padding:10px 10px;
+    font-weight:700;
+    letter-spacing:.5px;
+    cursor:pointer;
+    box-shadow:0 6px 16px #0007, inset 0 1px 0 #ffffff24;
+    transition:.16s transform,.16s filter,.16s border;
+  }
+  button:hover{transform:translateY(-1px);filter:brightness(1.13);border-color:#d5b76f}
+  button:active{transform:translateY(1px)}
+  button.active{background:linear-gradient(180deg,#79613d,#3a2b23);border-color:#f3d995;box-shadow:0 0 18px #e8b34a66}
+  button:disabled{opacity:.38;cursor:not-allowed;transform:none;filter:grayscale(.3)}
+  .wide{grid-column:1 / -1}
+  .log{
+    height:180px;overflow:auto;font-size:13px;line-height:1.5;color:#d9ceb0;padding-right:5px;
+  }
+  .log div{padding:5px 0;border-bottom:1px solid #ffffff0b}
+  .log b{color:#ffdd8b}
+  .relics{display:flex;gap:7px;flex-wrap:wrap;min-height:34px}
+  .relic{
+    border:1px solid #735f3c;border-radius:999px;padding:6px 9px;background:#111521;color:#f0d99c;font-size:12px;
+  }
+  .hint{font-size:12px;color:#a99d82;line-height:1.6;margin-top:8px}
+
+  .inspect-box{
+    min-height:86px;
+    border:1px solid #574863;
+    border-radius:16px;
+    padding:12px;
+    background:#0d101acc;
+    box-shadow:inset 0 0 18px #0006;
+  }
+  .inspect-title{font-weight:800;color:#ffe39d;font-size:17px;margin-bottom:6px}
+  .inspect-meta{font-size:12px;color:#94d7ff;margin-bottom:5px}
+  .inspect-text{font-size:13px;color:#d8ccb0;line-height:1.55}
+  .codex{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+  .codex-item{border:1px solid #5e5040;border-radius:12px;background:#10131dcc;padding:8px;font-size:12px;color:#d8ccb0;line-height:1.45}
+  .codex-item b{display:block;color:#ffe39d;margin-bottom:3px}
+  .overlay{
+    position:fixed;inset:0;z-index:5;
+    display:none;align-items:center;justify-content:center;padding:24px;
+    background:radial-gradient(circle at 50% 45%, #1a1733dd, #05060dee 72%);
+  }
+  .overlay.show{display:flex}
+  .modal{
+    width:min(860px, 92vw);
+    border:1px solid #a1844b;
+    border-radius:26px;
+    padding:28px;
+    background:linear-gradient(145deg,#28223a,#151520 70%);
+    box-shadow:0 30px 90px #000d, inset 0 0 70px #0007, 0 0 0 1px #fff1;
+  }
+  .modal h2{margin:0 0 10px;color:#ffe39d;font-size:34px;letter-spacing:2px;text-shadow:0 0 22px #d6993c66}
+  .modal p{color:#d9cba6;line-height:1.8;margin:10px 0}
+  .modal .modal-actions{display:flex;gap:12px;flex-wrap:wrap;margin-top:18px}
+  .reward-grid{display:grid;grid-template-columns:repeat(3, 1fr);gap:14px;margin-top:18px}
+  .reward{
+    min-height:170px;border:1px solid #79633e;border-radius:20px;padding:15px;background:linear-gradient(160deg,#2c253d,#141720);
+    cursor:pointer;transition:.18s transform,.18s border,.18s box-shadow;
+  }
+  .reward:hover{transform:translateY(-4px);border-color:#f1d184;box-shadow:0 16px 34px #0008,0 0 22px #e6b85444}
+  .reward .icon{
+    width:44px;height:44px;border-radius:15px;margin-bottom:10px;
+    background:radial-gradient(circle at 35% 25%, #fff7, transparent 28%), linear-gradient(145deg,#8257cf,#2a73a8);
+    box-shadow:0 0 18px #7e65ff66;
+  }
+  .reward h3{margin:0 0 7px;color:#ffe39d}
+  .reward p{margin:0;color:#cfc2a4;font-size:13px;line-height:1.55}
+  @media (max-width: 1100px){
+    #app{grid-template-columns:1fr;overflow:auto;height:auto;min-height:100vh}
+    .game-wrap{height:720px}
+    body{overflow:auto}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <div class="game-wrap">
+    <canvas id="game" width="920" height="720"></canvas>
+    <div id="cellTip" class="cell-tip"></div>
+  </div>
+  <aside class="side">
+    <section class="card">
+      <h1>裂隙佣兵团</h1>
+      <div class="subtitle">剑与魔法小战棋 Roguelike · 存活至上</div>
+      <div class="row"><span>生命</span><span id="hpText">-</span></div>
+      <div class="bar"><span id="hpBar"></span></div>
+      <div class="row"><span>护盾</span><span id="shieldText">-</span></div>
+      <div class="bar shield"><span id="shieldBar"></span></div>
+      <div class="stat-grid">
+        <div class="stat">关卡 <b id="levelText">1 / 6</b></div>
+        <div class="stat">回合 <b id="turnText">1</b></div>
+        <div class="stat">攻击 <b id="atkText">2</b></div>
+        <div class="stat">移动 <b id="moveText">3</b></div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="row" style="margin-top:0"><b>行动</b><span id="phaseText">玩家回合</span></div>
+      <div class="actions">
+        <button data-action="move">移动</button>
+        <button data-action="slash">斩击</button>
+        <button data-action="bash">盾撞</button>
+        <button data-action="leap">跳斩</button>
+        <button data-action="guard">格挡</button>
+        <button data-action="whirl">旋风斩</button>
+        <button class="wide" data-action="end">结束回合</button>
+      </div>
+      <div class="hint">鼠标悬停或点击任意格子都会弹出说明。移动不消耗攻击；攻击、格挡、旋风斩会结束玩家回合。红色预警格表示下一次危险区域。</div>
+    </section>
+
+
+
+    <section class="card">
+      <div class="row" style="margin-top:0"><b>当前查看</b><span id="inspectCoord">-</span></div>
+      <div class="inspect-box">
+        <div class="inspect-title" id="inspectTitle">把鼠标放到棋盘或技能按钮上</div>
+        <div class="inspect-meta" id="inspectMeta">提示会固定显示在这里</div>
+        <div class="inspect-text" id="inspectText">地刺、回血泉、裂隙、敌人、玩家和技能都会显示作用。点击格子后也会保留说明</div>
+      </div>
+      <div class="codex">
+        <div class="codex-item"><b>地刺 -1</b>踩上扣 1 血；用盾撞把怪推上去也会触发。</div>
+        <div class="codex-item"><b>回血 +3</b>玩家踩上最多恢复 3 点生命，使用后消失。</div>
+        <div class="codex-item"><b>刷怪口</b>每 3 个敌方回合，在旁边刷出小怪。</div>
+        <div class="codex-item"><b>石墙</b>挡路、挡箭；盾撞把怪撞墙会追加 1 点伤害。</div>
+      </div>
+    </section>
+
+    <section class="card">
+      <div class="row" style="margin-top:0"><b>遗物</b><span id="relicCount">0</span></div>
+      <div class="relics" id="relics"></div>
+    </section>
+
+    <section class="card" style="flex:1;min-height:230px">
+      <div class="row" style="margin-top:0"><b>战斗日志</b><span>Log</span></div>
+      <div class="log" id="log"></div>
+    </section>
+  </aside>
+</div>
+
+<div class="overlay show" id="menuOverlay">
+  <div class="modal">
+    <h2>裂隙佣兵团</h2>
+    <p>王国边境裂开了一道会呼吸的魔法伤口。你不是预言之子，只是一个接了委托的剑士。好消息：报酬写得很漂亮。坏消息：写报酬的人一般不用亲自进地牢。</p>
+    <p><b>玩法：</b>在 8×8 棋盘中移动、斩击、盾撞、跳斩和格挡。把鼠标放到棋盘、地形或技能按钮上，右侧会显示作用说明。清掉敌人后选择奖励，连续通过 5 个小关并击败裂隙骑士。</p>
+    <div class="modal-actions">
+      <button id="startBtn">开始委托</button>
+    </div>
+  </div>
+</div>
+
+<div class="overlay" id="rewardOverlay">
+  <div class="modal">
+    <h2>选择战利品</h2>
+    <p>裂隙短暂安静下来。挑一个东西带走，别挑太久，地下的东西通常没有耐心。</p>
+    <div class="reward-grid" id="rewardGrid"></div>
+  </div>
+</div>
+
+<div class="overlay" id="endOverlay">
+  <div class="modal">
+    <h2 id="endTitle">任务结束</h2>
+    <p id="endText"></p>
+    <div class="modal-actions">
+      <button id="restartBtn">重新开始</button>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('game');
+  const ctx = canvas.getContext('2d');
+  const W = canvas.width, H = canvas.height;
+  const GRID = 8;
+  const TILE = 68;
+  const BX = 78;
+  const BY = 70;
+  const CENTER = (c) => ({x: BX + c.x*TILE + TILE/2, y: BY + c.y*TILE + TILE/2});
+
+  const $ = (id) => document.getElementById(id);
+  const ui = {
+    hpText:$('hpText'), hpBar:$('hpBar'), shieldText:$('shieldText'), shieldBar:$('shieldBar'),
+    levelText:$('levelText'), turnText:$('turnText'), atkText:$('atkText'), moveText:$('moveText'),
+    phaseText:$('phaseText'), log:$('log'), relics:$('relics'), relicCount:$('relicCount'),
+    inspectTitle:$('inspectTitle'), inspectMeta:$('inspectMeta'), inspectText:$('inspectText'), inspectCoord:$('inspectCoord'), cellTip:$('cellTip'),
+    menu:$('menuOverlay'), reward:$('rewardOverlay'), end:$('endOverlay'), rewardGrid:$('rewardGrid'),
+    endTitle:$('endTitle'), endText:$('endText')
+  };
+
+  const TERRAIN = { FLOOR:0, WALL:1, TRAP:2, FOUNTAIN:3, RIFT:4 };
+  let game;
+  let mouse = {x:0,y:0,cell:null};
+  let selectedAction = 'move';
+  let highlights = new Map();
+  let particles = [];
+  let floatingTexts = [];
+  let shake = 0;
+  let last = performance.now();
+
+  function rnd(min,max){return Math.floor(Math.random()*(max-min+1))+min}
+  function pick(arr){return arr[Math.floor(Math.random()*arr.length)]}
+  function key(x,y){return `${x},${y}`}
+  function inBounds(x,y){return x>=0&&y>=0&&x<GRID&&y<GRID}
+  function man(a,b){return Math.abs(a.x-b.x)+Math.abs(a.y-b.y)}
+  function sleep(ms){return new Promise(r=>setTimeout(r,ms))}
+
+  function newGame(){
+    game = {
+      screen:'combat', phase:'player', level:1, maxLevel:6, turn:1, enemyTurnCount:0,
+      player:{x:0,y:7,hp:12,maxHp:12,armor:0,atk:2,move:3,guardPower:3,whirlCd:0,whirlMaxCd:3,whirlDmg:2,reach:1,lifeSteal:false,moveUsed:false,actionUsed:false},
+      cells:[], enemies:[], logs:[], relics:[], pendingRewards:[]
+    };
+    ui.menu.classList.remove('show');
+    ui.reward.classList.remove('show');
+    ui.end.classList.remove('show');
+    createLevel(1);
+    log('委托开始。');
+    updateUI();
+    showInspect('开始探索','把鼠标放到棋盘/技能按钮上','则会显示提示');
+  }
+
+  function createBlankCells(){
+    const cells=[];
+    for(let y=0;y<GRID;y++){
+      const row=[];
+      for(let x=0;x<GRID;x++) row.push({type:TERRAIN.FLOOR, seed:Math.random()});
+      cells.push(row);
+    }
+    return cells;
+  }
+
+  function createLevel(n){
+    game.level=n;
+    game.turn=1;
+    game.enemyTurnCount=0;
+    game.phase='player';
+    selectedAction='move';
+    game.player.x=0; game.player.y=7; game.player.armor=0; game.player.moveUsed=false; game.player.actionUsed=false;
+    game.player.whirlCd=Math.max(0,game.player.whirlCd-1);
+    game.cells=createBlankCells();
+    game.enemies=[];
+
+    const forbidden = new Set([key(0,7),key(1,7),key(0,6),key(1,6),key(7,0),key(6,0)]);
+    const wallCount = n===6 ? 5 : 5+n;
+    for(let i=0;i<wallCount;i++) placeTerrain(TERRAIN.WALL, forbidden);
+    for(let i=0;i<Math.min(4,1+Math.floor(n/2));i++) placeTerrain(TERRAIN.TRAP, forbidden);
+    if(n>=3 && n<6) placeTerrain(TERRAIN.FOUNTAIN, forbidden);
+    if(n>=4 && n<6) placeTerrain(TERRAIN.RIFT, forbidden);
+
+    if(n<6){
+      const waves = [
+        ['goblin','goblin','slime'],
+        ['goblin','archer','slime','bat'],
+        ['goblin','archer','archer','bat','slime'],
+        ['goblin','archer','bat','priest','slime'],
+        ['goblin','goblin','archer','bat','priest','slime']
+      ];
+      for(const t of waves[n-1]) spawnEnemy(t);
+      log(`<b>第 ${n} 层：</b>裂隙吐出了新的敌人。`);
+    }else{
+      spawnEnemy('boss', 6, 1);
+      spawnEnemy('archer', 7, 0);
+      spawnEnemy('bat', 5, 0);
+      log('<b>最终层：</b>裂隙骑士从黑火中抬头。');
+    }
+    refreshHighlights();
+    updateUI();
+  }
+
+  function placeTerrain(type, forbidden){
+    for(let tries=0;tries<80;tries++){
+      const x=rnd(0,7), y=rnd(0,7);
+      const k=key(x,y);
+      if(forbidden.has(k)) continue;
+      if(game.cells[y][x].type!==TERRAIN.FLOOR) continue;
+      if(type===TERRAIN.WALL && (x+y<2 || x+y>12)) continue;
+      game.cells[y][x].type=type;
+      forbidden.add(k);
+      return;
+    }
+  }
+
+  function spawnEnemy(type, fx=null, fy=null){
+    let x=fx,y=fy;
+    if(x===null){
+      for(let tries=0;tries<100;tries++){
+        x=rnd(4,7); y=rnd(0,4);
+        if(isWalkable(x,y) && !enemyAt(x,y) && !(game.player.x===x&&game.player.y===y)) break;
+      }
+    }
+    const stats = {
+      goblin:{name:'哥布林',hp:3,maxHp:3,atk:1,kind:'goblin'},
+      archer:{name:'骷髅弓手',hp:2,maxHp:2,atk:1,kind:'archer',range:4},
+      slime:{name:'裂隙史莱姆',hp:4,maxHp:4,atk:1,kind:'slime',slow:0,small:false},
+      smallSlime:{name:'小史莱姆',hp:1,maxHp:1,atk:1,kind:'slime',slow:0,small:true},
+      bat:{name:'爆炸蝙蝠',hp:2,maxHp:2,atk:2,kind:'bat',primed:false},
+      priest:{name:'裂隙祭司',hp:4,maxHp:4,atk:0,kind:'priest',summonCd:1},
+      boss:{name:'裂隙骑士',hp:16,maxHp:16,atk:2,kind:'boss',chargeCd:1,intent:null}
+    }[type];
+    game.enemies.push({id:cryptoRandom(),x,y,...stats,flash:0});
+  }
+
+  function cryptoRandom(){ return Math.random().toString(36).slice(2) + Date.now().toString(36); }
+
+  function isWalkable(x,y){
+    return inBounds(x,y) && game.cells[y][x].type !== TERRAIN.WALL;
+  }
+  function occupied(x,y){ return (game.player.x===x&&game.player.y===y) || !!enemyAt(x,y); }
+  function enemyAt(x,y){ return game.enemies.find(e=>e.hp>0&&e.x===x&&e.y===y); }
+
+  function neighbors(x,y){
+    return [[1,0],[-1,0],[0,1],[0,-1]].map(([dx,dy])=>({x:x+dx,y:y+dy})).filter(p=>isWalkable(p.x,p.y));
+  }
+
+  function reachableFrom(start, range, blockEnemies=true){
+    const q=[{x:start.x,y:start.y,d:0}], seen=new Set([key(start.x,start.y)]), out=[];
+    while(q.length){
+      const p=q.shift(); out.push(p);
+      if(p.d>=range) continue;
+      for(const n of neighbors(p.x,p.y)){
+        const k=key(n.x,n.y);
+        if(seen.has(k)) continue;
+        if(blockEnemies && enemyAt(n.x,n.y)) continue;
+        seen.add(k); q.push({x:n.x,y:n.y,d:p.d+1});
+      }
+    }
+    return out;
+  }
+
+  function stepToward(unit, target){
+    const q=[{x:unit.x,y:unit.y,path:[]}], seen=new Set([key(unit.x,unit.y)]);
+    let best=null, bestD=999;
+    while(q.length){
+      const p=q.shift();
+      const d=man(p,target);
+      if(d<bestD && !(p.x===unit.x&&p.y===unit.y)){best=p;bestD=d;}
+      if(p.path.length>=7) continue;
+      for(const n of neighbors(p.x,p.y)){
+        const k=key(n.x,n.y);
+        if(seen.has(k)) continue;
+        if(enemyAt(n.x,n.y) && !(n.x===unit.x&&n.y===unit.y)) continue;
+        if(game.player.x===n.x&&game.player.y===n.y) continue;
+        seen.add(k); q.push({x:n.x,y:n.y,path:[...p.path,n]});
+      }
+    }
+    return best && best.path[0];
+  }
+
+  function stepAway(unit, target){
+    let options=neighbors(unit.x,unit.y).filter(p=>!occupied(p.x,p.y));
+    options.sort((a,b)=>man(b,target)-man(a,target));
+    return options[0];
+  }
+
+  function hasLine(a,b,range=99){
+    if(a.x!==b.x && a.y!==b.y) return false;
+    if(man(a,b)>range) return false;
+    const dx=Math.sign(b.x-a.x), dy=Math.sign(b.y-a.y);
+    let x=a.x+dx,y=a.y+dy;
+    while(x!==b.x || y!==b.y){
+      if(!isWalkable(x,y)) return false;
+      x+=dx;y+=dy;
+    }
+    return true;
+  }
+
+
+  const SKILL_INFO = {
+    move:{name:'移动', meta:'行动 · 每回合一次', text:'移动到蓝色高亮格。移动不会结束回合，但踩到地刺会扣血，踩到回血泉会恢复生命。'},
+    slash:{name:'斩击', meta:'攻击 · 结束回合', text:'稳定近战攻击。默认攻击相邻敌人；拿到“长锋剑柄”后可以隔一格攻击。优势是安全、稳定，不强制位移。'},
+    bash:{name:'盾撞', meta:'控制 · 结束回合', text:'对相邻敌人造成小伤害并推开 1 格。把敌人推到地刺会触发陷阱；撞到墙或其他单位会额外造成 1 点撞击伤害。'},
+    leap:{name:'跳斩', meta:'位移攻击 · 结束回合', text:'跳到目标旁边并攻击，适合追弓手或越过障碍。但会把自己送到敌人附近，落地如果是地刺/泉水也会触发。'},
+    guard:{name:'格挡', meta:'防御 · 结束回合', text:'立刻获得护盾，抵挡接下来的伤害。回合开始后护盾会慢慢衰减，适合等敌人靠近或抗 Boss 预警攻击。'},
+    whirl:{name:'旋风斩', meta:'范围攻击 · 有冷却', text:'攻击周围一圈敌人。适合被包围时清场，但有冷却，别拿来砍空气。'},
+    end:{name:'结束回合', meta:'交给敌人行动', text:'结束玩家回合，所有敌人依次行动。没把事情做完就结束，地牢不会体谅你的手滑。'}
+  };
+
+  function terrainName(type){
+    return {
+      [TERRAIN.FLOOR]:'普通地面',
+      [TERRAIN.WALL]:'石墙',
+      [TERRAIN.TRAP]:'地刺陷阱',
+      [TERRAIN.FOUNTAIN]:'回血泉水',
+      [TERRAIN.RIFT]:'裂隙刷怪口'
+    }[type] || '未知地形';
+  }
+  function terrainMeta(type){
+    return {
+      [TERRAIN.FLOOR]:'可通行',
+      [TERRAIN.WALL]:'不可通行 · 挡箭',
+      [TERRAIN.TRAP]:'触发后扣 1 血 · 一次性',
+      [TERRAIN.FOUNTAIN]:'恢复最多 3 点生命 · 一次性',
+      [TERRAIN.RIFT]:'每 3 个敌方回合刷怪'
+    }[type] || '';
+  }
+  function terrainText(type){
+    return {
+      [TERRAIN.FLOOR]:'普通地面，没有特殊效果。',
+      [TERRAIN.WALL]:'石墙会挡住移动和直线射击。用盾撞把敌人撞到墙上，会额外造成 1 点伤害。',
+      [TERRAIN.TRAP]:'玩家或敌人踩上会受到 1 点伤害，然后地刺消失。盾撞可以把怪推进地刺，是这个技能的核心用途之一。',
+      [TERRAIN.FOUNTAIN]:'只有玩家踩上时触发，最多恢复 3 点生命，然后泉水消失。敌人踩上不会回血。',
+      [TERRAIN.RIFT]:'裂隙会周期性吐出哥布林或爆炸蝙蝠。'
+    }[type] || '没有说明。';
+  }
+  function showInspect(title, meta, text, coord='-'){
+    if(!ui.inspectTitle) return;
+    ui.inspectTitle.textContent = title;
+    ui.inspectMeta.textContent = meta || '';
+    ui.inspectText.textContent = text || '';
+    ui.inspectCoord.textContent = coord;
+  }
+  function cellInfo(c){
+    if(!c || !game || !game.cells || !inBounds(c.x,c.y)) return null;
+    const coord = `${c.x+1}, ${c.y+1}`;
+    if(game.player && game.player.x===c.x && game.player.y===c.y){
+      const p=game.player;
+      return {title:'剑士 / 玩家', meta:`坐标 ${coord} · 生命 ${p.hp}/${p.maxHp} · 护盾 ${p.armor}`, text:`移动力 ${p.move}，攻击力 ${p.atk}。本回合移动${p.moveUsed?'已用':'未用'}，行动${p.actionUsed?'已用':'未用'}。`, coord, accent:'#b9dcff'};
+    }
+    const e=enemyAt(c.x,c.y);
+    if(e) return {title:e.name, meta:`坐标 ${coord} · 生命 ${e.hp}/${e.maxHp}`, text:enemyTip(e), coord, accent:enemyColor(e)};
+    const t=game.cells[c.y][c.x].type;
+    return {title:terrainName(t), meta:`坐标 ${coord} · ${terrainMeta(t)}`, text:terrainText(t), coord, accent:t===TERRAIN.TRAP?'#ff9b8f':t===TERRAIN.FOUNTAIN?'#b6f4ff':t===TERRAIN.RIFT?'#d9b2ff':t===TERRAIN.WALL?'#d9cba6':'#c8b98e'};
+  }
+  function inspectCell(c){
+    const info = cellInfo(c);
+    if(!info){
+      showInspect('把鼠标放到棋盘或技能按钮上','提示会固定显示在这里','地刺、回血泉、裂隙、敌人、玩家和技能都会显示作用。');
+      return;
+    }
+    showInspect(info.title, info.meta, info.text, info.coord);
+  }
+  function showCellTip(c, ev){
+    if(!ui.cellTip) return;
+    const info = cellInfo(c);
+    if(!info){ hideCellTip(); return; }
+    ui.cellTip.innerHTML = `<b style="color:${info.accent}">${info.title}</b><small>${info.meta}</small><span>${info.text}</span>`;
+    const r = canvas.getBoundingClientRect();
+    let left = ev.clientX - r.left + 18;
+    let top = ev.clientY - r.top + 18;
+    const boxW = 270, boxH = 128;
+    if(left + boxW > r.width) left = Math.max(10, ev.clientX - r.left - boxW - 18);
+    if(top + boxH > r.height) top = Math.max(10, ev.clientY - r.top - boxH - 18);
+    ui.cellTip.style.left = `${left}px`;
+    ui.cellTip.style.top = `${top}px`;
+    ui.cellTip.classList.add('show');
+  }
+  function hideCellTip(){
+    if(ui.cellTip) ui.cellTip.classList.remove('show');
+  }
+
+  function refreshHighlights(){
+    highlights.clear();
+    const p=game.player;
+    if(game.phase!=='player') return;
+    if(selectedAction==='move' && !p.moveUsed){
+      for(const c of reachableFrom(p,p.move,true)) if(!(c.x===p.x&&c.y===p.y)) highlights.set(key(c.x,c.y),'move');
+    }
+    if(selectedAction==='slash' && !p.actionUsed){
+      for(const e of game.enemies) if(e.hp>0 && man(p,e)<=p.reach) highlights.set(key(e.x,e.y),'target');
+    }
+    if(selectedAction==='bash' && !p.actionUsed){
+      for(const e of game.enemies) if(e.hp>0 && man(p,e)===1) highlights.set(key(e.x,e.y),'target');
+    }
+    if(selectedAction==='leap' && !p.actionUsed){
+      for(const e of game.enemies) if(e.hp>0 && man(p,e)<=3 && findEmptyAdjacent(e)) highlights.set(key(e.x,e.y),'target');
+    }
+  }
+
+  function findEmptyAdjacent(e){
+    const arr=neighbors(e.x,e.y).filter(c=>!occupied(c.x,c.y));
+    arr.sort((a,b)=>man(a,game.player)-man(b,game.player));
+    return arr[0];
+  }
+
+  function selectAction(a){
+    if(game.phase!=='player') return;
+    const p=game.player;
+    if(a==='end') return endPlayerTurn();
+    if(a==='guard'){
+      if(p.actionUsed) return;
+      p.armor += p.guardPower;
+      p.actionUsed=true;
+      burst(CENTER(p), '#75a7ff', 18);
+      floatText(p.x,p.y,`护盾 +${p.guardPower}`,'#b9dcff');
+      log('你举盾格挡，钢铁在黑暗中亮了一下。');
+      return endPlayerTurn();
+    }
+    if(a==='whirl'){
+      if(p.actionUsed || p.whirlCd>0) return;
+      let hit=0;
+      for(const e of [...game.enemies]){
+        if(e.hp>0 && man(p,e)<=1){ damageEnemy(e,p.whirlDmg,'旋风斩'); hit++; }
+      }
+      p.actionUsed=true; p.whirlCd=p.whirlMaxCd;
+      burst(CENTER(p), '#f5d064', 30);
+      log(hit ? `旋风斩命中 ${hit} 个敌人。` : '旋风斩卷起灰尘，但没卷到敌人。');
+      if(checkWin()) return;
+      return endPlayerTurn();
+    }
+    selectedAction=a;
+    refreshHighlights();
+    updateUI();
+  }
+
+  function cellFromMouse(mx,my){
+    const x=Math.floor((mx-BX)/TILE), y=Math.floor((my-BY)/TILE);
+    if(!inBounds(x,y)) return null;
+    return {x,y};
+  }
+
+  canvas.addEventListener('mousemove', e=>{
+    const r=canvas.getBoundingClientRect();
+    mouse.x=(e.clientX-r.left)*(canvas.width/r.width);
+    mouse.y=(e.clientY-r.top)*(canvas.height/r.height);
+    mouse.cell=cellFromMouse(mouse.x,mouse.y);
+    inspectCell(mouse.cell);
+    showCellTip(mouse.cell, e);
+  });
+  canvas.addEventListener('mouseleave', ()=>{
+    mouse.cell=null;
+    hideCellTip();
+    showInspect('把鼠标放到棋盘或技能按钮上','提示会固定显示在这里','地刺、回血泉、裂隙、敌人、玩家和技能都会显示作用。');
+  });
+
+  canvas.addEventListener('click', () => {
+    if(!mouse.cell) return;
+    inspectCell(mouse.cell);
+    if(game.phase!=='player') return;
+    const c=mouse.cell, p=game.player;
+    const h=highlights.get(key(c.x,c.y));
+    if(selectedAction==='move' && h==='move'){
+      p.x=c.x; p.y=c.y; p.moveUsed=true;
+      stepOnTerrain();
+      burst(CENTER(p),'#75a7ff',8);
+      log(`你移动到 (${c.x+1}, ${c.y+1})。`);
+      refreshHighlights(); updateUI(); return;
+    }
+    const e=enemyAt(c.x,c.y);
+    if(!e || h!=='target') return;
+    if(selectedAction==='slash'){
+      damageEnemy(e,p.atk,'斩击'); p.actionUsed=true;
+      if(checkWin()) return;
+      return endPlayerTurn();
+    }
+    if(selectedAction==='bash'){
+      damageEnemy(e,1 + Math.floor(p.atk/2),'盾撞');
+      pushEnemy(e, Math.sign(e.x-p.x), Math.sign(e.y-p.y));
+      p.actionUsed=true;
+      if(checkWin()) return;
+      return endPlayerTurn();
+    }
+    if(selectedAction==='leap'){
+      const land=findEmptyAdjacent(e);
+      if(land){ p.x=land.x; p.y=land.y; burst(CENTER(p),'#f0d77a',18); stepOnTerrain(); }
+      damageEnemy(e,p.atk+1,'跳斩'); p.actionUsed=true;
+      if(checkWin()) return;
+      return endPlayerTurn();
+    }
+  });
+
+  document.querySelectorAll('[data-action]').forEach(btn=>{
+    const info = SKILL_INFO[btn.dataset.action];
+    if(info) btn.title = `${info.name}：${info.text}`;
+    btn.addEventListener('mouseenter',()=>{
+      const i=SKILL_INFO[btn.dataset.action];
+      if(i) showInspect(i.name,i.meta,i.text,'技能');
+    });
+    btn.addEventListener('click',()=>selectAction(btn.dataset.action));
+  });
+  $('startBtn').addEventListener('click', newGame);
+  $('restartBtn').addEventListener('click', newGame);
+
+  function stepOnTerrain(){
+    const p=game.player;
+    const t=game.cells[p.y][p.x].type;
+    if(t===TERRAIN.TRAP){
+      damagePlayer(1,'陷阱');
+      game.cells[p.y][p.x].type=TERRAIN.FLOOR;
+      burst(CENTER(p),'#d65b5b',20);
+      log('地上的裂纹咬了你一口。');
+    }
+    if(t===TERRAIN.FOUNTAIN){
+      const heal=Math.min(3,p.maxHp-p.hp);
+      if(heal>0){p.hp+=heal; floatText(p.x,p.y,`+${heal}`,'#75f0a0'); log('魔法泉恢复了你的生命。');}
+      game.cells[p.y][p.x].type=TERRAIN.FLOOR;
+    }
+  }
+
+  function damageEnemy(e, dmg, source){
+    if(!e || e.hp<=0) return;
+    e.hp -= dmg; e.flash=.25;
+    const c=CENTER(e); burst(c, enemyColor(e), 15); floatText(e.x,e.y,`-${dmg}`,'#ffd6c8');
+    log(`${source}命中 ${e.name}，造成 <b>${dmg}</b> 点伤害。`);
+    if(e.hp<=0) killEnemy(e);
+  }
+
+  function killEnemy(e){
+    e.dead=true;
+    burst(CENTER(e),'#f8d070',26);
+    log(`${e.name} 倒下。`);
+    if(game.player.lifeSteal){
+      const heal=Math.min(1, game.player.maxHp-game.player.hp);
+      if(heal>0){game.player.hp+=heal; floatText(game.player.x,game.player.y,'+1','#8dffaf');}
+    }
+    if(e.kind==='slime' && !e.small){
+      const spots=neighbors(e.x,e.y).filter(c=>!occupied(c.x,c.y));
+      for(let i=0;i<Math.min(2,spots.length);i++) spawnEnemy('smallSlime',spots[i].x,spots[i].y);
+      log('史莱姆裂成了更小、更烦的两团。');
+    }
+    game.enemies = game.enemies.filter(x=>x.hp>0);
+  }
+
+  function pushEnemy(e,dx,dy){
+    if(!e || e.hp<=0) return;
+    const nx=e.x+dx, ny=e.y+dy;
+    if(dx===0&&dy===0) return;
+    if(isWalkable(nx,ny) && !occupied(nx,ny)){
+      e.x=nx;e.y=ny;
+      if(game.cells[ny][nx].type===TERRAIN.TRAP){ damageEnemy(e,1,'陷阱'); game.cells[ny][nx].type=TERRAIN.FLOOR; }
+      log(`${e.name} 被撞退。`);
+    }else{
+      damageEnemy(e,1,'撞墙');
+    }
+  }
+
+  function damagePlayer(dmg, source){
+    const p=game.player;
+    let left=dmg;
+    if(p.armor>0){
+      const block=Math.min(p.armor,left); p.armor-=block; left-=block;
+      if(block>0) floatText(p.x,p.y,`挡 ${block}`,'#b9dcff');
+    }
+    if(left>0){
+      p.hp-=left; floatText(p.x,p.y,`-${left}`,'#ffb0a2'); shake=8; burst(CENTER(p),'#d65b5b',20);
+      log(`${source} 对你造成 <b>${left}</b> 点伤害。`);
+    }else{
+      log(`${source} 被护盾挡下。`);
+    }
+    if(p.hp<=0) endGame(false);
+  }
+
+  async function endPlayerTurn(){
+    if(game.phase!=='player') return;
+    game.phase='enemy'; selectedAction='move'; highlights.clear(); updateUI();
+    await sleep(280);
+    await enemyTurn();
+  }
+
+  async function enemyTurn(){
+    if(game.screen!=='combat') return;
+    game.enemyTurnCount++;
+    for(const e of [...game.enemies]){
+      if(game.screen!=='combat' || e.hp<=0) continue;
+      await actEnemy(e);
+      updateUI();
+      await sleep(260);
+      if(game.player.hp<=0) return;
+    }
+    riftSpawn();
+    if(checkWin()) return;
+    game.phase='player'; game.turn++;
+    game.player.moveUsed=false; game.player.actionUsed=false;
+    game.player.armor=Math.max(0, game.player.armor-1);
+    game.player.whirlCd=Math.max(0, game.player.whirlCd-1);
+    refreshHighlights(); updateUI();
+  }
+
+  async function actEnemy(e){
+    const p=game.player;
+    if(e.kind==='goblin'){
+      if(man(e,p)>1) moveEnemyToward(e,p);
+      if(man(e,p)===1) damagePlayer(e.atk,e.name);
+    }
+    if(e.kind==='archer'){
+      if(hasLine(e,p,e.range)){
+        drawProjectile(e,p,'#dad5bd');
+        damagePlayer(e.atk,e.name+' 的骨箭');
+      }else if(man(e,p)<=2){
+        const s=stepAway(e,p); if(s) moveEnemy(e,s.x,s.y);
+      }else{
+        moveEnemyToward(e,p);
+      }
+    }
+    if(e.kind==='slime'){
+      e.slow=(e.slow+1)%2;
+      if(!e.small && e.slow===1){ log(`${e.name} 缓慢蠕动，慢得很有自信。`); return; }
+      if(man(e,p)>1) moveEnemyToward(e,p);
+      if(man(e,p)===1) damagePlayer(e.atk,e.name);
+    }
+    if(e.kind==='bat'){
+      if(e.primed){
+        if(man(e,p)<=1) { explode(e); return; }
+        e.primed=false;
+      }
+      if(man(e,p)>1) moveEnemyToward(e,p);
+      if(man(e,p)<=1){ e.primed=true; log('爆炸蝙蝠开始发光，下回合会自爆。'); }
+    }
+    if(e.kind==='priest'){
+      if(e.summonCd<=0){
+        const spot=neighbors(e.x,e.y).find(c=>!occupied(c.x,c.y));
+        if(spot){ spawnEnemy('goblin',spot.x,spot.y); burst(CENTER(spot),'#b46cff',22); log('裂隙祭司召唤了一个哥布林。'); }
+        e.summonCd=2;
+      }else{
+        e.summonCd--;
+        if(man(e,p)<=2){ const s=stepAway(e,p); if(s) moveEnemy(e,s.x,s.y); }
+        else log('裂隙祭司低声念咒。');
+      }
+    }
+    if(e.kind==='boss'){
+      if(e.intent){
+        const cells=e.intent;
+        log('裂隙骑士的冲锋撕开地面。');
+        for(const c of cells){
+          burst({x:BX+c.x*TILE+TILE/2,y:BY+c.y*TILE+TILE/2},'#e05a45',18);
+          if(p.x===c.x&&p.y===c.y) damagePlayer(3,'裂隙冲锋');
+        }
+        e.intent=null; e.chargeCd=2;
+        return;
+      }
+      if(e.chargeCd<=0){
+        e.intent=bossChargeCells(e,p);
+        log('裂隙骑士压低剑尖，红色格子将在下回合爆发。');
+        e.chargeCd=2;
+      }else{
+        e.chargeCd--;
+        if(man(e,p)>1) moveEnemyToward(e,p);
+        if(man(e,p)===1) damagePlayer(e.atk,'裂隙骑士');
+      }
+    }
+  }
+
+  function moveEnemyToward(e,p){
+    const s=stepToward(e,p);
+    if(s) moveEnemy(e,s.x,s.y);
+  }
+  function moveEnemy(e,x,y){
+    e.x=x;e.y=y; burst(CENTER(e),enemyColor(e),5);
+    const t=game.cells[y][x].type;
+    if(t===TERRAIN.TRAP){ damageEnemy(e,1,'陷阱'); game.cells[y][x].type=TERRAIN.FLOOR; }
+  }
+  function explode(e){
+    log('爆炸蝙蝠炸开了，发出震耳欲聋的爆炸声。');
+    for(let y=e.y-1;y<=e.y+1;y++) for(let x=e.x-1;x<=e.x+1;x++){
+      if(inBounds(x,y)) burst({x:BX+x*TILE+TILE/2,y:BY+y*TILE+TILE/2},'#ff8a3d',8);
+      if(game.player.x===x&&game.player.y===y) damagePlayer(2,'爆炸');
+    }
+    e.hp=0;
+    game.enemies=game.enemies.filter(x=>x.hp>0);
+  }
+  function bossChargeCells(e,p){
+    const dx=Math.abs(p.x-e.x)>Math.abs(p.y-e.y)?Math.sign(p.x-e.x):0;
+    const dy=dx===0?Math.sign(p.y-e.y):0;
+    const cells=[];
+    let x=e.x,y=e.y;
+    for(let i=0;i<3;i++){
+      x+=dx;y+=dy;
+      if(!inBounds(x,y)||!isWalkable(x,y)) break;
+      cells.push({x,y});
+    }
+    if(cells.length===0){
+      for(const n of neighbors(e.x,e.y)) cells.push(n);
+    }
+    return cells;
+  }
+  function riftSpawn(){
+    if(game.enemyTurnCount%3!==0) return;
+    for(let y=0;y<GRID;y++) for(let x=0;x<GRID;x++){
+      if(game.cells[y][x].type===TERRAIN.RIFT){
+        const spot=neighbors(x,y).find(c=>!occupied(c.x,c.y));
+        if(spot && game.enemies.length<8){ spawnEnemy(pick(['goblin','bat']),spot.x,spot.y); burst(CENTER(spot),'#9d5cff',20); log('裂隙又吐出一个麻烦。'); }
+      }
+    }
+  }
+
+  function checkWin(){
+    if(game.enemies.length===0){
+      if(game.level>=game.maxLevel){ endGame(true); return true; }
+      game.screen='reward';
+      showRewards(); return true;
+    }
+    return false;
+  }
+
+  const rewards = [
+    {name:'龙牙戒指', desc:'攻击力 +1。', apply:g=>{g.player.atk+=1}},
+    {name:'猎鹰靴', desc:'移动力 +1。', apply:g=>{g.player.move+=1}},
+    {name:'黑铁护符', desc:'最大生命 +2，并立刻恢复 2 点生命。', apply:g=>{g.player.maxHp+=2;g.player.hp=Math.min(g.player.maxHp,g.player.hp+2)}},
+    {name:'盾誓铭文', desc:'格挡获得的护盾 +2。', apply:g=>{g.player.guardPower+=2}},
+    {name:'吸血短刃', desc:'击杀敌人时恢复 1 点生命。', apply:g=>{g.player.lifeSteal=true}},
+    {name:'长锋剑柄', desc:'斩击距离 +1。能隔一格砍人。', apply:g=>{g.player.reach=2}},
+    {name:'风暴核心', desc:'旋风斩伤害 +1，冷却 -1。', apply:g=>{g.player.whirlDmg+=1;g.player.whirlMaxCd=Math.max(1,g.player.whirlMaxCd-1)}},
+    {name:'古旧面包', desc:'立刻恢复 5 点生命。它不新鲜了。', apply:g=>{g.player.hp=Math.min(g.player.maxHp,g.player.hp+5)}}
+  ];
+
+  function showRewards(){
+    game.pendingRewards=[];
+    const pool=[...rewards].sort(()=>Math.random()-.5).slice(0,3);
+    game.pendingRewards=pool;
+    ui.rewardGrid.innerHTML='';
+    for(const r of pool){
+      const div=document.createElement('div');
+      div.className='reward';
+      div.innerHTML=`<div class="icon"></div><h3>${r.name}</h3><p>${r.desc}</p>`;
+      div.onclick=()=>chooseReward(r);
+      ui.rewardGrid.appendChild(div);
+    }
+    ui.reward.classList.add('show');
+    log('你清理了这一层。裂隙暂时闭嘴。');
+  }
+
+  function chooseReward(r){
+    r.apply(game);
+    game.relics.push(r.name);
+    ui.reward.classList.remove('show');
+    game.screen='combat';
+    log(`获得遗物：<b>${r.name}</b>。`);
+    createLevel(game.level+1);
+  }
+
+  function endGame(win){
+    game.screen='end'; game.phase='end';
+    ui.endTitle.textContent = win ? '委托完成' : '佣兵倒下';
+    ui.endText.innerHTML = win
+      ? '裂隙骑士被击败，地下重新安静。你带着战利品回到酒馆，决定把“拯救世界”这件事先写进简历。'
+      : '你倒在裂隙深处。别难过，冒险者的传统就是把失败留给下一次重开。';
+    ui.end.classList.add('show');
+    updateUI();
+  }
+
+  function log(msg){
+    game.logs.unshift(msg);
+    game.logs=game.logs.slice(0,40);
+    ui.log.innerHTML=game.logs.map(x=>`<div>${x}</div>`).join('');
+  }
+
+  function updateUI(){
+    if(!game) return;
+    const p=game.player;
+    ui.hpText.textContent=`${Math.max(0,p.hp)} / ${p.maxHp}`;
+    ui.hpBar.style.width=`${Math.max(0,p.hp/p.maxHp*100)}%`;
+    ui.shieldText.textContent=`${p.armor}`;
+    ui.shieldBar.style.width=`${Math.min(100,p.armor/10*100)}%`;
+    ui.levelText.textContent=`${game.level} / ${game.maxLevel}`;
+    ui.turnText.textContent=game.turn;
+    ui.atkText.textContent=p.atk;
+    ui.moveText.textContent=p.move;
+    ui.phaseText.textContent=game.phase==='player'?'玩家回合':game.phase==='enemy'?'敌人行动':'结束';
+    ui.relicCount.textContent=game.relics.length;
+    ui.relics.innerHTML=game.relics.map(r=>`<span class="relic">${r}</span>`).join('') || '<span class="subtitle">暂无遗物</span>';
+    document.querySelectorAll('[data-action]').forEach(btn=>{
+      const a=btn.dataset.action;
+      btn.classList.toggle('active',a===selectedAction);
+      let disabled=game.phase!=='player';
+      if(a==='move' && p.moveUsed) disabled=true;
+      if(['slash','bash','leap','guard'].includes(a) && p.actionUsed) disabled=true;
+      if(a==='whirl' && (p.actionUsed || p.whirlCd>0)) disabled=true;
+      btn.disabled=disabled;
+      if(a==='whirl') btn.textContent=p.whirlCd>0?`旋风斩 CD${p.whirlCd}`:'旋风斩';
+    });
+  }
+
+  function enemyColor(e){
+    return {goblin:'#6ed36f',archer:'#d8d4be',slime:'#7bf0cf',bat:'#ff8a3d',priest:'#b46cff',boss:'#e05a45'}[e.kind] || '#fff';
+  }
+
+  function burst(pos,color,count){
+    for(let i=0;i<count;i++){
+      const a=Math.random()*Math.PI*2, s=Math.random()*2.8+0.6;
+      particles.push({x:pos.x,y:pos.y,vx:Math.cos(a)*s,vy:Math.sin(a)*s,life:1,color,size:Math.random()*3+2});
+    }
+  }
+  function floatText(x,y,text,color){
+    const c=CENTER({x,y});
+    floatingTexts.push({x:c.x,y:c.y-18,text,color,life:1});
+  }
+  function drawProjectile(a,b,color){
+    const ca=CENTER(a), cb=CENTER(b);
+    for(let i=0;i<10;i++) particles.push({x:ca.x+(cb.x-ca.x)*i/10,y:ca.y+(cb.y-ca.y)*i/10,vx:0,vy:0,life:.5,color,size:3});
+  }
+
+  function updateEffects(dt){
+    for(const p of particles){p.x+=p.vx*dt*60;p.y+=p.vy*dt*60;p.life-=dt*1.8;p.vy+=0.02*dt*60;}
+    particles=particles.filter(p=>p.life>0);
+    for(const f of floatingTexts){f.y-=dt*38;f.life-=dt*.9;}
+    floatingTexts=floatingTexts.filter(f=>f.life>0);
+    if(shake>0) shake=Math.max(0,shake-dt*35);
+    if(game) for(const e of game.enemies) e.flash=Math.max(0,(e.flash||0)-dt);
+  }
+
+  function draw(){
+    ctx.clearRect(0,0,W,H);
+    const sx=shake? (Math.random()-.5)*shake : 0;
+    const sy=shake? (Math.random()-.5)*shake : 0;
+    ctx.save(); ctx.translate(sx,sy);
+    drawBackdrop();
+    if(game) {
+      drawBoard();
+      drawIntents();
+      drawHighlights();
+      drawEntities();
+      drawParticles();
+      drawFloatTexts();
+      drawTooltip();
+    }
+    ctx.restore();
+  }
+
+  function drawBackdrop(){
+    const grd=ctx.createRadialGradient(W*.5,H*.45,80,W*.5,H*.45,560);
+    grd.addColorStop(0,'#252640');grd.addColorStop(1,'#080912');
+    ctx.fillStyle=grd; ctx.fillRect(0,0,W,H);
+    ctx.strokeStyle='#d7b56d33'; ctx.lineWidth=2;
+    roundRect(BX-26,BY-26,GRID*TILE+52,GRID*TILE+52,26,true,false,'#11131d99');
+    ctx.stroke();
+    ctx.font='700 20px Microsoft YaHei'; ctx.fillStyle='#f1d184';
+    ctx.fillText('裂隙地牢 · Tactical Board', BX-18, 38);
+  }
+
+  function drawBoard(){
+    for(let y=0;y<GRID;y++) for(let x=0;x<GRID;x++){
+      const cell=game.cells[y][x];
+      const px=BX+x*TILE, py=BY+y*TILE;
+      const base = ((x+y)%2===0)?'#262235':'#211e2e';
+      const g=ctx.createLinearGradient(px,py,px+TILE,py+TILE);
+      g.addColorStop(0,base); g.addColorStop(1,'#121620');
+      ctx.fillStyle=g; roundRect(px+3,py+3,TILE-6,TILE-6,12,true,false);
+      ctx.strokeStyle='#6f5c3c33'; ctx.lineWidth=1; ctx.stroke();
+      ctx.globalAlpha=.09+cell.seed*.08; ctx.fillStyle='#fff'; ctx.fillRect(px+10,py+10,3,3); ctx.globalAlpha=1;
+      if(cell.type===TERRAIN.WALL) drawWall(px,py);
+      if(cell.type===TERRAIN.TRAP) drawTrap(px,py);
+      if(cell.type===TERRAIN.FOUNTAIN) drawFountain(px,py);
+      if(cell.type===TERRAIN.RIFT) drawRift(px,py);
+    }
+  }
+
+
+  function drawCellLabel(px,py,line1,line2,color='#ffe39d'){
+    ctx.save();
+    ctx.textAlign='center';
+    ctx.fillStyle='#070913dd';
+    roundRect(px+8,py+TILE-31,TILE-16,27,8,true,false);
+    ctx.strokeStyle='#ffffff18';
+    ctx.stroke();
+    ctx.font='800 12px Microsoft YaHei';
+    ctx.lineWidth=3;
+    ctx.strokeStyle='#05050acc';
+    ctx.fillStyle=color;
+    ctx.strokeText(line1,px+TILE/2,py+TILE-18);
+    ctx.fillText(line1,px+TILE/2,py+TILE-18);
+    if(line2){
+      ctx.font='800 11px Microsoft YaHei';
+      ctx.strokeText(line2,px+TILE/2,py+TILE-6);
+      ctx.fillText(line2,px+TILE/2,py+TILE-6);
+    }
+    ctx.restore();
+  }
+
+  function drawWall(px,py){
+    ctx.fillStyle='#31303d'; roundRect(px+10,py+12,TILE-20,TILE-18,8,true,false);
+    ctx.strokeStyle='#8c7e6855'; ctx.stroke();
+    ctx.fillStyle='#ffffff10'; ctx.fillRect(px+16,py+20,TILE-32,5);
+    drawCellLabel(px,py,'石墙','挡路','#d9cba6');
+  }
+  function drawTrap(px,py){
+    ctx.strokeStyle='#d65b5baa'; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.moveTo(px+34,py+14);ctx.lineTo(px+52,py+48);ctx.lineTo(px+16,py+48);ctx.closePath();ctx.stroke();
+    ctx.fillStyle='#d65b5b33';ctx.fill();
+    drawCellLabel(px,py,'地刺','-1','#ff9b8f');
+  }
+  function drawFountain(px,py){
+    ctx.fillStyle='#325c7a'; ctx.beginPath();ctx.arc(px+34,py+36,20,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle='#9de8ff99';ctx.stroke();
+    ctx.fillStyle='#b6f4ff';ctx.beginPath();ctx.arc(px+34,py+30,6,0,Math.PI*2);ctx.fill();
+    drawCellLabel(px,py,'回血','+3','#b6f4ff');
+  }
+  function drawRift(px,py){
+    const t=performance.now()/500;
+    ctx.save();ctx.translate(px+34,py+34);ctx.rotate(t);
+    const g=ctx.createRadialGradient(0,0,3,0,0,24);g.addColorStop(0,'#fff');g.addColorStop(.25,'#c678ff');g.addColorStop(1,'#3b146900');
+    ctx.fillStyle=g;ctx.beginPath();ctx.ellipse(0,0,18,26,0,0,Math.PI*2);ctx.fill();
+    ctx.restore();
+    drawCellLabel(px,py,'裂隙','刷怪','#d9b2ff');
+  }
+
+  function drawHighlights(){
+    for(const [k,type] of highlights){
+      const [x,y]=k.split(',').map(Number); const px=BX+x*TILE,py=BY+y*TILE;
+      ctx.save();
+      ctx.globalAlpha=.82;
+      ctx.strokeStyle= type==='move'?'#75a7ff':'#ffcf72';
+      ctx.fillStyle= type==='move'?'#75a7ff22':'#ffcf7233';
+      ctx.lineWidth=3; roundRect(px+7,py+7,TILE-14,TILE-14,14,true,true);
+      ctx.restore();
+    }
+    if(mouse.cell && inBounds(mouse.cell.x,mouse.cell.y)){
+      const px=BX+mouse.cell.x*TILE,py=BY+mouse.cell.y*TILE;
+      ctx.strokeStyle='#fff6';ctx.lineWidth=2;roundRect(px+5,py+5,TILE-10,TILE-10,12,false,true);
+    }
+  }
+
+  function drawIntents(){
+    for(const e of game.enemies){
+      if(e.intent){
+        for(const c of e.intent){
+          const px=BX+c.x*TILE,py=BY+c.y*TILE;
+          ctx.fillStyle='#e05a453f'; roundRect(px+8,py+8,TILE-16,TILE-16,12,true,false);
+          ctx.strokeStyle='#ff725d'; ctx.lineWidth=2; ctx.stroke();
+        }
+      }
+      if(e.kind==='bat' && e.primed){
+        for(let y=e.y-1;y<=e.y+1;y++) for(let x=e.x-1;x<=e.x+1;x++) if(inBounds(x,y)){
+          ctx.fillStyle='#ff8a3d1f'; roundRect(BX+x*TILE+9,BY+y*TILE+9,TILE-18,TILE-18,10,true,false);
+        }
+      }
+    }
+  }
+
+  function drawEntities(){
+    const drawList=[...game.enemies, game.player].sort((a,b)=>a.y-b.y);
+    for(const obj of drawList){
+      if(obj===game.player) drawPlayer(obj); else drawEnemy(obj);
+    }
+  }
+
+  function drawPlayer(p){
+    const c=CENTER(p);
+    shadow(c.x,c.y);
+    ctx.save(); ctx.translate(c.x,c.y);
+    ctx.fillStyle='#304f89'; ctx.beginPath();ctx.arc(0,4,18,0,Math.PI*2);ctx.fill();
+    const grd=ctx.createLinearGradient(-12,-24,12,18);grd.addColorStop(0,'#dbe8ff');grd.addColorStop(.45,'#789ed9');grd.addColorStop(1,'#233c71');
+    ctx.fillStyle=grd; ctx.beginPath();ctx.arc(0,-10,16,0,Math.PI*2);ctx.fill();
+    ctx.strokeStyle='#f2d98b';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(16,-2);ctx.lineTo(31,-24);ctx.stroke();
+    ctx.fillStyle='#b84c4c';ctx.beginPath();ctx.moveTo(-18,-4);ctx.quadraticCurveTo(-34,5,-22,24);ctx.quadraticCurveTo(-9,12,-18,-4);ctx.fill();
+    ctx.strokeStyle='#ffd27a66';ctx.stroke();
+    ctx.restore();
+    drawHp(c,p.hp,p.maxHp,p.armor);
+  }
+
+  function drawEnemy(e){
+    const c=CENTER(e); shadow(c.x,c.y);
+    ctx.save(); ctx.translate(c.x,c.y);
+    if(e.flash>0){ctx.shadowColor='#fff';ctx.shadowBlur=18;}
+    if(e.kind==='goblin'){
+      ctx.fillStyle='#4fae5b';ctx.beginPath();ctx.ellipse(0,3,17,20,0,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#78d06f';ctx.beginPath();ctx.moveTo(-12,-8);ctx.lineTo(-28,-16);ctx.lineTo(-15,2);ctx.fill();ctx.beginPath();ctx.moveTo(12,-8);ctx.lineTo(28,-16);ctx.lineTo(15,2);ctx.fill();
+      ctx.fillStyle='#111';ctx.fillRect(-7,-5,4,4);ctx.fillRect(5,-5,4,4);
+    }
+    if(e.kind==='archer'){
+      ctx.fillStyle='#d7d1bb';ctx.beginPath();ctx.arc(0,-5,15,0,Math.PI*2);ctx.fill();
+      ctx.strokeStyle='#8b6b3e';ctx.lineWidth=3;ctx.beginPath();ctx.arc(20,2,16,-Math.PI/2,Math.PI/2);ctx.stroke();
+      ctx.strokeStyle='#ddd';ctx.lineWidth=1;ctx.beginPath();ctx.moveTo(20,-14);ctx.lineTo(20,18);ctx.stroke();
+    }
+    if(e.kind==='slime'){
+      const col=e.small?'#96ffe0':'#68e0c8';ctx.fillStyle=col;ctx.beginPath();ctx.ellipse(0,7,e.small?13:21,e.small?11:17,0,0,Math.PI*2);ctx.fill();
+      ctx.fillStyle='#0b4038';ctx.fillRect(-7,1,4,4);ctx.fillRect(5,1,4,4);
+    }
+    if(e.kind==='bat'){
+      ctx.fillStyle=e.primed?'#ffb340':'#9e4d42';
+      ctx.beginPath();ctx.ellipse(0,0,12,15,0,0,Math.PI*2);ctx.fill();
+      ctx.beginPath();ctx.moveTo(-8,-4);ctx.lineTo(-32,-19);ctx.lineTo(-25,9);ctx.lineTo(-8,5);ctx.fill();
+      ctx.beginPath();ctx.moveTo(8,-4);ctx.lineTo(32,-19);ctx.lineTo(25,9);ctx.lineTo(8,5);ctx.fill();
+    }
+    if(e.kind==='priest'){
+      const g=ctx.createLinearGradient(0,-22,0,22);g.addColorStop(0,'#d9b2ff');g.addColorStop(1,'#542891');ctx.fillStyle=g;
+      ctx.beginPath();ctx.moveTo(0,-24);ctx.lineTo(21,22);ctx.lineTo(-21,22);ctx.closePath();ctx.fill();
+      ctx.fillStyle='#f0d4a6';ctx.beginPath();ctx.arc(0,-12,8,0,Math.PI*2);ctx.fill();
+    }
+    if(e.kind==='boss'){
+      const g=ctx.createLinearGradient(-18,-28,18,28);g.addColorStop(0,'#f0b29b');g.addColorStop(.4,'#9d3030');g.addColorStop(1,'#2a1218');ctx.fillStyle=g;
+      ctx.beginPath();ctx.moveTo(0,-30);ctx.lineTo(24,-12);ctx.lineTo(20,24);ctx.lineTo(-20,24);ctx.lineTo(-24,-12);ctx.closePath();ctx.fill();
+      ctx.strokeStyle='#ff725d';ctx.lineWidth=3;ctx.beginPath();ctx.moveTo(18,-2);ctx.lineTo(36,-28);ctx.stroke();
+      ctx.fillStyle='#111';ctx.fillRect(-8,-10,5,5);ctx.fillRect(4,-10,5,5);
+    }
+    ctx.restore();
+    drawHp(c,e.hp,e.maxHp,0);
+  }
+
+  function shadow(x,y){
+    ctx.fillStyle='#0007';ctx.beginPath();ctx.ellipse(x,y+22,24,8,0,0,Math.PI*2);ctx.fill();
+  }
+  function drawHp(c,hp,max,armor){
+    const w=44,h=6,x=c.x-w/2,y=c.y+32;
+    ctx.fillStyle='#09090d';roundRect(x,y,w,h,4,true,false);
+    ctx.fillStyle='#d65b5b';roundRect(x,y,Math.max(0,w*hp/max),h,4,true,false);
+    if(armor>0){ctx.fillStyle='#75a7ff';roundRect(x,y-7,Math.min(w,w*armor/10),4,3,true,false);}
+  }
+
+  function drawParticles(){
+    for(const p of particles){
+      ctx.globalAlpha=Math.max(0,p.life);ctx.fillStyle=p.color;
+      ctx.beginPath();ctx.arc(p.x,p.y,p.size,0,Math.PI*2);ctx.fill();
+    }
+    ctx.globalAlpha=1;
+  }
+  function drawFloatTexts(){
+    ctx.font='700 16px Microsoft YaHei';ctx.textAlign='center';
+    for(const f of floatingTexts){
+      ctx.globalAlpha=Math.max(0,f.life);ctx.fillStyle=f.color;ctx.fillText(f.text,f.x,f.y);
+    }
+    ctx.globalAlpha=1;ctx.textAlign='left';
+  }
+  function drawTooltip(){
+    if(!mouse.cell || !game || !inBounds(mouse.cell.x,mouse.cell.y)) return;
+    const c=mouse.cell;
+    let title='', meta='', text='', accent='#ffe39d';
+    const e=enemyAt(c.x,c.y);
+    if(game.player && game.player.x===c.x && game.player.y===c.y){
+      title='剑士 / 玩家'; meta=`生命：${game.player.hp}/${game.player.maxHp}  护盾：${game.player.armor}`; text='你的角色。蓝色格可移动，黄色格可攻击。'; accent='#b9dcff';
+    }else if(e){
+      title=e.name; meta=`生命：${e.hp}/${e.maxHp}`; text=enemyTip(e); accent=enemyColor(e);
+    }else{
+      const t=game.cells[c.y][c.x].type;
+      if(t===TERRAIN.FLOOR) return;
+      title=terrainName(t); meta=terrainMeta(t); text=terrainText(t); accent=t===TERRAIN.TRAP?'#ff9b8f':t===TERRAIN.FOUNTAIN?'#b6f4ff':t===TERRAIN.RIFT?'#d9b2ff':'#d9cba6';
+    }
+    const x=BX+GRID*TILE+28,y=BY+20;
+    roundRect(x,y,250,126,16,true,false,'#10121ef2');
+    ctx.strokeStyle='#d7b56d66';ctx.stroke();
+    ctx.fillStyle=accent;ctx.font='700 18px Microsoft YaHei';ctx.fillText(title,x+16,y+28);
+    ctx.fillStyle='#94d7ff';ctx.font='12px Microsoft YaHei';ctx.fillText(meta,x+16,y+52);
+    ctx.fillStyle='#d8ccb0';ctx.font='13px Microsoft YaHei';wrapText(text,x+16,y+76,218,18);
+  }
+  function wrapText(text,x,y,maxWidth,lineHeight){
+    let line='';
+    for(const ch of String(text)){
+      const test=line+ch;
+      if(ctx.measureText(test).width>maxWidth && line){ctx.fillText(line,x,y);line=ch;y+=lineHeight;}
+      else line=test;
+    }
+    if(line) ctx.fillText(line,x,y);
+  }
+  function enemyTip(e){
+    return {goblin:'靠近并近战攻击',archer:'远程射击，太近会后退',slime:'缓慢移动，死亡分裂',bat:'贴近后下回合自爆',priest:'召唤小怪并逃跑',boss:'预警冲锋与重击'}[e.kind] || '';
+  }
+  function roundRect(x,y,w,h,r,fill=true,stroke=false,color=null){
+    ctx.beginPath();
+    ctx.moveTo(x+r,y);ctx.arcTo(x+w,y,x+w,y+h,r);ctx.arcTo(x+w,y+h,x,y+h,r);ctx.arcTo(x,y+h,x,y,r);ctx.arcTo(x,y,x+w,y,r);ctx.closePath();
+    if(color) ctx.fillStyle=color;
+    if(fill) ctx.fill(); if(stroke) ctx.stroke();
+  }
+
+  function loop(now){
+    const dt=Math.min(.033,(now-last)/1000); last=now;
+    updateEffects(dt); draw(); requestAnimationFrame(loop);
+  }
+  requestAnimationFrame(loop);
+
+  // boot state for menu render
+  game = {screen:'menu', phase:'menu', level:1, maxLevel:6, turn:1, enemyTurnCount:0,
+    player:{x:0,y:7,hp:12,maxHp:12,armor:0,atk:2,move:3,guardPower:3,whirlCd:0,whirlMaxCd:3,whirlDmg:2,reach:1,lifeSteal:false,moveUsed:false,actionUsed:false},
+    cells:createBlankCells(), enemies:[], logs:[], relics:[]};
+  updateUI();
+  showInspect('把鼠标放到棋盘或技能按钮上','提示会固定显示在这里','地刺、回血泉、裂隙、敌人、玩家和技能都会显示作用。');
+})();
+</script>
+</body>
+</html>
