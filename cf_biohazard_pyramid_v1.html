@@ -1,0 +1,1790 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>穿越火线：生化模式 — 生化金字塔</title>
+<style>
+  * { margin:0; padding:0; box-sizing:border-box; }
+  body { background:#000; overflow:hidden; font-family:'微软雅黑',sans-serif; }
+  #c { display:block; width:100vw; height:100vh; }
+
+  /* ──── HUD ──── */
+  #hud {
+    position:fixed; inset:0; pointer-events:none;
+    color:#fff; font-size:14px;
+  }
+
+  /* 顶部队伍人数 */
+  #top-bar {
+    position:absolute; top:0; left:0; right:0;
+    display:flex; justify-content:space-between; align-items:center;
+    padding:8px 18px;
+    background:linear-gradient(to bottom,rgba(0,0,0,.65),transparent);
+  }
+  #team-humans { color:#5bc5ff; font-size:16px; font-weight:700; }
+  #team-ghosts { color:#ff4e6a; font-size:16px; font-weight:700; }
+  #round-timer  { color:#ffd86e; font-size:20px; font-weight:900; letter-spacing:2px; }
+
+  /* 右上角回合分 */
+  #score-box {
+    position:absolute; top:48px; right:18px;
+    background:rgba(0,0,0,.5); border:1px solid rgba(255,255,255,.15);
+    border-radius:6px; padding:6px 14px; text-align:right; font-size:13px;
+  }
+  #score-box .lbl { color:#aaa; }
+  #score-h { color:#5bc5ff; }
+  #score-g { color:#ff4e6a; }
+
+  /* 准星 */
+  #crosshair {
+    position:absolute; top:50%; left:50%;
+    transform:translate(-50%,-50%);
+    width:18px; height:18px;
+    pointer-events:none;
+  }
+  #crosshair::before,#crosshair::after {
+    content:''; position:absolute; background:rgba(255,255,255,.85);
+    box-shadow:0 0 4px rgba(0,0,0,.8);
+  }
+  #crosshair::before { width:2px; height:18px; left:8px; top:0; }
+  #crosshair::after  { width:18px; height:2px; left:0; top:8px; }
+  #crosshair.ghost::before,#crosshair.ghost::after { background:rgba(255,78,106,.9); }
+
+  /* 底部状态栏 */
+  #bottom-bar {
+    position:absolute; bottom:0; left:0; right:0;
+    display:flex; justify-content:space-between; align-items:flex-end;
+    padding:10px 18px 14px;
+    background:linear-gradient(to top,rgba(0,0,0,.7),transparent);
+  }
+
+  /* HP + Armor */
+  #vitals { display:flex; flex-direction:column; gap:5px; min-width:180px; }
+  .bar-row { display:flex; align-items:center; gap:8px; font-size:13px; }
+  .bar-label { width:28px; text-align:right; color:#ccc; }
+  .bar-track { flex:1; height:8px; background:rgba(255,255,255,.15); border-radius:4px; overflow:hidden; }
+  .bar-fill   { height:100%; border-radius:4px; transition:width .12s; }
+  #hp-fill    { background:linear-gradient(90deg,#e84040,#ff7070); }
+  #ar-fill    { background:linear-gradient(90deg,#3a8cff,#80c4ff); }
+  #hp-val { font-size:16px; font-weight:700; color:#ff7070; }
+  #ar-val { font-size:14px; color:#80c4ff; }
+
+  /* 武器弹药 */
+  #ammo-box { text-align:right; }
+  #ammo-cur { font-size:36px; font-weight:900; color:#ffd86e; line-height:1; }
+  #ammo-res { font-size:18px; color:#aaa; }
+  #weapon-name { font-size:13px; color:#ddd; margin-top:2px; }
+
+  /* 感染特效 */
+  #infect-flash {
+    position:fixed; inset:0; background:rgba(200,0,50,.55);
+    pointer-events:none; opacity:0; transition:opacity .15s;
+  }
+
+  /* 幽灵技能 / 狂暴 */
+  #skill-bar {
+    position:absolute; bottom:70px; right:18px;
+    background:rgba(0,0,0,.5); border:1px solid rgba(255,78,106,.3);
+    border-radius:6px; padding:6px 12px; font-size:13px; color:#ff4e6a;
+  }
+
+  /* 终极猎手提示 */
+  #hunter-prompt {
+    position:absolute; top:50%; left:50%;
+    transform:translate(-50%, 60px);
+    background:rgba(0,0,0,.7); border:2px solid #ffd86e;
+    border-radius:8px; padding:10px 24px;
+    color:#ffd86e; font-size:15px; font-weight:700;
+    text-align:center; display:none;
+    animation: pulsePrompt 1s infinite alternate;
+  }
+  @keyframes pulsePrompt { from{opacity:.7} to{opacity:1} }
+
+  /* 终极猎手状态栏 */
+  #hunter-bar {
+    position:absolute; bottom:70px; left:18px;
+    background:rgba(0,0,0,.6); border:2px solid #ffd86e;
+    border-radius:8px; padding:8px 16px; font-size:13px;
+    color:#ffd86e; display:none;
+  }
+  #hunter-bar .h-name { font-size:16px; font-weight:900; letter-spacing:1px; }
+
+  /* 伤害加成提示 */
+  #dmg-boost {
+    position:absolute; top:48px; left:18px;
+    background:rgba(0,0,0,.5); border:1px solid rgba(255,200,0,.3);
+    border-radius:6px; padding:5px 12px; font-size:13px; color:#ffd86e;
+  }
+
+  /* 重击前摇指示器 */
+  #heavy-charge {
+    position:absolute; bottom:120px; left:50%;
+    transform:translateX(-50%);
+    width:120px; height:8px; background:rgba(255,255,255,.15);
+    border-radius:4px; overflow:hidden; display:none;
+  }
+  #heavy-charge-fill {
+    height:100%; width:0%; background:linear-gradient(90deg,#ff4400,#ffaa00);
+    border-radius:4px; transition:width .05s;
+  }
+
+  /* 击杀信息 */
+  #kill-feed {
+    position:absolute; top:100px; right:18px;
+    display:flex; flex-direction:column; gap:4px;
+    max-width:260px;
+  }
+  .kill-entry {
+    background:rgba(0,0,0,.55); border-radius:4px; padding:3px 8px;
+    font-size:12px; color:#ddd; border-left:3px solid #ffd86e;
+    animation: fadeKill 3.5s forwards;
+  }
+  @keyframes fadeKill { 0%{opacity:1} 75%{opacity:1} 100%{opacity:0} }
+
+  /* 覆盖层（开始/结束/锁定） */
+  #overlay {
+    position:fixed; inset:0;
+    background:rgba(0,0,0,.82);
+    display:flex; flex-direction:column;
+    align-items:center; justify-content:center;
+    gap:18px; z-index:100;
+  }
+  #overlay h1 { font-size:32px; color:#ffd86e; text-shadow:0 0 20px rgba(255,216,110,.5); }
+  #overlay h2 { font-size:18px; color:#ccc; }
+  #overlay p  { font-size:13px; color:#888; max-width:420px; text-align:center; line-height:1.8; }
+  #overlay button {
+    margin-top:8px; padding:12px 40px;
+    background:linear-gradient(135deg,#c0392b,#8e1f1f);
+    color:#fff; border:none; border-radius:8px;
+    font-size:16px; font-family:inherit; cursor:pointer;
+    box-shadow:0 4px 18px rgba(200,0,50,.5);
+    transition:transform .1s, box-shadow .1s;
+    pointer-events:all;
+  }
+  #overlay button:hover { transform:translateY(-2px); box-shadow:0 6px 24px rgba(200,0,50,.7); }
+  #overlay .keys {
+    display:grid; grid-template-columns:repeat(2,1fr); gap:6px 24px;
+    font-size:13px; color:#999; margin-top:4px;
+  }
+  #overlay .keys span { color:#ffd86e; }
+
+  /* 感染屏蔽线 */
+  #vignette {
+    position:fixed; inset:0; pointer-events:none;
+    background:radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,.55) 100%);
+  }
+  #ghost-vignette {
+    position:fixed; inset:0; pointer-events:none; opacity:0;
+    background:radial-gradient(ellipse at center, transparent 40%, rgba(200,0,50,.3) 100%);
+    transition:opacity .4s;
+  }
+
+  /* 击杀字 */
+  #hit-marker {
+    position:absolute; top:50%; left:50%;
+    transform:translate(-50%,-50%);
+    width:40px; height:40px; pointer-events:none; opacity:0;
+    transition:opacity .08s;
+  }
+  #hit-marker.show { opacity:1; }
+  #hit-marker svg line { stroke:#fff; stroke-width:2; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<!-- HUD -->
+<div id="hud">
+  <div id="top-bar">
+    <div id="team-humans">👤 人类 <span id="cnt-h">0</span></div>
+    <div id="round-timer">3:00</div>
+    <div id="team-ghosts">幽灵 <span id="cnt-g">0</span> 👻</div>
+  </div>
+  <div id="score-box">
+    <div><span class="lbl">人类胜场 </span><span id="score-h">0</span></div>
+    <div><span class="lbl">幽灵胜场 </span><span id="score-g">0</span></div>
+  </div>
+
+  <div id="crosshair"></div>
+
+  <div id="kill-feed"></div>
+
+  <div id="skill-bar" style="display:none">
+    [F] 狂暴 — 冷却 <span id="berserk-cd">就绪</span>
+  </div>
+
+  <div id="hunter-prompt">[E] 变身终极猎手！</div>
+
+  <div id="hunter-bar">
+    <div class="h-name">⚔ 终极猎手</div>
+    <div>免疫感染 · 左键连击 · 右键重击</div>
+  </div>
+
+  <div id="dmg-boost">伤害加成 ×<span id="dmg-mult">1.00</span></div>
+
+  <div id="heavy-charge"><div id="heavy-charge-fill"></div></div>
+
+  <!-- 命中十字 -->
+  <div id="hit-marker">
+    <svg width="40" height="40">
+      <line x1="5"  y1="5"  x2="15" y2="15"/>
+      <line x1="35" y1="5"  x2="25" y2="15"/>
+      <line x1="5"  y1="35" x2="15" y2="25"/>
+      <line x1="35" y1="35" x2="25" y2="25"/>
+    </svg>
+  </div>
+
+  <div id="bottom-bar">
+    <div id="vitals">
+      <div class="bar-row">
+        <span class="bar-label">HP</span>
+        <div class="bar-track"><div class="bar-fill" id="hp-fill" style="width:100%"></div></div>
+        <span id="hp-val">100</span>
+      </div>
+      <div class="bar-row">
+        <span class="bar-label">护甲</span>
+        <div class="bar-track"><div class="bar-fill" id="ar-fill" style="width:100%"></div></div>
+        <span id="ar-val">100</span>
+      </div>
+    </div>
+    <div id="ammo-box">
+      <div id="ammo-cur">30</div>
+      <div id="ammo-res">/ 90</div>
+      <div id="weapon-name">AK-47</div>
+    </div>
+  </div>
+</div>
+
+<div id="infect-flash"></div>
+<div id="vignette"></div>
+<div id="ghost-vignette"></div>
+
+<!-- 开始覆盖层 -->
+<div id="overlay">
+  <h1>⚠ 穿越火线：生化模式</h1>
+  <h2>地图：生化金字塔</h2>
+  <p>
+    幽灵出没！人类必须坚守到时间结束，或消灭所有幽灵。<br>
+    幽灵通过近战感染人类，感染后加入幽灵阵营。<br>
+    持刀击杀幽灵可永久清除（不再复活）。
+  </p>
+  <div class="keys">
+    <div><span>WASD</span> 移动</div>
+    <div><span>鼠标左键</span> 射击/轻击</div>
+    <div><span>鼠标右键</span> 重击（刀/猎手）</div>
+    <div><span>1/2/3/4</span> 切换武器（4=刀）</div>
+    <div><span>R</span> 换弹</div>
+    <div><span>F</span> 幽灵狂暴</div>
+    <div><span>空格</span> 跳跃</div>
+    <div><span>Shift</span> 冲刺</div>
+    <div><span>E</span> 仅剩2人时变终极猎手</div>
+  </div>
+  <button id="btn-start">进入游戏</button>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+
+// ════════════════════════════════════════════════════════════
+//  常量与全局配置
+// ════════════════════════════════════════════════════════════
+const ROUND_TIME   = 180;  // 3分钟
+const PREP_TIME    = 15;   // 准备时间
+const GRAVITY      = 22;
+const PLAYER_SPEED = 5.5;
+const SPRINT_BONUS = 2.8;
+const JUMP_V       = 8.0;
+const EYE_H        = 1.62;
+const GHOST_COUNT  = 4;    // 初始幽灵数 (AI)
+const HUMAN_COUNT  = 8;    // AI人类数
+const RESPAWN_DELAY= 8;    // 幽灵复活秒数（枪击死亡后）
+const FALL_DMG_MIN = 8;    // 开始产生掉落伤害的速度阈值
+const FALL_DMG_MUL = 5;    // 掉落伤害系数
+
+// ════════════════════════════════════════════════════════════
+//  Three.js 场景初始化
+// ════════════════════════════════════════════════════════════
+const canvas   = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias:true });
+renderer.setPixelRatio(Math.min(devicePixelRatio,2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type    = THREE.PCFSoftShadowMap;
+renderer.toneMapping       = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.1;
+
+const scene  = new THREE.Scene();
+scene.background = new THREE.Color(0x1a0a00);
+scene.fog        = new THREE.FogExp2(0x220d00, 0.028);
+
+const camera = new THREE.PerspectiveCamera(74, 1, 0.05, 280);
+camera.position.set(0, EYE_H, 10);
+
+function onResize(){
+  const w=window.innerWidth, h=window.innerHeight;
+  renderer.setSize(w,h);
+  camera.aspect = w/h;
+  camera.updateProjectionMatrix();
+}
+window.addEventListener('resize', onResize);
+onResize();
+
+// ── 灯光 ──
+const ambient = new THREE.AmbientLight(0xff8844, 0.35);
+scene.add(ambient);
+
+const sunLight = new THREE.DirectionalLight(0xff6622, 1.1);
+sunLight.position.set(20,60,10);
+sunLight.castShadow = true;
+sunLight.shadow.mapSize.set(2048,2048);
+sunLight.shadow.camera.near = 1;
+sunLight.shadow.camera.far  = 200;
+sunLight.shadow.camera.left = sunLight.shadow.camera.bottom = -70;
+sunLight.shadow.camera.right= sunLight.shadow.camera.top   =  70;
+scene.add(sunLight);
+
+// 火把点光源
+const torchColors = [0xff4400, 0xff6600, 0xff3300, 0xff5500];
+const torchLights = [];
+for(let i=0;i<4;i++){
+  const pl = new THREE.PointLight(torchColors[i], 3.5, 18);
+  scene.add(pl);
+  torchLights.push(pl);
+}
+
+// ════════════════════════════════════════════════════════════
+//  材质库
+// ════════════════════════════════════════════════════════════
+const MAT = {
+  sand    : new THREE.MeshStandardMaterial({color:0xd4a96a, roughness:.95, metalness:.0}),
+  stone   : new THREE.MeshStandardMaterial({color:0x8c7050, roughness:.9,  metalness:.05}),
+  darkStone: new THREE.MeshStandardMaterial({color:0x4a3828, roughness:.85, metalness:.1}),
+  floor   : new THREE.MeshStandardMaterial({color:0xc49a55, roughness:.98, metalness:.0}),
+  ramp    : new THREE.MeshStandardMaterial({color:0xb8894a, roughness:.92, metalness:.0}),
+  wood    : new THREE.MeshStandardMaterial({color:0x6b4226, roughness:.88, metalness:.0}),
+  torch   : new THREE.MeshStandardMaterial({color:0xff4400, emissive:0xff2200, emissiveIntensity:1.5}),
+  humanBody: new THREE.MeshStandardMaterial({color:0x2a6abf, roughness:.7, metalness:.2}),
+  ghostBody: new THREE.MeshStandardMaterial({color:0x8b00cc, roughness:.5, metalness:.4, transparent:true, opacity:.88}),
+  ghostGlow: new THREE.MeshStandardMaterial({color:0xcc00ff, emissive:0x8800aa, emissiveIntensity:1.2, transparent:true, opacity:.6}),
+};
+
+// ════════════════════════════════════════════════════════════
+//  世界碰撞体（AABB）
+// ════════════════════════════════════════════════════════════
+const world = { obstacles:[], halfW:40 };
+
+function addBox(x,y,z,w,h,d, mat, cast=true, climbable=false, collide=true){
+  const geo  = new THREE.BoxGeometry(w,h,d);
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(x,y+h/2,z);
+  mesh.castShadow    = cast;
+  mesh.receiveShadow = true;
+  scene.add(mesh);
+  if(collide){
+    world.obstacles.push({
+      x, z, w, d,
+      baseY: y, h: y+h,
+      climbable,
+      mesh
+    });
+  }
+  return mesh;
+}
+
+// ════════════════════════════════════════════════════════════
+//  ★ 地图：生化金字塔 ★
+// ════════════════════════════════════════════════════════════
+function buildMap(){
+  // ── 地面 ──
+  const geoFloor = new THREE.PlaneGeometry(160,160);
+  const floor = new THREE.Mesh(geoFloor, MAT.floor);
+  floor.rotation.x = -Math.PI/2;
+  floor.receiveShadow = true;
+  scene.add(floor);
+
+  // 沙漠地面纹理感 (散沙粒子)
+  for(let i=0;i<300;i++){
+    const sg = new THREE.PlaneGeometry(Math.random()*.5+.1, Math.random()*.5+.1);
+    const sm = new THREE.Mesh(sg, MAT.sand);
+    sm.rotation.x = -Math.PI/2;
+    sm.rotation.z = Math.random()*Math.PI;
+    sm.position.set((Math.random()-.5)*78, .01, (Math.random()-.5)*78);
+    scene.add(sm);
+  }
+
+  // ── 外围边界墙 ──
+  const BOUND = 38;
+  addBox( BOUND, 0,  0,      2, 12, BOUND*2, MAT.stone, false);   // 东
+  addBox(-BOUND, 0,  0,      2, 12, BOUND*2, MAT.stone, false);   // 西
+  addBox( 0,     0,  BOUND,  BOUND*2, 12, 2, MAT.stone, false);   // 南
+  addBox( 0,     0, -BOUND,  BOUND*2, 12, 2, MAT.stone, false);   // 北
+
+  // ── 金字塔主体（台阶式）──
+  // 底座到顶 共6级，每级内缩3格、升高3格
+  const levels = [
+    {size:30, ht:2},
+    {size:24, ht:4},
+    {size:18, ht:6},
+    {size:12, ht:8},
+    {size: 6, ht:10},
+    {size: 3, ht:12},
+  ];
+  let baseY = 0;
+  for(const lv of levels){
+    const s = lv.size, h = lv.ht;
+    // 四面梯形台面（只放正方形围边，留中间）
+    // 用实心方块堆叠即可，AABB检测会正确处理
+    addBox(0, baseY, 0, s, h, s, MAT.stone, true, true);
+    baseY += h;
+  }
+  world.pyramidTop = baseY; // 金字塔顶Y
+
+  // 顶部神殿房间
+  addBox( 0, baseY, 0, 7, 4, 7, MAT.darkStone, true, true);
+  // 神殿四根柱子
+  for(const [cx,cz] of [[-2.5,2.5],[2.5,2.5],[-2.5,-2.5],[2.5,-2.5]]){
+    addBox(cx, baseY, cz, .8, 4.5, .8, MAT.stone, true, false);
+  }
+
+  // ── 四面坡道（登塔通道）──
+  // 每面坡道：一系列台阶
+  const RAMPS = [
+    {dx:0,  dz:1,  angle:0},             // 南
+    {dx:0,  dz:-1, angle:Math.PI},       // 北
+    {dx:1,  dz:0,  angle:-Math.PI/2},    // 东
+    {dx:-1, dz:0,  angle:Math.PI/2},     // 西
+  ];
+  for(const r of RAMPS){
+    // 6级台阶，每级3格宽4格深2格高
+    let curY = 0;
+    let curOff= 15; // 初始距中心距离（底级边缘）
+    for(let s=0;s<6;s++){
+      const stepW = 6, stepH = 2+(s*.2)|0, stepD = 4;
+      const cx = r.dx * (curOff - stepD/2);
+      const cz = r.dz * (curOff - stepD/2);
+      const mesh = addBox(cx, curY, cz, stepD, stepH, stepW, MAT.ramp, true, true);
+      curY  += 2;
+      curOff-= 3;
+    }
+  }
+
+  // ── 底部广场：散落掩体 ──
+  const covers = [
+    // [x, z, w, d, h]
+    [-20, 20, 4, 2, 2],
+    [ 20, 20, 2, 4, 2],
+    [-20,-20, 4, 2, 2],
+    [ 20,-20, 2, 4, 2],
+    [ 0,  25, 6, 2, 2],
+    [ 0, -25, 6, 2, 2],
+    [-25,  0, 2, 6, 2],
+    [ 25,  0, 2, 6, 2],
+    [-12, 30, 3, 3, 2],
+    [ 12,-30, 3, 3, 2],
+    // 破损石柱
+    [-8, -8, 1.5, 1.5, 3],
+    [ 8, -8, 1.5, 1.5, 3],
+    [-8,  8, 1.5, 1.5, 3],
+    [ 8,  8, 1.5, 1.5, 3],
+    // 金字塔底角石块
+    [-16, 16, 3, 3, 1.5],
+    [ 16, 16, 3, 3, 1.5],
+    [-16,-16, 3, 3, 1.5],
+    [ 16,-16, 3, 3, 1.5],
+  ];
+  for(const [cx,cz,w,d,h] of covers){
+    addBox(cx, 0, cz, w, h, d, MAT.stone, true, true);
+  }
+
+  // ── 内部通道（金字塔两侧低走廊，可钻进）──
+  // 东西两侧各一条低隧道
+  for(const sx of [-1,1]){
+    // 隧道顶板
+    addBox(sx*14, 0, 0, 3, .8, 22, MAT.darkStone, true, false);
+    // 隧道两侧矮墙
+    addBox(sx*12.5, 0, 0, .5, 2.2, 22, MAT.stone, true, false);
+    addBox(sx*15.5, 0, 0, .5, 2.2, 22, MAT.stone, true, false);
+  }
+
+  // ── 火把（装饰+光源）──
+  const torchPos = [
+    [-14.5, 1.8, 0], [14.5, 1.8, 0],
+    [0, 1.8, -14.5], [0, 1.8, 14.5],
+  ];
+  torchPos.forEach(([tx,ty,tz],i) => {
+    // 火把柱
+    const tg = new THREE.CylinderGeometry(.08,.08,.8,6);
+    const tm = new THREE.Mesh(tg, MAT.wood);
+    tm.position.set(tx, ty, tz);
+    scene.add(tm);
+    // 火焰
+    const fg = new THREE.SphereGeometry(.25,6,5);
+    const fm = new THREE.Mesh(fg, MAT.torch);
+    fm.position.set(tx, ty+.65, tz);
+    scene.add(fm);
+    // 对应点光
+    torchLights[i].position.set(tx, ty+.8, tz);
+  });
+
+  // ── 星空（背景粒子）──
+  const starGeo = new THREE.BufferGeometry();
+  const starVerts = [];
+  for(let i=0;i<800;i++){
+    starVerts.push((Math.random()-.5)*400, Math.random()*150+30, (Math.random()-.5)*400);
+  }
+  starGeo.setAttribute('position', new THREE.Float32BufferAttribute(starVerts,3));
+  const starMat = new THREE.PointsMaterial({color:0xffeedd, size:.4, sizeAttenuation:true});
+  scene.add(new THREE.Points(starGeo, starMat));
+
+  // ── 导航节点（AI寻路用）──
+  world.navPoints = [];
+  for(let nx=-30;nx<=30;nx+=8){
+    for(let nz=-30;nz<=30;nz+=8){
+      world.navPoints.push(new THREE.Vector3(nx, .5, nz));
+    }
+  }
+  // 金字塔各层平台
+  let ny=0;
+  for(const lv of levels){
+    ny += lv.ht;
+    world.navPoints.push(new THREE.Vector3(0, ny+.5, 0));
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+//  武器定义
+// ════════════════════════════════════════════════════════════
+const WEAPONS = {
+  ak47: {
+    key:'ak47', slot:'primary', name:'AK-47',
+    magSize:30, ammo:30, reserve:120,
+    damage:32, rpm:600, reload:2.1,
+    spread:.028, pellets:1, recoil:.008, knock:2.2,
+    range:60, auto:true, kind:'gun',
+  },
+  m4a1: {
+    key:'m4a1', slot:'primary', name:'M4A1',
+    magSize:30, ammo:30, reserve:120,
+    damage:28, rpm:750, reload:2.2,
+    spread:.022, pellets:1, recoil:.006, knock:1.8,
+    range:65, auto:true, kind:'gun',
+  },
+  shotgun: {
+    key:'shotgun', slot:'secondary', name:'M1014',
+    magSize:8, ammo:8, reserve:40,
+    damage:20, rpm:90, reload:3.2,
+    spread:.12, pellets:9, recoil:.018, knock:4.5,
+    range:22, auto:false, kind:'gun',
+    slowDur:0.6, slowMul:0.55,
+  },
+  knife: {
+    key:'knife', slot:'melee', name:'战术刀',
+    // 轻击：两连击，每击伤害60，间隔120ms
+    lightDmg:60, lightRange:2.2,
+    // 重击：前摇500ms，一击伤害320（秒杀普通幽灵320hp），母体需3击
+    heavyDmg:320, heavyRange:2.5, heavyWindup:0.5,
+    kind:'knife',
+  },
+};
+// 运行时深拷贝武器状态
+function cloneWeapons(){
+  const out = {};
+  for(const k in WEAPONS){
+    out[k] = Object.assign({}, WEAPONS[k]);
+  }
+  return out;
+}
+
+// ════════════════════════════════════════════════════════════
+//  玩家状态
+// ════════════════════════════════════════════════════════════
+const player = {
+  pos    : new THREE.Vector3(0, EYE_H, 18),
+  vel    : new THREE.Vector3(),
+  yaw    : 0,
+  pitch  : 0,
+  onGround: false,
+  prevVelY: 0,          // 上一帧垂直速度（用于掉落伤害检测）
+  team   : 'human',     // 'human' | 'ghost' | 'hunter'
+  hp     : 100,
+  hpMax  : 100,
+  armor  : 100,
+  armorMax:100,
+  speed  : PLAYER_SPEED,
+  radius : 0.35,
+  // 幽灵属性
+  clawCd : 0,
+  berserk: false,
+  berserkT: 0,
+  berserkCd:0,
+  // 武器
+  weapons: cloneWeapons(),
+  currentWeapon: 'ak47',
+  fireCd : 0,
+  reloading: false,
+  reloadT  : 0,
+  // 刀/猎手攻击状态
+  knifeLight1Cd : 0,   // 轻击1冷却
+  knifeLight2Pend: false, // 第二下待触发
+  knifeLight2T  : 0,
+  knifeHeavyWindup: false, // 重击前摇中
+  knifeHeavyT   : 0,
+  knifeHeavyRmb : false,  // 右键是否仍按住
+  mouseRight    : false,
+  // 终极猎手
+  isHunter    : false,
+  hunterTriggered: false, // 已触发过（本局）
+};
+
+// ════════════════════════════════════════════════════════════
+//  游戏状态
+// ════════════════════════════════════════════════════════════
+const state = {
+  running   : false,
+  ended     : false,
+  phase     : 'prep',  // 'prep' | 'fight'
+  prep      : PREP_TIME,
+  time      : ROUND_TIME,
+  humanScore: 0,
+  ghostScore: 0,
+  pendingRespawns: 0,
+  mouseDown : false,
+  mouseRight: false,
+  shakeAmt  : 0,
+  totalHumans: HUMAN_COUNT + 1, // 包含玩家，用于计算感染率
+};
+
+// ════════════════════════════════════════════════════════════
+//  实体（AI人类 + AI幽灵）
+// ════════════════════════════════════════════════════════════
+const entities = [];
+
+function makeHumanMesh(){
+  const g = new THREE.Group();
+  // 身体
+  const body = new THREE.Mesh(new THREE.BoxGeometry(.6,1.0,.35), MAT.humanBody.clone());
+  body.position.y = .5;
+  body.castShadow = true;
+  g.add(body);
+  // 头
+  const head = new THREE.Mesh(new THREE.BoxGeometry(.4,.4,.4), MAT.humanBody.clone());
+  head.material.color.set(0xddaa88);
+  head.position.y = 1.25;
+  head.castShadow = true;
+  g.add(head);
+  // 腿 x2
+  for(const sx of [-.15,.15]){
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(.22,.7,.25), MAT.humanBody.clone());
+    leg.material.color.set(0x1a3a6e);
+    leg.position.set(sx, -.35, 0);
+    g.add(leg);
+  }
+  return g;
+}
+
+function makeGhostMesh(){
+  const g = new THREE.Group();
+  // 主体（半透明紫色）
+  const body = new THREE.Mesh(new THREE.SphereGeometry(.5,10,8), MAT.ghostBody.clone());
+  body.scale.y = 1.6;
+  body.position.y = .9;
+  body.castShadow = true;
+  g.add(body);
+  // 发光外层
+  const glow = new THREE.Mesh(new THREE.SphereGeometry(.6,8,6), MAT.ghostGlow.clone());
+  glow.scale.y = 1.6;
+  glow.position.y = .9;
+  g.add(glow);
+  // 眼睛
+  for(const ex of [-.14,.14]){
+    const eye = new THREE.Mesh(
+      new THREE.SphereGeometry(.06,5,4),
+      new THREE.MeshStandardMaterial({color:0xff0000, emissive:0xff0000, emissiveIntensity:3})
+    );
+    eye.position.set(ex,.05,.45);
+    body.add(eye);
+  }
+  return g;
+}
+
+function spawnEntity(type, pos){
+  const ent = {
+    type,                          // 'human' | 'ghost'
+    pos  : pos.clone(),
+    vel  : new THREE.Vector3(),
+    hp   : type==='human' ? 100 : 320,
+    hpMax: type==='human' ? 100 : 320,
+    radius: .38,
+    onGround: false,
+    speed: type==='human' ? 4.0 : 4.2,
+    isHunter: false,               // 终极猎手状态
+    // AI 状态
+    aiState   : 'wander',
+    aiTimer   : 0,
+    targetPos : pos.clone(),
+    targetEnt : null,
+    // 幽灵特有
+    clawCd    : 0,
+    level     : 1,
+    mother    : false,
+    // 网格
+    mesh      : null,
+    label     : null,
+    dead      : false,
+    regenTimer: 0,
+  };
+  ent.mesh = type==='human' ? makeHumanMesh() : makeGhostMesh();
+  ent.mesh.position.copy(ent.pos);
+  scene.add(ent.mesh);
+
+  // 血条标签（用Sprite模拟）
+  // 这里用CSS2D太重，改用一个细长box
+  const barBg = new THREE.Mesh(new THREE.PlaneGeometry(1,.1), new THREE.MeshBasicMaterial({color:0x333333,depthTest:false,transparent:true,opacity:.7}));
+  barBg.position.y = type==='ghost' ? 2.1 : 1.9;
+  barBg.renderOrder = 999;
+  const barFg = new THREE.Mesh(new THREE.PlaneGeometry(1,.08), new THREE.MeshBasicMaterial({color: type==='human' ? 0x44aaff : 0xcc00ff, depthTest:false}));
+  barFg.position.z = .01;
+  barBg.add(barFg);
+  ent.hpBarBg = barBg;
+  ent.hpBarFg = barFg;
+  ent.mesh.add(barBg);
+
+  entities.push(ent);
+  return ent;
+}
+
+// ── 随机出生点 ──
+function randomSpawn(awayFrom){
+  const CORNERS = [
+    new THREE.Vector3(-32,.5,-32), new THREE.Vector3(32,.5,-32),
+    new THREE.Vector3(-32,.5,32),  new THREE.Vector3(32,.5,32),
+  ];
+  if(!awayFrom) return CORNERS[Math.floor(Math.random()*CORNERS.length)].clone();
+  // 距所有awayFrom最远角落
+  let best=CORNERS[0], bestD=0;
+  for(const c of CORNERS){
+    let minD=Infinity;
+    for(const p of awayFrom) minD=Math.min(minD, c.distanceTo(p));
+    if(minD>bestD){ bestD=minD; best=c; }
+  }
+  return best.clone();
+}
+
+function initEntities(){
+  entities.length = 0;
+  // AI 人类
+  const humanSpawns = [
+    new THREE.Vector3(-10,.5,-10), new THREE.Vector3(10,.5,-10),
+    new THREE.Vector3(-10,.5,10),  new THREE.Vector3(10,.5,10),
+    new THREE.Vector3(-18,.5,0),   new THREE.Vector3(18,.5,0),
+    new THREE.Vector3(0,.5,-18),   new THREE.Vector3(0,.5,18),
+  ];
+  for(let i=0;i<HUMAN_COUNT;i++) spawnEntity('human', humanSpawns[i]);
+  // AI 幽灵（起始从四角出生）
+  const ghostSpawns = [
+    new THREE.Vector3(-34,.5,-34), new THREE.Vector3(34,.5,-34),
+    new THREE.Vector3(-34,.5,34),  new THREE.Vector3(34,.5,34),
+  ];
+  for(let i=0;i<GHOST_COUNT;i++){
+    const g = spawnEntity('ghost', ghostSpawns[i]);
+    if(i===0) g.mother = true; // 首只为母体
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+//  碰撞辅助
+// ════════════════════════════════════════════════════════════
+const _v3 = new THREE.Vector3();
+
+function rayAABB(origin, dir, obs){
+  const dx = obs.x - origin.x, dz = obs.z - origin.z;
+  const hw = obs.w/2, hd = obs.d/2;
+  let tmin=-Infinity, tmax=Infinity;
+  if(Math.abs(dir.x)>1e-9){ const inv=1/dir.x; tmin=Math.max(tmin,(dx-hw)*inv); tmax=Math.min(tmax,(dx+hw)*inv); }
+  else if(Math.abs(dx)>hw) return null;
+  if(Math.abs(dir.z)>1e-9){ const inv=1/dir.z; tmin=Math.max(tmin,(dz-hd)*inv); tmax=Math.min(tmax,(dz+hd)*inv); }
+  else if(Math.abs(dz)>hd) return null;
+  if(tmax<0||tmin>tmax) return null;
+  const t = tmin>0 ? tmin : tmax;
+  if(t<0) return null;
+  // 高度检测
+  const hitY = origin.y + dir.y * t;
+  if(hitY < obs.baseY || hitY > obs.h + .2) return null;
+  return t;
+}
+
+function raySphere(origin, dir, center, radius){
+  const oc = _v3.copy(origin).sub(center);
+  const b = oc.dot(dir), c = oc.dot(oc)-radius*radius;
+  const disc = b*b - c;
+  if(disc<0) return null;
+  const sq = Math.sqrt(disc);
+  const t1 = -b-sq, t2 = -b+sq;
+  if(t1>0) return t1;
+  if(t2>0) return t2;
+  return null;
+}
+
+function segmentBlocked(a, b){
+  const dir = _v3.copy(b).sub(a);
+  const len = dir.length();
+  dir.divideScalar(len);
+  for(const obs of world.obstacles){
+    const t = rayAABB(a, dir, obs);
+    if(t!==null && t<len-0.15) return true;
+  }
+  return false;
+}
+
+function rayHitEntity(origin, dir, ent, maxRange){
+  if(ent.dead) return null;
+  const bodyCenter = ent.pos.clone(); bodyCenter.y += 1.0;
+  const headCenter = ent.pos.clone(); headCenter.y += 1.65;
+  const tb = raySphere(origin, dir, bodyCenter, ent.radius+.18);
+  const th = raySphere(origin, dir, headCenter, ent.radius*.55);
+  let t=null, head=false;
+  if(tb!==null && (th===null || tb<th)){ t=tb; head=false; }
+  else if(th!==null){ t=th; head=true; }
+  if(t===null || t>maxRange) return null;
+  if(segmentBlocked(origin, bodyCenter)) return null;
+  return {t, head};
+}
+
+// ── 移动碰撞解算 ──
+function resolvePos(pos, vel, dt){
+  const r = .35;
+  // 水平
+  const np = pos.clone().addScaledVector(vel, dt);
+  for(const obs of world.obstacles){
+    const dx = np.x - obs.x, dz = np.z - obs.z;
+    const hw=obs.w/2+r, hd=obs.d/2+r;
+    if(Math.abs(dx)<hw && Math.abs(dz)<hd && np.y<obs.h+.05 && np.y>obs.baseY-.1){
+      // 推出最浅方向
+      const ox=hw-Math.abs(dx), oz=hd-Math.abs(dz);
+      if(ox<oz){ np.x = obs.x + Math.sign(dx)*hw; vel.x=0; }
+      else      { np.z = obs.z + Math.sign(dz)*hd; vel.z=0; }
+    }
+  }
+  pos.copy(np);
+
+  // 垂直（重力+平台落地）
+  let onGround=false;
+  for(const obs of world.obstacles){
+    const dx=pos.x-obs.x, dz=pos.z-obs.z;
+    const hw=obs.w/2+r*.6, hd=obs.d/2+r*.6;
+    if(Math.abs(dx)<hw && Math.abs(dz)<hd){
+      // 站上
+      if(pos.y>=obs.h-0.05 && pos.y<obs.h+1.2 && vel.y<=0){
+        pos.y = obs.h; vel.y=0; onGround=true;
+      }
+    }
+  }
+  // 主地面
+  if(pos.y<=0){ pos.y=0; vel.y=0; onGround=true; }
+  return onGround;
+}
+
+// ════════════════════════════════════════════════════════════
+//  感染率伤害倍率（随感染人数增加）
+// ════════════════════════════════════════════════════════════
+function humanDamageMultiplier(){
+  // 感染人数 = 总人类 - 当前人类
+  const infected = state.totalHumans - countHumans();
+  // 每感染1人 +20%，上限3倍
+  return Math.min(3.0, 1.0 + infected * 0.20);
+}
+
+// ════════════════════════════════════════════════════════════
+//  输入
+// ════════════════════════════════════════════════════════════
+const keys = {};
+window.addEventListener('keydown', e=>{
+  if(!state.running) return;
+  keys[e.code] = true;
+
+  if(e.code==='Digit1') switchWeapon('ak47');
+  if(e.code==='Digit2') switchWeapon('m4a1');
+  if(e.code==='Digit3') switchWeapon('shotgun');
+  if(e.code==='Digit4') switchWeapon('knife');
+
+  if(e.code==='KeyR') startReload();
+  if(e.code==='KeyE') tryBecomeHunter();
+  if(e.code==='KeyF') activateBerserk();
+});
+window.addEventListener('keyup',  e=>{ keys[e.code]=false; });
+
+canvas.addEventListener('mousedown', e=>{
+  if(!state.running) return;
+  if(e.button===0) state.mouseDown=true;
+  if(e.button===2){ state.mouseRight=true; player.mouseRight=true; startHeavyWindup(); }
+});
+window.addEventListener('mouseup', e=>{
+  if(e.button===0) state.mouseDown=false;
+  if(e.button===2){ state.mouseRight=false; player.mouseRight=false; }
+});
+canvas.addEventListener('contextmenu', e=>e.preventDefault());
+
+// 鼠标锁定
+canvas.addEventListener('click', ()=>{
+  if(state.running) canvas.requestPointerLock();
+});
+document.addEventListener('pointerlockchange', ()=>{
+  // nothing needed
+});
+document.addEventListener('mousemove', e=>{
+  if(document.pointerLockElement!==canvas||!state.running) return;
+  const sens = .0018;
+  player.yaw   -= e.movementX * sens;
+  player.pitch -= e.movementY * sens;
+  player.pitch = Math.max(-1.3, Math.min(1.3, player.pitch));
+});
+
+// ════════════════════════════════════════════════════════════
+//  武器逻辑
+// ════════════════════════════════════════════════════════════
+function switchWeapon(key){
+  if(player.reloading) return;
+  if(player.team==='ghost') return;
+  if(player.isHunter) return; // 猎手不能换枪
+  if(!player.weapons[key]) return;
+  player.currentWeapon = key;
+  updateHUD();
+}
+
+function startReload(){
+  if(player.team==='ghost') return;
+  if(player.isHunter) return;
+  const w = player.weapons[player.currentWeapon];
+  if(!w || w.kind==='knife') return;
+  if(player.reloading) return;
+  if(w.ammo===w.magSize) return;
+  if(w.reserve<=0) return;
+  player.reloading = true;
+  player.reloadT   = w.reload;
+}
+
+function fire(){
+  if(player.team==='ghost') return;
+  if(player.isHunter) return; // 猎手只能近战
+  const w = player.weapons[player.currentWeapon];
+  if(!w || player.reloading) return;
+  if(w.kind==='knife'){ knifeLight(); return; }
+  if(player.fireCd>0) return;
+  if(w.ammo<=0){ startReload(); return; }
+
+  w.ammo--;
+  player.fireCd = 60/w.rpm;
+  player.pitch -= w.recoil * (1+Math.random()*.3);
+
+  const origin = camera.position.clone();
+  const dir    = new THREE.Vector3(0,0,-1).applyEuler(camera.rotation).normalize();
+  const mult   = humanDamageMultiplier();
+
+  for(let p=0;p<w.pellets;p++){
+    const sp = w.spread;
+    const sd = dir.clone();
+    sd.x += (Math.random()-.5)*sp;
+    sd.y += (Math.random()-.5)*sp;
+    sd.normalize();
+
+    let bestT=Infinity, bestEnt=null, bestHead=false;
+    for(const ent of entities){
+      if(ent.type==='human'||ent.dead) continue;
+      const res = rayHitEntity(origin, sd, ent, w.range);
+      if(res && res.t<bestT){ bestT=res.t; bestEnt=ent; bestHead=res.head; }
+    }
+    if(bestEnt){
+      let dmg = w.damage * mult * (.96+Math.random()*.08);
+      if(bestHead) dmg *= 1.55;
+      // 枪有击退
+      hitEntity(bestEnt, dmg, w.knock, sd, false);
+      showHitMarker();
+    }
+  }
+  state.shakeAmt += .04;
+  updateHUD();
+}
+
+// ── 刀/猎手 轻击（左键）──
+function knifeLight(){
+  const w = player.weapons['knife'];
+  if(player.knifeHeavyWindup) return; // 前摇中不能轻击
+  if(player.knifeLight1Cd>0) return;
+
+  // 第一击
+  player.knifeLight1Cd = 0.45; // 整体间隔
+  doKnifeHit(w.lightDmg, w.lightRange, false);
+
+  // 第二击：120ms后自动触发
+  player.knifeLight2Pend = true;
+  player.knifeLight2T   = 0.12;
+}
+
+function doKnifeHit(dmg, range, heavy){
+  const origin = camera.position.clone();
+  const dir    = new THREE.Vector3(0,0,-1).applyEuler(camera.rotation).normalize();
+  // 猎手/人类刀 都攻击幽灵；幽灵爪攻击人类
+  const targetTeam = (player.team==='ghost') ? 'human' : 'ghost';
+  let hit=false;
+  for(const ent of entities){
+    if(ent.type===targetTeam && !ent.dead){
+      const res=rayHitEntity(origin,dir,ent,range);
+      if(res){
+        hitEntity(ent, dmg, 0, dir, true); // knife=true → 永久清除
+        showHitMarker();
+        hit=true;
+        break;
+      }
+    }
+  }
+  state.shakeAmt += heavy ? .08 : .03;
+  return hit;
+}
+
+// ── 重击前摇 ──
+function startHeavyWindup(){
+  const cw = player.currentWeapon;
+  // 只有拿刀/猎手时才触发
+  if(!player.isHunter && cw!=='knife') return;
+  if(player.knifeHeavyWindup) return;
+  player.knifeHeavyWindup = true;
+  player.knifeHeavyT = player.weapons['knife'].heavyWindup;
+  document.getElementById('heavy-charge').style.display='block';
+}
+
+// ── 终极猎手 ──
+function tryBecomeHunter(){
+  if(player.team!=='human') return;
+  if(player.isHunter) return;
+  if(player.hunterTriggered) return;
+  // 仅剩2名人类（含玩家）时触发
+  if(countHumans()>2) return;
+
+  player.isHunter = true;
+  player.hunterTriggered = true;
+  player.hp = 620; player.hpMax = 620;
+  player.armor = 0;
+  player.speed = PLAYER_SPEED + 1.2;
+  player.currentWeapon = 'knife';
+
+  // 外观：屏幕金色边缘
+  document.getElementById('hunter-prompt').style.display='none';
+  document.getElementById('hunter-bar').style.display='block';
+  document.getElementById('infect-flash').style.background='rgba(255,200,0,.4)';
+  document.getElementById('infect-flash').style.opacity='1';
+  setTimeout(()=>{
+    document.getElementById('infect-flash').style.opacity='0';
+    document.getElementById('infect-flash').style.background='rgba(200,0,50,.55)';
+  }, 400);
+
+  // AI同队人类也变猎手
+  for(const ent of entities){
+    if(ent.type==='human'&&!ent.dead){
+      ent.isHunter=true;
+      ent.hp=760; ent.hpMax=760;
+      ent.speed+=1.5;
+      // 换成金色外观
+      ent.mesh.traverse(c=>{
+        if(c.isMesh && c.material) c.material.color.set(0xffd700);
+      });
+    }
+  }
+  addKillFeed('⚡ 终极猎手觉醒！免疫感染！');
+  updateHUD();
+}
+
+function activateBerserk(){
+  if(player.team!=='ghost') return;
+  if(player.berserkCd>0) return;
+  if(player.hp<80) return;
+  player.berserk  = true;
+  player.berserkT = 4.0;
+  player.berserkCd= 9.0;
+  player.hp -= 80;
+  state.shakeAmt += .06;
+}
+
+// ── 命中实体 ──
+function hitEntity(ent, dmg, knock, dir, knife=false){
+  if(ent.dead) return;
+  ent.hp -= dmg;
+  if(knock>0) ent.vel.addScaledVector(dir, knock*.6);
+  ent.regenTimer = 4;
+  if(ent.hp<=0){
+    killEntity(ent, knife);
+  }
+}
+
+function killEntity(ent, knife=false){
+  if(ent.dead) return;
+  ent.dead = true;
+  scene.remove(ent.mesh);
+
+  if(ent.type==='ghost'){
+    addKillFeed(knife ? `💀 刀杀：幽灵（永久清除）` : `🔫 击杀：幽灵（${RESPAWN_DELAY}s后复活）`);
+    if(knife){
+      const idx = entities.indexOf(ent);
+      if(idx>=0) entities.splice(idx,1);
+    } else {
+      state.pendingRespawns++;
+      setTimeout(()=>{
+        state.pendingRespawns--;
+        if(state.ended) return;
+        const humanPositions = entities.filter(e=>e.type==='human'&&!e.dead).map(e=>e.pos);
+        if(player.team==='human'||player.isHunter) humanPositions.push(player.pos);
+        const sp = randomSpawn(humanPositions);
+        ent.pos.copy(sp); ent.hp=ent.hpMax; ent.dead=false;
+        ent.vel.set(0,0,0);
+        scene.add(ent.mesh);
+        ent.mesh.position.copy(sp);
+      }, RESPAWN_DELAY*1000);
+    }
+  } else {
+    // AI人类死亡 → 直接感染变幽灵
+    addKillFeed('😱 AI人类被感染！变身幽灵！');
+    const idx = entities.indexOf(ent);
+    if(idx>=0) entities.splice(idx,1);
+    spawnEntity('ghost', ent.pos);
+    // 触发猎手提示
+    checkHunterPrompt();
+  }
+  updateHUD();
+}
+
+// ── 普通人类被接触 → 直接感染（不走HP）──
+function infectHumanDirect(){
+  if(player.team!=='human') return;
+  if(player.isHunter) return; // 猎手免疫
+  // 直接变幽灵，不扣血
+  infectPlayer();
+}
+
+// ── 感染玩家 ──
+function infectPlayer(){
+  if(player.team==='ghost') return;
+  if(player.isHunter) return; // 猎手免疫
+  player.team = 'ghost';
+  player.isHunter = false;
+  player.hp = 650; player.hpMax=650;
+  player.armor=0; player.speed=4.8;
+  player.currentWeapon='knife'; // 幽灵显示爪
+  document.getElementById('ghost-vignette').style.opacity='1';
+  document.getElementById('crosshair').className='ghost';
+  document.getElementById('infect-flash').style.opacity='1';
+  setTimeout(()=>document.getElementById('infect-flash').style.opacity='0',300);
+  document.getElementById('skill-bar').style.display='block';
+  document.getElementById('hunter-prompt').style.display='none';
+  document.getElementById('hunter-bar').style.display='none';
+  addKillFeed('💉 你被感染了！你现在是幽灵！');
+  checkHunterPrompt();
+  updateHUD();
+}
+
+// ── 检查是否应显示猎手提示 ──
+function checkHunterPrompt(){
+  if(player.team!=='human') return;
+  if(player.isHunter || player.hunterTriggered) return;
+  const prompt=document.getElementById('hunter-prompt');
+  if(countHumans()<=2){
+    prompt.style.display='block';
+  } else {
+    prompt.style.display='none';
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+//  计数辅助
+// ════════════════════════════════════════════════════════════
+function countHumans(){
+  let n = entities.filter(e=>e.type==='human'&&!e.dead).length;
+  if(player.team==='human' || player.isHunter) n++;
+  return n;
+}
+function countGhosts(){
+  let n = entities.filter(e=>e.type==='ghost'&&!e.dead).length;
+  if(player.team==='ghost') n++;
+  return n;
+}
+
+// ════════════════════════════════════════════════════════════
+//  AI 更新
+// ════════════════════════════════════════════════════════════
+const _tmpDir = new THREE.Vector3();
+
+function updateAI(ent, dt){
+  if(ent.dead) return;
+
+  // 血量条朝相机
+  if(ent.hpBarBg){
+    ent.hpBarBg.lookAt(camera.position);
+    const pct = Math.max(0, ent.hp/ent.hpMax);
+    ent.hpBarFg.scale.x = pct;
+    ent.hpBarFg.position.x = (pct-1)*0.5;
+    ent.hpBarFg.material.color.setHSL(pct*.35, 1, .5);
+  }
+
+  // 同步网格
+  ent.mesh.position.x = ent.pos.x;
+  ent.mesh.position.z = ent.pos.z;
+  ent.mesh.position.y = ent.pos.y;
+
+  // 冷却
+  if(ent.clawCd>0) ent.clawCd-=dt;
+
+  // 幽灵HP回复
+  if(ent.type==='ghost'){
+    ent.regenTimer-=dt;
+    if(ent.regenTimer<0){
+      ent.hp = Math.min(ent.hpMax, ent.hp + (ent.mother?28:18)*dt);
+    }
+  }
+
+  // ── 幽灵AI ──
+  if(ent.type==='ghost'){
+    // 寻找最近人类
+    let nearestH=null, nearestD=Infinity;
+    for(const e of entities){
+      if(e.type!=='human'||e.dead) continue;
+      const d = ent.pos.distanceTo(e.pos);
+      if(d<nearestD){ nearestD=d; nearestH=e; }
+    }
+    // 也考虑玩家（若为人类）
+    if(player.team==='human'){
+      const dp = ent.pos.distanceTo(player.pos);
+      if(dp<nearestD){ nearestD=dp; nearestH='player'; }
+    }
+
+    if(nearestH){
+      const targetPos = nearestH==='player' ? player.pos : nearestH.pos;
+      const visible = !segmentBlocked(ent.pos, targetPos);
+      if(visible || nearestD<5){
+        // 朝目标冲
+        _tmpDir.copy(targetPos).sub(ent.pos); _tmpDir.y=0; _tmpDir.normalize();
+        const spd = ent.mother ? 4.7 : 4.2;
+        ent.vel.x = _tmpDir.x * spd;
+        ent.vel.z = _tmpDir.z * spd;
+        ent.mesh.lookAt(targetPos.x, ent.mesh.position.y, targetPos.z);
+
+        // 近战攻击
+        if(nearestD<1.6 && ent.clawCd<=0){
+          ent.clawCd = .8;
+          if(nearestH==='player'){
+            if(player.isHunter){
+              // 猎手免疫感染，只扣血
+              let dmg = ent.mother ? 48 : 32;
+              applyDamageToPlayer(dmg, 0);
+            } else {
+              // 普通人类：直接感染，不走HP
+              infectHumanDirect();
+            }
+          } else {
+            // 感染AI人类（直接，不走HP）
+            infectAIHuman(nearestH, ent);
+          }
+        }
+      } else {
+        // 随机游荡
+        wander(ent, dt);
+      }
+    } else {
+      wander(ent, dt);
+    }
+  }
+
+  // ── 人类AI ──
+  else {
+    // 找最近幽灵威胁
+    let nearestG=null, nearestGD=Infinity;
+    for(const e of entities){
+      if(e.type!=='ghost'||e.dead) continue;
+      const d=ent.pos.distanceTo(e.pos);
+      if(d<nearestGD){ nearestGD=d; nearestG=e; }
+    }
+    if(player.team==='ghost'){
+      const dp=ent.pos.distanceTo(player.pos);
+      if(dp<nearestGD){ nearestGD=dp; nearestG='player'; }
+    }
+
+    if(nearestG && nearestGD<7){
+      const gPos = nearestG==='player' ? player.pos : nearestG.pos;
+      // 后退
+      _tmpDir.copy(ent.pos).sub(gPos); _tmpDir.y=0;
+      if(_tmpDir.lengthSq()<0.01) _tmpDir.set(1,0,0);
+      _tmpDir.normalize();
+      ent.vel.x = _tmpDir.x * 3.5;
+      ent.vel.z = _tmpDir.z * 3.5;
+      ent.aiState='retreat';
+    } else {
+      wander(ent, dt);
+    }
+  }
+
+  // 物理
+  ent.vel.y -= GRAVITY * dt;
+  ent.onGround = resolvePos(ent.pos, ent.vel, dt);
+  if(ent.onGround){ ent.vel.x*=.82; ent.vel.z*=.82; }
+
+  // 越界保护
+  const B=36;
+  ent.pos.x=Math.max(-B,Math.min(B,ent.pos.x));
+  ent.pos.z=Math.max(-B,Math.min(B,ent.pos.z));
+}
+
+function wander(ent, dt){
+  ent.aiTimer-=dt;
+  if(ent.aiTimer<=0||ent.pos.distanceTo(ent.targetPos)<1.5){
+    // 选新目标
+    const pts = world.navPoints;
+    ent.targetPos = pts[Math.floor(Math.random()*pts.length)].clone();
+    ent.aiTimer = 3+Math.random()*4;
+  }
+  _tmpDir.copy(ent.targetPos).sub(ent.pos); _tmpDir.y=0;
+  if(_tmpDir.lengthSq()>0.01){
+    _tmpDir.normalize();
+    ent.vel.x += _tmpDir.x * ent.speed * .6;
+    ent.vel.z += _tmpDir.z * ent.speed * .6;
+    const spd=Math.sqrt(ent.vel.x**2+ent.vel.z**2);
+    if(spd>ent.speed){ ent.vel.x/=spd/ent.speed; ent.vel.z/=spd/ent.speed; }
+    ent.mesh.lookAt(ent.targetPos.x, ent.mesh.position.y, ent.targetPos.z);
+  }
+}
+
+function infectAIHuman(humanEnt, ghostEnt){
+  if(humanEnt.dead) return;
+  if(humanEnt.isHunter){
+    // 猎手免疫感染，只扣血
+    humanEnt.hp -= ghostEnt.mother ? 48 : 32;
+    if(humanEnt.hp<=0) killEntity(humanEnt, false);
+    return;
+  }
+  // 普通AI人类：直接感染，不经过HP
+  humanEnt.dead=true;
+  scene.remove(humanEnt.mesh);
+  const idx=entities.indexOf(humanEnt);
+  if(idx>=0) entities.splice(idx,1);
+  spawnEntity('ghost', humanEnt.pos);
+  if(ghostEnt && ghostEnt.level<3){
+    ghostEnt.level++;
+    ghostEnt.hpMax+=160; ghostEnt.hp=Math.min(ghostEnt.hpMax, ghostEnt.hp+220);
+    ghostEnt.speed+=.3;
+  }
+  addKillFeed('😱 AI人类被感染！变身幽灵！');
+  checkHunterPrompt();
+  updateHUD();
+}
+
+// ── 伤害玩家（仅猎手/幽灵状态下HP有意义）──
+function applyDamageToPlayer(dmg, knockback){
+  if(player.armor>0){
+    const ab=Math.min(player.armor, dmg*.55);
+    player.armor-=ab; dmg-=ab;
+  }
+  player.hp-=dmg;
+  state.shakeAmt+=.08;
+  document.getElementById('infect-flash').style.opacity='.3';
+  setTimeout(()=>document.getElementById('infect-flash').style.opacity='0',200);
+  // 猎手HP归零 → 变幽灵
+  if(player.hp<=0){
+    player.hp=0;
+    if(player.isHunter || player.team==='ghost'){
+      // 猎手死亡 → 变幽灵
+      if(player.isHunter){
+        player.isHunter=false;
+        infectPlayer();
+      }
+    }
+  }
+  updateHUD();
+}
+
+// ── 掉落伤害检测（每帧在updatePlayer中调用）──
+function checkFallDamage(prevVelY){
+  if(!player.onGround) return;
+  // 刚落地时检测上一帧下落速度
+  const impact = -prevVelY; // 正值表示下落速度
+  if(impact > FALL_DMG_MIN){
+    const dmg = (impact - FALL_DMG_MIN) * FALL_DMG_MUL;
+    applyDamageToPlayer(dmg, 0);
+    if(dmg>30) addKillFeed(`💥 高空坠落！损失${Math.round(dmg)}HP`);
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+//  玩家移动
+// ════════════════════════════════════════════════════════════
+function updatePlayer(dt){
+  // 换弹冷却
+  if(player.reloading){
+    player.reloadT-=dt;
+    if(player.reloadT<=0){
+      const w=player.weapons[player.currentWeapon];
+      const need=w.magSize-w.ammo;
+      const take=Math.min(need,w.reserve);
+      w.ammo+=take; w.reserve-=take;
+      player.reloading=false;
+      updateHUD();
+    }
+  }
+  if(player.fireCd>0) player.fireCd-=dt;
+  if(player.knifeLight1Cd>0) player.knifeLight1Cd-=dt;
+
+  // 刀第二连击触发
+  if(player.knifeLight2Pend){
+    player.knifeLight2T-=dt;
+    if(player.knifeLight2T<=0){
+      player.knifeLight2Pend=false;
+      doKnifeHit(player.weapons['knife'].lightDmg, player.weapons['knife'].lightRange, false);
+    }
+  }
+
+  // 重击前摇
+  const heavyChargeFill = document.getElementById('heavy-charge-fill');
+  if(player.knifeHeavyWindup){
+    player.knifeHeavyT-=dt;
+    const pct = Math.max(0,1-(player.knifeHeavyT/player.weapons['knife'].heavyWindup));
+    heavyChargeFill.style.width=(pct*100)+'%';
+    if(player.knifeHeavyT<=0){
+      player.knifeHeavyWindup=false;
+      document.getElementById('heavy-charge').style.display='none';
+      // 重击结算
+      doKnifeHeavyHit();
+    }
+    // 松开右键取消前摇
+    if(!player.mouseRight){
+      player.knifeHeavyWindup=false;
+      document.getElementById('heavy-charge').style.display='none';
+    }
+  }
+
+  // 幽灵狂暴
+  if(player.berserk){
+    player.berserkT-=dt;
+    if(player.berserkT<=0){ player.berserk=false; }
+  }
+  if(player.berserkCd>0) player.berserkCd-=dt;
+  if(player.clawCd>0) player.clawCd-=dt;
+
+  // 幽灵HP回复
+  if(player.team==='ghost'){
+    player.hp=Math.min(player.hpMax, player.hp+18*dt);
+  }
+
+  // 移动
+  const forward= new THREE.Vector3(-Math.sin(player.yaw),0,-Math.cos(player.yaw));
+  const right  = new THREE.Vector3( Math.cos(player.yaw),0,-Math.sin(player.yaw));
+  const sprint = keys['ShiftLeft']||keys['ShiftRight'];
+  const spd    = (player.berserk ? player.speed+2.4 : player.speed) + (sprint?SPRINT_BONUS:0);
+
+  const move = new THREE.Vector3();
+  if(keys['KeyW']||keys['ArrowUp'])    move.addScaledVector(forward,  spd);
+  if(keys['KeyS']||keys['ArrowDown'])  move.addScaledVector(forward, -spd*.7);
+  if(keys['KeyA']||keys['ArrowLeft'])  move.addScaledVector(right,   -spd*.8);
+  if(keys['KeyD']||keys['ArrowRight']) move.addScaledVector(right,    spd*.8);
+  player.vel.x = move.x; player.vel.z = move.z;
+
+  // 跳跃
+  if(keys['Space']&&player.onGround){
+    player.vel.y = JUMP_V;
+    player.onGround = false;
+  }
+
+  // 记录落地前速度（用于掉落伤害）
+  const prevVelY = player.vel.y;
+  const wasOnGround = player.onGround;
+
+  player.vel.y -= GRAVITY*dt;
+  player.onGround = resolvePos(player.pos, player.vel, dt);
+  if(player.onGround){ player.vel.x*=.8; player.vel.z*=.8; }
+  player.pos.x=Math.max(-37,Math.min(37,player.pos.x));
+  player.pos.z=Math.max(-37,Math.min(37,player.pos.z));
+
+  // 掉落伤害（普通人类不走HP所以跳过；猎手和幽灵承受）
+  if(!wasOnGround && player.onGround && (player.isHunter || player.team==='ghost')){
+    checkFallDamage(prevVelY);
+  }
+
+  // 开火（左键）
+  if(state.mouseDown){
+    if(player.team==='human' && !player.isHunter){
+      if(player.currentWeapon==='knife') knifeLight();
+      else fire();
+    } else if(player.isHunter){
+      // 猎手左键：刀轻击
+      knifeLight();
+    } else if(player.team==='ghost'){
+      // 幽灵爪击
+      if(player.clawCd<=0){
+        player.clawCd=.65;
+        const origin=camera.position.clone();
+        const dir=new THREE.Vector3(0,0,-1).applyEuler(camera.rotation).normalize();
+        for(const ent of entities){
+          if(ent.type==='ghost'||ent.dead) continue;
+          const res=rayHitEntity(origin,dir,ent,2.5);
+          if(res){
+            const dmg=player.berserk?65:38;
+            // 猎手被幽灵打只扣血（不感染）
+            if(ent.isHunter){
+              ent.hp-=dmg;
+              if(ent.hp<=0) killEntity(ent,false);
+            } else {
+              // 普通人类被爪到：直接感染
+              infectAIHuman(ent, null);
+            }
+            showHitMarker();
+            break;
+          }
+        }
+      }
+    }
+  }
+
+  // 相机
+  const eyePos = player.pos.clone();
+  eyePos.y += EYE_H;
+  if(state.shakeAmt>0.001){
+    eyePos.x += (Math.random()-.5)*state.shakeAmt*.3;
+    eyePos.y += (Math.random()-.5)*state.shakeAmt*.3;
+    state.shakeAmt *= .85;
+  }
+  camera.position.copy(eyePos);
+  camera.rotation.order = 'YXZ';
+  camera.rotation.y = player.yaw;
+  camera.rotation.x = player.pitch;
+}
+
+// ── 重击结算 ──
+function doKnifeHeavyHit(){
+  const w = player.weapons['knife'];
+  const origin = camera.position.clone();
+  const dir    = new THREE.Vector3(0,0,-1).applyEuler(camera.rotation).normalize();
+  const targetTeam = (player.team==='ghost') ? 'human' : 'ghost';
+  for(const ent of entities){
+    if(ent.type!==targetTeam || ent.dead) continue;
+    const res=rayHitEntity(origin,dir,ent,w.heavyRange+.5);
+    if(res){
+      // 重击：母体320HP，普通幽灵320HP → 直接秒杀普通幽灵（hp=320），
+      // 母体hp=900，需3击
+      hitEntity(ent, w.heavyDmg, 0, dir, true); // knife=true，刀杀不复活
+      showHitMarker();
+      state.shakeAmt+=.1;
+      addKillFeed('⚔ 重击！');
+      break;
+    }
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+//  HUD 更新
+// ════════════════════════════════════════════════════════════
+function updateHUD(){
+  // HP/护甲
+  const hpPct = player.hp/player.hpMax*100;
+  document.getElementById('hp-fill').style.width = Math.max(0,hpPct)+'%';
+  document.getElementById('hp-val').textContent  = Math.max(0,Math.round(player.hp));
+  const arPct = player.armor/player.armorMax*100;
+  document.getElementById('ar-fill').style.width = Math.max(0,arPct)+'%';
+  document.getElementById('ar-val').textContent  = Math.max(0,Math.round(player.armor));
+
+  // 弹药/武器名
+  if(player.team==='ghost'){
+    document.getElementById('ammo-cur').textContent='👻';
+    document.getElementById('ammo-res').textContent='';
+    document.getElementById('weapon-name').textContent='幽灵爪击';
+  } else if(player.isHunter){
+    document.getElementById('ammo-cur').textContent='⚔';
+    document.getElementById('ammo-res').textContent='';
+    document.getElementById('weapon-name').textContent='终极猎手之刃';
+  } else {
+    const w=player.weapons[player.currentWeapon];
+    if(w){
+      if(w.kind==='knife'){
+        document.getElementById('ammo-cur').textContent='🔪';
+        document.getElementById('ammo-res').textContent='';
+        document.getElementById('weapon-name').textContent='战术刀  左键×2连  右键重击';
+      } else {
+        document.getElementById('ammo-cur').textContent=player.reloading?'换弹…':w.ammo;
+        document.getElementById('ammo-res').textContent='/ '+w.reserve;
+        document.getElementById('weapon-name').textContent=w.name;
+      }
+    }
+  }
+
+  // 人数
+  document.getElementById('cnt-h').textContent=countHumans();
+  document.getElementById('cnt-g').textContent=countGhosts();
+
+  // 分数
+  document.getElementById('score-h').textContent=state.humanScore;
+  document.getElementById('score-g').textContent=state.ghostScore;
+
+  // 伤害加成
+  const mult = humanDamageMultiplier();
+  document.getElementById('dmg-mult').textContent = mult.toFixed(2);
+  document.getElementById('dmg-boost').style.color = mult>1.5 ? '#ff8844' : mult>1 ? '#ffd86e' : '#aaa';
+
+  // 狂暴CD
+  if(player.team==='ghost'){
+    const cd=player.berserkCd;
+    document.getElementById('berserk-cd').textContent=cd>0?cd.toFixed(1)+'s':'就绪';
+  }
+}
+
+function updateTimer(dt){
+  if(state.phase==='prep'){
+    state.prep-=dt;
+    const s=Math.max(0,Math.ceil(state.prep));
+    document.getElementById('round-timer').textContent=`准备 ${s}s`;
+    if(state.prep<=0) state.phase='fight';
+  } else {
+    state.time-=dt;
+    const total=Math.max(0,state.time);
+    const m=Math.floor(total/60), s=Math.floor(total%60);
+    document.getElementById('round-timer').textContent=`${m}:${s.toString().padStart(2,'0')}`;
+  }
+}
+
+// ── 胜负判定 ──
+function checkWin(){
+  if(state.ended) return;
+  if(state.phase!=='fight') return;
+  const h=countHumans(), g=countGhosts();
+  if(h<=0){
+    endRound('ghost', '所有人类已被感染！');
+  } else if(g<=0 && state.pendingRespawns<=0){
+    endRound('human', '幽灵被全部清除！');
+  } else if(state.time<=0){
+    endRound('human', '人类坚守到最后！');
+  }
+}
+
+function endRound(winner, reason){
+  state.ended=true;
+  state.running=false;
+  if(winner==='human') state.humanScore++;
+  else state.ghostScore++;
+
+  const ov=document.getElementById('overlay');
+  ov.innerHTML=`
+    <h1>${winner==='human'?'🏆 人类胜利！':'☠ 幽灵胜利！'}</h1>
+    <h2>${reason}</h2>
+    <p>人类场数：${state.humanScore}　幽灵场数：${state.ghostScore}</p>
+    <button id="btn-start">再来一局</button>
+  `;
+  ov.style.display='flex';
+  document.getElementById('btn-start').addEventListener('click', startGame);
+  document.exitPointerLock();
+}
+
+// ── 命中标记 ──
+let hitTimeout=null;
+function showHitMarker(){
+  const hm=document.getElementById('hit-marker');
+  hm.classList.add('show');
+  if(hitTimeout) clearTimeout(hitTimeout);
+  hitTimeout=setTimeout(()=>hm.classList.remove('show'),120);
+}
+
+// ── 击杀信息 ──
+function addKillFeed(txt){
+  const feed=document.getElementById('kill-feed');
+  const div=document.createElement('div');
+  div.className='kill-entry';
+  div.textContent=txt;
+  feed.prepend(div);
+  setTimeout(()=>div.remove(),3600);
+  while(feed.children.length>5) feed.lastChild.remove();
+}
+
+// ── 火把动画 ──
+let torchTime=0;
+function updateTorches(dt){
+  torchTime+=dt;
+  for(let i=0;i<torchLights.length;i++){
+    const fl = .8+Math.sin(torchTime*6+i*1.7)*.4+Math.sin(torchTime*13+i*.9)*.2;
+    torchLights[i].intensity = fl * 3.5;
+  }
+}
+
+// ════════════════════════════════════════════════════════════
+//  主循环
+// ════════════════════════════════════════════════════════════
+let lastT=0;
+function loop(now){
+  requestAnimationFrame(loop);
+  const dt=Math.min((now-lastT)/1000,.05);
+  lastT=now;
+  if(!state.running) return;
+
+  updatePlayer(dt);
+  for(const ent of [...entities]) updateAI(ent,dt);
+  updateTimer(dt);
+  checkWin();
+  updateTorches(dt);
+  updateHUD();
+
+  renderer.render(scene, camera);
+}
+
+// ════════════════════════════════════════════════════════════
+//  启动游戏
+// ════════════════════════════════════════════════════════════
+function startGame(){
+  // 重置状态
+  state.running=false; state.ended=false;
+  state.phase='prep'; state.prep=PREP_TIME; state.time=ROUND_TIME;
+  state.pendingRespawns=0; state.mouseDown=false; state.mouseRight=false;
+  state.shakeAmt=0; state.totalHumans=HUMAN_COUNT+1;
+
+  // 重置玩家
+  player.pos.set(0, EYE_H, 22);
+  player.vel.set(0,0,0);
+  player.yaw=0; player.pitch=0;
+  player.team='human'; player.hp=100; player.hpMax=100;
+  player.armor=100; player.armorMax=100;
+  player.speed=PLAYER_SPEED;
+  player.weapons=cloneWeapons();
+  player.currentWeapon='ak47';
+  player.fireCd=0; player.reloading=false;
+  player.berserk=false; player.berserkCd=0; player.clawCd=0;
+  player.knifeLight1Cd=0; player.knifeLight2Pend=false; player.knifeLight2T=0;
+  player.knifeHeavyWindup=false; player.knifeHeavyT=0; player.mouseRight=false;
+  player.isHunter=false; player.hunterTriggered=false;
+  player.prevVelY=0; player.onGround=false;
+
+  // 清除旧实体
+  for(const e of entities) scene.remove(e.mesh);
+  initEntities();
+
+  // 重置UI
+  document.getElementById('ghost-vignette').style.opacity='0';
+  document.getElementById('crosshair').className='';
+  document.getElementById('skill-bar').style.display='none';
+  document.getElementById('kill-feed').innerHTML='';
+  document.getElementById('hunter-prompt').style.display='none';
+  document.getElementById('hunter-bar').style.display='none';
+  document.getElementById('heavy-charge').style.display='none';
+  document.getElementById('infect-flash').style.background='rgba(200,0,50,.55)';
+
+  // 隐藏覆盖层
+  document.getElementById('overlay').style.display='none';
+
+  state.running=true;
+  canvas.requestPointerLock();
+  updateHUD();
+}
+
+// ── 初始化地图和循环 ──
+buildMap();
+requestAnimationFrame(t=>{ lastT=t; requestAnimationFrame(loop); });
+
+// ── 绑定开始按钮 ──
+document.getElementById('btn-start').addEventListener('click', startGame);
+</script>
+</body>
+</html>

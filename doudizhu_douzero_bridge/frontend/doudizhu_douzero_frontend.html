@@ -620,6 +620,16 @@
     return true;
   }
 
+  // 连对专用：允许 A(14) 之后接 2(16)，即跨越 value=15 的空缺。
+  function isPairSeqConsecutive(values) {
+    for (let i = 1; i < values.length; i++) {
+      const diff = values[i] - values[i - 1];
+      // 正常相邻（如 K→A：13→14），或 A→2（14→16，跨过空缺的 15）
+      if (diff !== 1 && !(values[i - 1] === 14 && values[i] === 16)) return false;
+    }
+    return true;
+  }
+
   function detectType(cards) {
     if (!cards || cards.length === 0) return null;
     const n = cards.length;
@@ -640,19 +650,37 @@
       return { type: 'triple_pair', rank: groups.find(g => g.count === 3).value, len: 5 };
     }
 
-    if (n >= 5 && groups.length === n && values.every(v => v < 16) && isConsecutive(values)) {
-      return { type: 'straight', rank: values[values.length - 1], len: n };
+    // 顺子：每张点数不同，全部单张，且连续。
+    // 允许以 2（value=16）结尾，即 A(14)→2(16) 视为相邻（同连对/飞机规则一致）。
+    // 但 2 只能出现在末尾（顺子里最多含一张2，且必须是最大的那张）。
+    if (n >= 5 && groups.length === n) {
+      const hasTwo = values[values.length - 1] === 16;
+      const allBelowTwo = values.every(v => v < 17); // 不含大小王
+      if (allBelowTwo) {
+        if (!hasTwo && isConsecutive(values)) {
+          // 普通顺子，不含2
+          return { type: 'straight', rank: values[values.length - 1], len: n };
+        }
+        if (hasTwo && values.length >= 2) {
+          // 末尾是2，去掉2后其余牌连续，且A(14)是倒数第二张
+          const withoutTwo = values.slice(0, -1);
+          if (withoutTwo[withoutTwo.length - 1] === 14 && isConsecutive(withoutTwo)) {
+            return { type: 'straight', rank: 16, len: n };
+          }
+        }
+      }
     }
 
-    if (n >= 6 && n % 2 === 0 && groups.every(g => g.count === 2 && g.value < 16)) {
+    if (n >= 6 && n % 2 === 0 && groups.every(g => g.count === 2 && g.value < 17)) {
       const vals = groups.map(g => g.value);
-      if (vals.length >= 3 && isConsecutive(vals)) return { type: 'pair_seq', rank: vals[vals.length - 1], len: vals.length };
+      if (vals.length >= 3 && isPairSeqConsecutive(vals)) return { type: 'pair_seq', rank: vals[vals.length - 1], len: vals.length };
     }
 
-    const tripleGroups = groups.filter(g => g.count === 3 && g.value < 16);
+    // 飞机允许包含 2（value=16），且 A(14)→2(16) 视为相邻（同连对规则）。
+    const tripleGroups = groups.filter(g => g.count === 3 && g.value < 17);
     if (tripleGroups.length >= 2) {
       const tvals = tripleGroups.map(g => g.value).sort((a, b) => a - b);
-      if (isConsecutive(tvals)) {
+      if (isPairSeqConsecutive(tvals)) {
         const k = tvals.length;
         if (n === k * 3 && groups.every(g => g.count === 3)) {
           return { type: 'airplane', rank: tvals[tvals.length - 1], len: k };
@@ -919,20 +947,93 @@
   }
 
   function findStraightSequence(groups, needLen, minHigh, needCount) {
+    // 顺子允许末尾接 2（value=16），但 2 只能出现在末尾且前一张必须是 A(14)。
     const values = groups.filter(g => g.value < 16 && g.count >= needCount).map(g => g.value);
-    for (let i = 0; i <= values.length - needLen; i++) {
-      const seq = values.slice(i, i + needLen);
-      if (isConsecutive(seq) && seq[seq.length - 1] > minHigh) return seq;
+    const hasTwo = groups.some(g => g.value === 16 && g.count >= needCount);
+    for (let i = 0; i <= values.length - (needLen - (hasTwo ? 1 : 0)); i++) {
+      // 先试不含2的正常顺子
+      if (i + needLen <= values.length) {
+        const seq = values.slice(i, i + needLen);
+        if (isConsecutive(seq) && seq[seq.length - 1] > minHigh) return seq;
+      }
+      // 再试末尾接2（最后一张是A=14）
+      if (hasTwo && i + needLen - 1 <= values.length) {
+        const seq = values.slice(i, i + needLen - 1);
+        if (seq.length === needLen - 1 && isConsecutive(seq) && seq[seq.length - 1] === 14) {
+          const withTwo = [...seq, 16];
+          if (withTwo[withTwo.length - 1] > minHigh) return withTwo;
+        }
+      }
     }
     return null;
   }
 
   function allSequences(groups, minLen, needCount, minHigh = -1) {
+    // 顺子允许末尾接 2（A→2），2 只能出现在末尾。
     const values = groups.filter(g => g.value < 16 && g.count >= needCount).map(g => g.value);
+    const hasTwo = groups.some(g => g.value === 16 && g.count >= needCount);
     const runs = [];
     let cur = [];
     for (const v of values) {
       if (!cur.length || v === cur[cur.length - 1] + 1) cur.push(v);
+      else { if (cur.length >= minLen) runs.push(cur); cur = [v]; }
+    }
+    if (cur.length >= minLen) runs.push(cur);
+
+    const seqs = [];
+    for (const run of runs) {
+      for (let len = minLen; len <= run.length; len++) {
+        for (let i = 0; i <= run.length - len; i++) {
+          const seq = run.slice(i, i + len);
+          if (seq[seq.length - 1] > minHigh) seqs.push(seq);
+          // 末尾是 A(14)，尝试再接 2
+          if (hasTwo && seq[seq.length - 1] === 14) {
+            const withTwo = [...seq, 16];
+            if (withTwo[withTwo.length - 1] > minHigh) seqs.push(withTwo);
+          }
+        }
+      }
+    }
+    return seqs;
+  }
+
+  // 飞机专用序列枚举：允许 2（value=16），且允许 A(14)→2(16) 相邻（同连对规则）。
+  function allTripleSequences(groups, minLen, minHigh = -1) {
+    // 取所有有三张（count>=3）且不是大小王（value<17）的点数，含 2（value=16）。
+    const values = groups.filter(g => g.value < 17 && g.count >= 3).map(g => g.value);
+    const runs = [];
+    let cur = [];
+    for (const v of values) {
+      const prev = cur.length ? cur[cur.length - 1] : null;
+      const adjacent = prev !== null && (v === prev + 1 || (prev === 14 && v === 16));
+      if (!cur.length || adjacent) cur.push(v);
+      else { if (cur.length >= minLen) runs.push(cur); cur = [v]; }
+    }
+    if (cur.length >= minLen) runs.push(cur);
+
+    const seqs = [];
+    for (const run of runs) {
+      for (let len = minLen; len <= run.length; len++) {
+        for (let i = 0; i <= run.length - len; i++) {
+          const seq = run.slice(i, i + len);
+          if (seq[seq.length - 1] > minHigh) seqs.push(seq);
+        }
+      }
+    }
+    return seqs;
+  }
+
+  // 连对专用序列枚举：允许 2（value=17 以下，含 value=16 的 2），且允许 A(14)→2(16) 相邻。
+  function allPairSequences(groups, minLen, minHigh = -1) {
+    // 取所有有对子（count>=2）且不是大小王（value<17）的点数，含 2（value=16）。
+    const values = groups.filter(g => g.value < 17 && g.count >= 2).map(g => g.value);
+    const runs = [];
+    let cur = [];
+    for (const v of values) {
+      const prev = cur.length ? cur[cur.length - 1] : null;
+      // 正常连续（+1），或 A(14)→2(16) 跨空缺
+      const adjacent = prev !== null && (v === prev + 1 || (prev === 14 && v === 16));
+      if (!cur.length || adjacent) cur.push(v);
       else { if (cur.length >= minLen) runs.push(cur); cur = [v]; }
     }
     if (cur.length >= minLen) runs.push(cur);
@@ -986,12 +1087,14 @@
     return list.filter(c => !ids.has(c.id));
   }
 
-  function maximalRuns(values, minLen) {
+  function maximalRuns(values, minLen, allowA2 = false) {
     const sorted = [...new Set(values)].sort((a, b) => a - b);
     const runs = [];
     let cur = [];
     for (const v of sorted) {
-      if (!cur.length || v === cur[cur.length - 1] + 1) cur.push(v);
+      const prev = cur.length ? cur[cur.length - 1] : null;
+      const adjacent = prev !== null && (v === prev + 1 || (allowA2 && prev === 14 && v === 16));
+      if (!cur.length || adjacent) cur.push(v);
       else {
         if (cur.length >= minLen) runs.push(cur);
         cur = [v];
@@ -1030,7 +1133,7 @@
     while (changed) {
       changed = false;
       const gs = handGroups([...rest]);
-      const runs = maximalRuns(gs.filter(g => g.value < 16 && g.count >= 3).map(g => g.value), 2);
+      const runs = maximalRuns(gs.filter(g => g.value < 17 && g.count >= 3).map(g => g.value), 2, true);
       if (runs.length) {
         const run = runs[0];
         let cards = [];
@@ -1045,7 +1148,7 @@
     while (changed) {
       changed = false;
       const gs = handGroups([...rest]);
-      const runs = maximalRuns(gs.filter(g => g.value < 16 && g.count >= 2).map(g => g.value), 3);
+      const runs = maximalRuns(gs.filter(g => g.value < 17 && g.count >= 2).map(g => g.value), 3, true);
       if (runs.length) {
         const run = runs[0];
         let cards = [];
@@ -1270,15 +1373,15 @@
 
     if (!required || exactType === 'pair_seq') {
       const seqs = required
-        ? allSequences(groups, required.len, 2, required.rank).filter(seq => seq.length === required.len)
-        : allSequences(groups, 3, 2);
+        ? allPairSequences(groups, required.len, required.rank).filter(seq => seq.length === required.len)
+        : allPairSequences(groups, 3);
       for (const seq of seqs) addCandidate(list, seen, buildSequenceCards(hand, seq, 2), required);
     }
 
     if (!required || ['airplane','airplane_single','airplane_pair'].includes(exactType)) {
       const seqs = required
-        ? allSequences(groups, required.len, 3, required.rank).filter(seq => seq.length === required.len)
-        : allSequences(groups, 2, 3);
+        ? allTripleSequences(groups, required.len, required.rank).filter(seq => seq.length === required.len)
+        : allTripleSequences(groups, 2);
       for (const seq of seqs) {
         const body = buildSequenceCards(hand, seq, 3);
         const exclude = new Set(seq);

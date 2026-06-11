@@ -666,109 +666,195 @@ function buildViewModels(){
     gunGroup.add(g); weaponModels.shotgun = g;
   }
 
-  // AWP：单独精修，缩小镜身、拉低枪位，避免像水管旋钮
+  // AWP：竖置镜筒、细长枪管、明显枪托
   {
     const g = new THREE.Group();
-    const body = metalMat(0x2b333c,.30,.44);
-    const stock = metalMat(0x58626e,.18,.58);
+    const body  = metalMat(0x2b333c,.30,.44);
+    const stock = metalMat(0x50606e,.18,.58);
     const steel = metalMat(0x909aa5,.55,.26);
-    const scopeMat = metalMat(0x11161d,.42,.34);
+    const scopeMat = metalMat(0x0d1217,.50,.30);
+    const scopeRing= metalMat(0x6a7580,.48,.28);
 
-    addBox(g,.18,.11,1.20,.43,-.38,-1.02,body);                          // 机匣/护木
-    addBox(g,.36,.12,.70,.14,-.38,-.20,stock,0,0,.17);                  // 厚枪托
-    addBox(g,.11,.26,.16,.46,-.54,-.56,metalMat(0x141920,.20,.84),.30,0,0); // 握把
-    addBox(g,.12,.14,.34,.31,-.35,-1.22,metalMat(0x3d4753,.22,.52));    // 弹匣区
-    addBox(g,.10,.06,.24,.20,-.30,-.46,stock);                          // 托腮板
+    // 枪托（右侧宽板）
+    addBox(g,.34,.16,.62,.12,-.36,-.18,stock,0,0,.14);
+    // 托腮板
+    addBox(g,.12,.06,.38,.22,-.27,-.34,stock);
+    // 握把（竖直）
+    addBox(g,.10,.30,.14,.42,-.52,-.52,metalMat(0x141920,.18,.86));
+    // 机匣主体
+    addBox(g,.16,.12,1.10,.40,-.36,-.98,body);
+    // 弹匣槽区
+    addBox(g,.14,.18,.26,.38,-.50,-1.06,metalMat(0x3a4450,.22,.52));
+    // 护木/前托
+    addBox(g,.12,.10,.48,.40,-.38,-1.62,metalMat(0x3a4450,.22,.52));
+    // 枪管（细长，沿Z轴）
+    addCyl(g,.028,.028,1.80,.40,-.34,-2.26,steel,Math.PI/2,0,0,12);
+    // 枪口制退器
+    addCyl(g,.038,.038,.12,.40,-.34,-3.20,steel,Math.PI/2,0,0,8);
 
-    addBox(g,.040,.040,2.28,.40,-.35,-2.24,steel);                       // 枪管更细长
-    addBox(g,.060,.060,.20,.40,-.35,-3.46,steel);                        // 枪口
+    // 瞄准镜：镜筒竖置（轴沿Z，cylinder默认Y轴，需rx=PI/2）
+    // 镜筒主体
+    addCyl(g,.042,.042,.88,.40,-.16,-1.08,scopeMat,Math.PI/2,0,0,16);
+    // 目镜（后端，稍大）
+    addCyl(g,.054,.048,.08,.40,-.16,-.62,scopeMat,Math.PI/2,0,0,16);
+    // 物镜（前端，稍大）
+    addCyl(g,.054,.048,.08,.40,-.16,-1.54,scopeMat,Math.PI/2,0,0,16);
+    // 镜座前环
+    addCyl(g,.058,.058,.04,.40,-.16,-.74,scopeRing,Math.PI/2,0,0,16);
+    // 镜座后环
+    addCyl(g,.058,.058,.04,.40,-.16,-1.42,scopeRing,Math.PI/2,0,0,16);
+    // 镜座底座连接块
+    addBox(g,.038,.10,.70,.40,-.23,-1.08,scopeMat);
 
-    addCyl(g,.034,.034,1.04,.40,-.16,-1.22,scopeMat,0,0,Math.PI/2,16);  // 镜筒缩小
-    addCyl(g,.050,.050,.07,.40,-.16,-.68,scopeMat,0,0,Math.PI/2,16);    // 目镜
-    addCyl(g,.050,.050,.07,.40,-.16,-1.76,scopeMat,0,0,Math.PI/2,16);   // 物镜
-    addBox(g,.035,.12,.08,.40,-.25,-.96,scopeMat);                       // 镜座
-    addBox(g,.035,.12,.08,.40,-.25,-1.48,scopeMat);
+    // 两脚架（折叠贴枪）
+    addBox(g,.008,.28,.010,.32,-.50,-2.10,steel,0,0,.22);
+    addBox(g,.008,.28,.010,.48,-.50,-2.10,steel,0,0,-.22);
 
-    addBox(g,.022,.30,.022,.30,-.49,-2.06,steel,0,0,.26);                // 脚架
-    addBox(g,.022,.30,.022,.50,-.49,-2.06,steel,0,0,-.26);
-
-    g.userData.muzzle = new THREE.Vector3(.40,-.35,-3.56);
-    g.userData.holdPos = new THREE.Vector3(.23,-.07,-.34);
-    g.userData.holdRot = new THREE.Euler(.02,.10,-.04);
+    g.userData.muzzle  = new THREE.Vector3(.40,-.34,-3.26);
+    g.userData.holdPos = new THREE.Vector3(.20,-.06,-.28);
+    g.userData.holdRot = new THREE.Euler(.02,.08,-.04);
     gunGroup.add(g); weaponModels.sniper = g;
   }
 
-  // USP：长方套筒、扁平枪身、清楚的握把
+  // USP：宽扁套筒+短机匣+明显准星/后准门
   {
     const g = new THREE.Group();
-    const dark=metalMat(0x1f252d,.34,.46);
-    const frame=metalMat(0x39424d,.22,.54);
+    const slide  = metalMat(0x22292e,.38,.42);  // 套筒（深黑）
+    const frame  = metalMat(0x3a4148,.20,.58);  // 机框（深灰）
+    const grip   = metalMat(0x1a1f24,.12,.80);  // 握把（亚光黑聚合物）
+    const silver = metalMat(0x8a9aa8,.55,.25);
 
-    addBox(g,.18,.10,.76,.35,-.31,-.78,dark);
-    addBox(g,.17,.07,.54,.35,-.40,-.58,frame);
-    addBox(g,.07,.05,.20,.35,-.31,-1.20,metalMat(0x768391,.46,.30));
-    addBox(g,.10,.31,.18,.36,-.53,-.42,metalMat(0x141920,.18,.86),.34,0,0);
-    addBox(g,.08,.07,.14,.35,-.44,-.66,frame);
-    addBox(g,.03,.03,.08,.42,-.33,-.42,metalMat(0x6f7a86,.42,.34));
+    // 套筒主体（宽扁，覆盖上半部）
+    addBox(g,.20,.12,.72,.35,-.30,-.72,slide);
+    // 套筒前段（稍窄，有导轨感）
+    addBox(g,.18,.10,.22,.35,-.31,-1.18,slide);
+    // 枪管（从套筒前端伸出一点）
+    addCyl(g,.030,.030,.12,.35,-.30,-1.36,silver,Math.PI/2,0,0,10);
+    // 机框下轨（比套筒低，扁平）
+    addBox(g,.18,.08,.62,.35,-.42,-.68,frame);
+    // 扳机护圈（弯曲D形，用两段近似）
+    addBox(g,.16,.04,.28,.35,-.48,-.54,frame);
+    addBox(g,.06,.10,.06,.35,-.44,-.40,frame);
+    // 握把（竖直，聚合物纹路感）
+    addBox(g,.18,.34,.18,.35,-.60,-.42,grip);
+    // 握把底部（弹匣底板）
+    addBox(g,.20,.04,.16,.35,-.77,-.42,metalMat(0x555f68,.30,.50));
+    // 弹匣（从握把底部露出一点）
+    addBox(g,.14,.06,.14,.35,-.66,-.42,metalMat(0x2a3038,.25,.55));
+    // 前准星（小方块立在套筒前上方）
+    addBox(g,.022,.04,.022,.35,-.22,-1.20,silver);
+    // 后准门（两个小柱）
+    addBox(g,.022,.04,.022,.29,-.22,-.24,silver);
+    addBox(g,.022,.04,.022,.41,-.22,-.24,silver);
 
-    g.userData.muzzle = new THREE.Vector3(.35,-.31,-1.28);
-    g.userData.holdPos = new THREE.Vector3(.03,0,-.03);
+    g.userData.muzzle  = new THREE.Vector3(.35,-.30,-1.44);
+    g.userData.holdPos = new THREE.Vector3(.04,-.01,-.04);
     g.userData.holdRot = new THREE.Euler(0,.02,-.02);
     gunGroup.add(g); weaponModels.pistol = g;
   }
 
-  // 柯尔特巨蟒：厚转轮、长枪管、上导轨、下配重、木握把
+  // 柯尔特巨蟒：大圆转轮鼓、短粗机匣、长枪管、木握把
   {
     const g = new THREE.Group();
-    const steel=metalMat(0x6b7682,.46,.28);
-    addBox(g,.16,.12,.30,.35,-.34,-.54,metalMat(0x2b323b,.36,.40));
-    addCyl(g,.085,.085,.20,.35,-.34,-.78,steel,0,0,Math.PI/2,12);
-    addBox(g,.07,.07,.84,.35,-.34,-1.30,steel);
-    addBox(g,.04,.02,.82,.35,-.27,-1.30,steel);
-    addBox(g,.05,.05,.74,.35,-.40,-1.28,metalMat(0x555f69,.40,.32));
-    addBox(g,.12,.34,.18,.36,-.55,-.38,metalMat(0x5b3a22,.12,.74),.40,0,0);
-    addBox(g,.03,.03,.08,.43,-.30,-.46,steel);
+    const steel  = metalMat(0x8a9298,.52,.24);
+    const dark   = metalMat(0x1e252c,.36,.42);
+    const wood   = metalMat(0x6b3d1e,.08,.72);
+    const chrome = metalMat(0xb0b8c2,.62,.18);
 
-    g.userData.muzzle = new THREE.Vector3(.35,-.34,-1.74);
-    g.userData.holdPos = new THREE.Vector3(.06,-.01,-.05);
+    // 机匣主体（短粗）
+    addBox(g,.20,.18,.36,.35,-.36,-.54,dark);
+    // 上导轨（沿机匣顶部）
+    addBox(g,.06,.04,.36,.35,-.26,-.54,steel);
+    // 枪管（圆柱，长，沿Z轴）
+    addCyl(g,.038,.038,1.02,.35,-.36,-1.12,chrome,Math.PI/2,0,0,14);
+    // 枪管下腹部配重（方形截面，贴着枪管下方）
+    addBox(g,.06,.06,.96,.35,-.42,-1.10,steel);
+    // 枪口
+    addCyl(g,.044,.040,.06,.35,-.36,-1.66,chrome,Math.PI/2,0,0,10);
+
+    // 转轮鼓（最显眼特征——大圆柱横在机匣中）
+    // 转轮鼓是沿X轴旋转的圆柱（从侧面看是圆形），rx=PI/2
+    addCyl(g,.095,.095,.22,.35,-.38,-.52,steel,0,0,Math.PI/2,20);
+    // 转轮鼓侧面细节（两圈凹槽感）
+    addCyl(g,.098,.098,.03,.26,-.38,-.52,dark,0,0,Math.PI/2,20);
+    addCyl(g,.098,.098,.03,.44,-.38,-.52,dark,0,0,Math.PI/2,20);
+    // 弹巢中心轴（小细柱）
+    addCyl(g,.018,.018,.24,.35,-.38,-.52,chrome,0,0,Math.PI/2,8);
+
+    // 锤子（机匣后上方小突起）
+    addBox(g,.10,.10,.08,.35,-.22,-.34,steel,-.28,0,0);
+
+    // 握把（大，木质，微后倾）
+    addBox(g,.20,.40,.20,.35,-.60,-.42,wood,.14,0,0);
+    // 握把底部护板
+    addBox(g,.22,.04,.18,.35,-.80,-.38,dark);
+
+    g.userData.muzzle  = new THREE.Vector3(.35,-.36,-1.72);
+    g.userData.holdPos = new THREE.Vector3(.06,-.02,-.06);
     g.userData.holdRot = new THREE.Euler(0,.03,-.03);
     gunGroup.add(g); weaponModels.magnum = g;
   }
 
-  // 复合弓：单独精修，给出更清楚的侧面轮廓，不再像一堆树枝
+  // 复合弓：清晰C形弓臂、中央把手、弓弦、箭
   {
     const g = new THREE.Group();
-    const limbMat = new THREE.MeshStandardMaterial({color:0x6a4727,roughness:.70});
-    const riserMat = metalMat(0x505c68,.34,.40);
-    const camMat = metalMat(0x202832,.38,.38);
-    const stringMat = new THREE.MeshBasicMaterial({color:0xf4f8ff});
-    const arrowMat = new THREE.MeshBasicMaterial({color:0xe2ebf7});
+    const limbMat  = new THREE.MeshStandardMaterial({color:0x3a2810,roughness:.65});  // 深棕弓臂
+    const riserMat = metalMat(0x2a3540,.40,.38);   // 金属中轴（把手）
+    const camMat   = metalMat(0x1c2530,.42,.35);   // 滑轮
+    const stringMat= new THREE.MeshBasicMaterial({color:0xddeeff});
+    const arrowMat = new THREE.MeshStandardMaterial({color:0xc8d8e8,metalness:.3,roughness:.5});
+    const fletchMat= new THREE.MeshBasicMaterial({color:0xff5533});  // 红色箭羽
 
-    addBox(g,.08,.74,.07,.34,-.30,-.98,riserMat,0,0,.04);              // 中轴更短更厚
-    addBox(g,.05,.18,.04,.28,-.01,-1.06,limbMat,0,0,.26);              // 上内臂
-    addBox(g,.05,.24,.04,.20,.21,-1.22,limbMat,0,0,.56);               // 上外臂
-    addBox(g,.05,.18,.04,.40,-.59,-1.06,limbMat,0,0,-.26);             // 下内臂
-    addBox(g,.05,.24,.04,.48,-.81,-1.22,limbMat,0,0,-.56);             // 下外臂
-    addCyl(g,.068,.068,.04,.19,.35,-1.26,camMat,Math.PI/2,0,0,12);     // 上滑轮
-    addCyl(g,.068,.068,.04,.49,-.95,-1.26,camMat,Math.PI/2,0,0,12);    // 下滑轮
+    // ── 把手/中轴（竖直，相机空间里Y轴方向）──
+    addBox(g,.06,.62,.06,.34,-.30,-1.02,riserMat);
+    // 把手握持区（稍宽的橡胶区）
+    addBox(g,.09,.22,.08,.34,-.38,-1.02,metalMat(0x151c24,.10,.88));
 
-    const stringUpper = addBox(g,.008,.44,.008,.27,-.05,-1.12,stringMat,0,0,.24);
-    const stringLower = addBox(g,.008,.44,.008,.41,-.55,-1.12,stringMat,0,0,-.24);
+    // ── 上弓臂：从把手顶部向上向前弯（两段折线近似C形）──
+    // 上臂内段（斜向右上）
+    addBox(g,.05,.30,.05,.34,-.02,-1.02,limbMat,0,0,-.18);
+    // 上臂外段（更向上，稍弯）
+    addBox(g,.04,.28,.04,.31,.22,-1.04,limbMat,0,0,-.36);
 
-    const arrow = addBox(g,.022,.022,1.06,.36,-.29,-1.28,arrowMat,Math.PI/2,0,0);
-    const arrowHead = addBox(g,.05,.05,.10,.36,-.29,-1.84,arrowMat,0,0,.78);
-    const arrowF1 = addBox(g,.05,.01,.04,.36,-.25,-.78,new THREE.MeshBasicMaterial({color:0x9fd7ff}),0,0,.42);
-    const arrowF2 = addBox(g,.05,.01,.04,.36,-.33,-.78,new THREE.MeshBasicMaterial({color:0x9fd7ff}),0,0,-.42);
+    // ── 下弓臂：从把手底部向下向前弯 ──
+    // 下臂内段
+    addBox(g,.05,.30,.05,.34,-.60,-1.02,limbMat,0,0,.18);
+    // 下臂外段
+    addBox(g,.04,.28,.04,.31,-.84,-1.04,limbMat,0,0,.36);
+
+    // ── 滑轮（上下各一，在弓臂末端）──
+    // 上滑轮：在弓臂末端（约y=+.36）
+    addCyl(g,.065,.065,.05,.30,.38,-1.06,camMat,0,0,Math.PI/2,14);
+    // 下滑轮
+    addCyl(g,.065,.065,.05,.30,-.98,-1.06,camMat,0,0,Math.PI/2,14);
+
+    // ── 弓弦（两侧各一根，连接上下滑轮经过箭搭位置）──
+    // 弓弦左段（上滑轮→箭搭）
+    const stringUp = addBox(g,.006,.42,.006,.26,.00,-1.06,stringMat,0,0,.16);
+    // 弓弦右段（箭搭→下滑轮）
+    const stringDn = addBox(g,.006,.42,.006,.26,-.60,-1.06,stringMat,0,0,-.16);
+
+    // ── 箭（搭在把手中央，沿Z轴向前）──
+    // 箭杆（细长圆柱）
+    const arrow = addCyl(g,.012,.012,.96,.34,-.30,-1.52,arrowMat,Math.PI/2,0,0,8);
+    // 箭头（小锥体，指向前方Z-）
+    const arrowHead = addCyl(g,.020,.004,.08,.34,-.30,-2.02,arrowMat,Math.PI/2,0,0,6);
+    // 箭羽（3片小翼，靠近尾部）
+    const arrowF1 = addBox(g,.001,.08,.06,.34,-.30,-1.06,fletchMat,0,0,0);
+    const arrowF2 = addBox(g,.001,.08,.06,.34,-.30,-1.06,fletchMat,Math.PI/3,0,0);
+    const arrowF3 = addBox(g,.001,.08,.06,.34,-.30,-1.06,fletchMat,-Math.PI/3,0,0);
 
     g.userData = {
-      muzzle:new THREE.Vector3(.36,-.29,-1.90),
-      holdPos:new THREE.Vector3(.24,-.06,-.26),
-      holdRot:new THREE.Euler(.00,.46,-.18),
-      stringUpper,stringLower,arrow,arrowHead,arrowF1,arrowF2,
-      baseArrowZ:-1.28,
-      baseArrowY:-.29,
-      baseUpperX:.27, baseUpperZ:-1.12,
-      baseLowerX:.41, baseLowerZ:-1.12
+      muzzle   : new THREE.Vector3(.34,-.30,-2.08),
+      holdPos  : new THREE.Vector3(.18,-.04,-.22),
+      holdRot  : new THREE.Euler(.00,.38,-.10),
+      stringUpper: stringUp,
+      stringLower: stringDn,
+      arrow, arrowHead, arrowF1, arrowF2,
+      baseArrowZ : -1.52,
+      baseArrowY : -.30,
+      baseUpperX : .26, baseUpperZ: -1.06,
+      baseLowerX : .26, baseLowerZ: -1.06,
     };
     gunGroup.add(g); weaponModels.bow = g;
   }
@@ -1254,10 +1340,13 @@ function applyKnifeHit(heavy=false){
   }
   if(!best)return;
   const ent=best.ent;
-  const normalMutantRef = 320;
+  // 猎手重击：350（秒杀普通幽灵280hp，两击母体900hp需460×2，见下）
+  // 猎手轻击：175（猎手重击的一半）
+  // 普通刀重击：134，普通刀轻击：67
+  // 刀杀即封印——无论轻重、无论谁打，只要刀把幽灵血量打到0就永久清除
   const base = player.hero
-    ? (heavy ? normalMutantRef * 1.12 : normalMutantRef * 0.53)
-    : (heavy ? normalMutantRef * 0.42 : normalMutantRef * 0.23);
+    ? (heavy ? 460 : 230)
+    : (heavy ? 134 : 67);
   ent.hp-=base;
   ent.lastHit=0;
   ent.hurtFlash=.1;
@@ -1265,8 +1354,9 @@ function applyKnifeHit(heavy=false){
   addParticles(ent.pos.clone().setY(ent.pos.y+1.05),heavy?18:10,0xff3154);
   showHit();
   if(ent.hp<=0){
+    // 刀杀统一封印，不复活
     killEntity(ent,'knife');
-    announce(heavy?'重刀击杀':'小刀击杀','刀杀幽灵无法复活。',1400);
+    announce(heavy?'重刀封印击杀':'轻刀封印击杀','刀杀幽灵无法复活。',1400);
   }
 }
 
@@ -1609,10 +1699,22 @@ function updatePlayer(dt){
   player.vel.y-=18*dt;
   player.pos.x+=player.vel.x*dt;resolveCollision(player.pos,player.radius,1.7);
   player.pos.z+=player.vel.z*dt;resolveCollision(player.pos,player.radius,1.7);
+  const velYBeforeLand=player.vel.y; // 落地前记录垂直速度
   player.pos.y+=player.vel.y*dt;
   const feetY=player.pos.y-1.7;
   const groundY=1.7+floorHeightAt(player.pos.x,player.pos.z,feetY,.52);
-  if(player.pos.y<groundY){player.pos.y=groundY;player.vel.y=0;player.onGround=true;}
+  if(player.pos.y<groundY){
+    // 落地：检测掉落伤害（只有下落时才算，速度越快伤越重）
+    if(!player.onGround && velYBeforeLand < -7){
+      const impact = -velYBeforeLand; // 正值，越大越疼
+      const fallDmg = (impact - 7) * 8; // 阈值7，系数8
+      if(fallDmg > 0 && player.team==='human'){
+        hurtPlayer(fallDmg, '高空坠落', true); // 掉落伤害无视无敌帧
+        if(fallDmg > 40) announce('坠落伤害', `跌落造成 ${Math.round(fallDmg)} 点伤害`, 1200);
+      }
+    }
+    player.pos.y=groundY;player.vel.y=0;player.onGround=true;
+  }
 
   if(player.hurtCd>0)player.hurtCd-=dt;
   if(player.slowT>0)player.slowT-=dt;
@@ -1889,9 +1991,9 @@ function updateEntities(dt){
   }
 }
 
-function hurtPlayer(amount,source){
-  if(player.hurtCd>0||state.ended)return;
-  player.hurtCd=.38;
+function hurtPlayer(amount,source,ignoreHurtCd=false){
+  if((player.hurtCd>0&&!ignoreHurtCd)||state.ended)return;
+  if(!ignoreHurtCd)player.hurtCd=.38;
   if(player.team==='human'){
     let left=amount;
     const acHit=Math.min(player.ac,left*.55);
@@ -1972,22 +2074,23 @@ function updateViewModel(dt){
       if(weapon.key==='bow' && active && active.userData){
         const ud=active.userData;
         const c=state.bowCharging?clamp(state.bowCharge/1.15,0,1):0;
-        ud.arrow.position.z = ud.baseArrowZ + c*0.40;
-        ud.arrowHead.position.z = -1.48 + c*0.40;
-        ud.arrowF1.position.z = -0.64 + c*0.40;
-        ud.arrowF2.position.z = -0.64 + c*0.40;
-        ud.arrow.position.y = ud.baseArrowY - c*0.01;
-        ud.arrowHead.position.y = ud.baseArrowY - c*0.01;
-        ud.arrowF1.position.y = -0.25 - c*0.01;
-        ud.arrowF2.position.y = -0.33 - c*0.01;
-        ud.stringUpper.position.x = ud.baseUpperX + c*0.05;
-        ud.stringUpper.position.z = ud.baseUpperZ + c*0.20;
-        ud.stringUpper.rotation.z = 0.20 + c*0.35;
-        ud.stringLower.position.x = ud.baseLowerX - c*0.05;
-        ud.stringLower.position.z = ud.baseLowerZ + c*0.20;
-        ud.stringLower.rotation.z = -0.20 - c*0.35;
-        active.rotation.z = -0.03 - c*0.10;
-        active.position.y = c*0.015;
+        // 箭杆后拉（Z轴向后）
+        ud.arrow.position.z    = ud.baseArrowZ + c*0.36;
+        ud.arrowHead.position.z= -2.02 + c*0.36;
+        ud.arrowF1.position.z  = -1.06 + c*0.36;
+        ud.arrowF2.position.z  = -1.06 + c*0.36;
+        ud.arrow.position.y    = ud.baseArrowY;
+        ud.arrowHead.position.y= ud.baseArrowY;
+        // 弓弦向后拉（X轴内移）
+        ud.stringUpper.position.x = ud.baseUpperX - c*0.06;
+        ud.stringUpper.position.z = ud.baseUpperZ + c*0.18;
+        ud.stringUpper.rotation.z = 0.16 + c*0.28;
+        ud.stringLower.position.x = ud.baseLowerX - c*0.06;
+        ud.stringLower.position.z = ud.baseLowerZ + c*0.18;
+        ud.stringLower.rotation.z = -0.16 - c*0.28;
+        // 轻微上仰（蓄力感）
+        active.rotation.z = -c*0.06;
+        active.position.y = c*0.012;
       }
     }
   }else{
@@ -2030,7 +2133,7 @@ function updateGame(dt){
     }
   }else{
     hud.status.textContent=player.team==='human'
-      ? (player.hero?'终极猎手：免疫感染，长刀；左键双连轻击，右键重刀。':weapon.key==='knife'?'小刀：左键快速双连击，右键重击；残血刀杀可封印复活。'
+      ? (player.hero?'终极猎手：免疫感染；左键轻击（×2），右键重击（×2伤害）；重击一刀秒杀普通幽灵，两刀母体，刀杀永久封印。':weapon.key==='knife'?'小刀：左键轻击，右键重击（伤害×2）；把幽灵血打空即封印，不复活。'
         :weapon.key==='sniper'?'狙击枪：右键开镜；不开镜散布很大。'
         :weapon.key==='shotgun'?'霰弹枪：击退小，命中减速。'
         :weapon.key==='magnum'?'马格南：高伤高后摇，右键枪托。'

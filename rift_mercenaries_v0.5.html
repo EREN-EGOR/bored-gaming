@@ -508,7 +508,7 @@
     slash:{name:'斩击', meta:'攻击 · 结束回合', text:'稳定近战攻击。默认攻击相邻敌人；拿到“长锋剑柄”后可以隔一格攻击。优势是安全、稳定，不强制位移。'},
     bash:{name:'盾撞', meta:'控制 · 结束回合', text:'对相邻敌人造成小伤害并推开 1 格。把敌人推到地刺会触发陷阱；撞到墙或其他单位会额外造成 1 点撞击伤害。'},
     leap:{name:'跳斩', meta:'位移攻击 · 结束回合', text:'跳到目标旁边并攻击，适合追弓手或越过障碍。但会把自己送到敌人附近，落地如果是地刺/泉水也会触发。'},
-    guard:{name:'格挡', meta:'防御 · 结束回合', text:'获得护盾，只保护到下一个玩家回合开始；不能叠加。适合挡一次攻击，但不能靠原地格挡长期站桩。'},
+    guard:{name:'格挡', meta:'防御 · 结束回合', text:'获得护盾，可叠加。每回合结束时护盾衰减 3 点（不会一次性清零）。连续格挡能积攒厚盾，适合预判高伤害回合。'},
     whirl:{name:'旋风斩', meta:'范围攻击 · 有冷却', text:'攻击周围一圈敌人。适合被包围时清场，但有冷却，别拿来砍空气。'},
     end:{name:'结束回合', meta:'交给敌人行动', text:'结束玩家回合，所有敌人依次行动。没把事情做完就结束，地牢不会体谅你的手滑。'}
   };
@@ -616,11 +616,11 @@
     if(a==='end') return endPlayerTurn();
     if(a==='guard'){
       if(p.actionUsed) return;
-      p.armor = Math.max(p.armor, p.guardPower);
+      p.armor += p.guardPower;
       p.actionUsed=true;
       burst(CENTER(p), '#75a7ff', 18);
       floatText(p.x,p.y,`护盾 +${p.guardPower}`,'#b9dcff');
-      log('你举盾格挡，获得本轮护盾。');
+      log(`你举盾格挡，获得 ${p.guardPower} 点护盾（当前 ${p.armor}）。`);
       return endPlayerTurn();
     }
     if(a==='whirl'){
@@ -798,7 +798,11 @@
     if(checkWin()) return;
     game.phase='player'; game.turn++;
     game.player.moveUsed=false; game.player.actionUsed=false;
-    game.player.armor=0;
+    if(game.player.armor>0){
+      const before=game.player.armor;
+      game.player.armor=Math.max(0, game.player.armor-3);
+      if(game.player.armor<before) log(`护盾衰减 ${before-game.player.armor} 点，剩余 ${game.player.armor}。`);
+    }
     game.player.whirlCd=Math.max(0, game.player.whirlCd-1);
     refreshHighlights(); updateUI();
   }
