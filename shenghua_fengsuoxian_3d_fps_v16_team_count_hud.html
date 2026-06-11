@@ -268,10 +268,10 @@ button{
     <h1>生化封锁线 v0.7</h1>
     <p>这版按 CF 生化模式的骨架重做：<b>20秒准备、随机母体、幽灵近战感染、人类守点、幽灵进化回血、顶部人类/幽灵比分 HUD、研究所地图和补给光柱</b>。</p>
     <div class="grid">
-      <div class="rule"><b>人类玩法：</b><kbd>WASD</kbd>移动，鼠标瞄准，左键开火/轻刀/拉弓，右键开镜/重刀/枪托，<kbd>R</kbd>换弹，<kbd>Shift</kbd>冲刺，<kbd>1</kbd>/<kbd>2</kbd>/<kbd>3</kbd>切主/副/刀。</div>
+      <div class="rule"><b>人类玩法：</b><kbd>WASD</kbd>移动，鼠标瞄准，左键开火/轻刀/拉弓，右键开镜/重刀/枪托，<kbd>R</kbd>换弹，<kbd>Shift</kbd>冲刺，<kbd>1</kbd>/<kbd>2</kbd>/<kbd>3</kbd>切主/副/刀。人数≤2时按 <kbd>E</kbd> 变身终极猎手。</div>
       <div class="rule"><b>幽灵玩法：</b>被感染后继续玩幽灵，左键爪击，<kbd>Shift</kbd>冲刺，<kbd>F</kbd>狂暴技能。母体拥有佣兵位置感知。</div>
       <div class="rule"><b>胜负：</b>人类撑到倒计时结束或刀杀清掉幽灵胜利；幽灵感染所有人类胜利。</div>
-      <div class="rule"><b>生化味：</b>母体紫色且血量约为普通幽灵 3 倍；残血红闪；枪械击倒会远点复活，小刀/猎手刀杀无法复活。</div>
+      <div class="rule"><b>生化味：</b>母体紫色且血量约为普通幽灵 3 倍；残血红闪；枪械击倒会远点复活，小刀/猎手刀杀无法复活。AI 佣兵会上高台守点，幽灵会爬上去追人。</div>
     </div>
 
     <div class="loadoutPanel">
@@ -375,7 +375,23 @@ const mats={
   greenBlood:new THREE.MeshBasicMaterial({color:0x72ff6d})
 };
 
-const world={half:32, obstacles:[], supplyPads:[], navPoints:[]};
+const world={half:32, obstacles:[], supplyPads:[], navPoints:[],
+  // 新地图高台：台阶高差1.0，平台宽敞，AI直接跳上，无细桥无隐形墙
+  // 西北大台(顶y=3): 台阶x=-18,z=-22 → 平台中心x=-22,z=-26
+  // 东南大台(顶y=3): 台阶x=18,z=22   → 平台中心x=22,z=26
+  // 东北中台(顶y=2): 台阶x=20,z=-20  → 平台中心x=24,z=-24
+  // 西南中台(顶y=2): 台阶x=-20,z=20  → 平台中心x=-24,z=24
+  platforms:[
+    {id:'northwest', top:new THREE.Vector3(-24,3.0,-27),
+     xzSteps:[[-15,-20],[-19,-23],[-24,-27]]},
+    {id:'southeast', top:new THREE.Vector3(24,3.0,27),
+     xzSteps:[[15,20],[19,23],[24,27]]},
+    {id:'northeast', top:new THREE.Vector3(25,2.0,-25),
+     xzSteps:[[20,-20],[25,-25]]},
+    {id:'southwest', top:new THREE.Vector3(-25,2.0,25),
+     xzSteps:[[-20,20],[-25,25]]},
+  ]
+};
 
 const player={
   team:'human',
@@ -534,70 +550,74 @@ function buildMap(){
   const grid=new THREE.GridHelper(world.half*2,32,0x31506b,0x1a2636);
   scene.add(grid);
 
+  // 四面围墙
   makeBox(0,0,-world.half,world.half*2,5,1.2,mats.wall);
   makeBox(0,0,world.half,world.half*2,5,1.2,mats.wall);
   makeBox(-world.half,0,0,1.2,5,world.half*2,mats.wall);
   makeBox(world.half,0,0,1.2,5,world.half*2,mats.wall);
 
-  // 中央研究舱，留出多条绕路
-  makeBox(0,0,-10,12,3.2,2.2,mats.metal);
-  makeBox(0,0,9,14,3.2,2.2,mats.metal);
-  makeBox(-13,0,0,2.2,3.2,14,mats.metal);
-  makeBox(14,0,0,2.2,3.2,14,mats.metal);
+  // ── 中央掩体群（不可攀爬，纯遮挡）──────────────────────────────────
+  makeBox( 0, 0,  0,  5, 2.2, 5, mats.metal);          // 正中心立方体
+  makeBox( 0, 0,-10, 10, 2.5, 3, mats.metal);          // 北掩体
+  makeBox( 0, 0, 10, 10, 2.5, 3, mats.metal);          // 南掩体
+  makeBox(-10,0,  0,  3, 2.5,10, mats.metal);          // 西掩体
+  makeBox( 10,0,  0,  3, 2.5,10, mats.metal);          // 东掩体
 
-  // CF 生化味道：木箱、高台、可守点
-  const crates=[
-    [-22,-18,4,2.8,4],[-18,-18,4,2.2,4],[-20,-14,4,1.6,4],
-    [22,-18,4,2.8,4],[18,-18,4,2.2,4],[20,-14,4,1.6,4],
-    [-22,18,5,2.8,4],[-16,20,4,2.2,4],[20,20,6,2.4,4],
-    [-6,22,5,1.9,5],[7,22,5,1.9,5],
-    [-4,-23,4,1.9,4],[5,-24,4,1.9,4]
+  // ── 地面散箱（高1，可跳上，提供低掩体）────────────────────────────
+  // 参数：[x, z, w, d]，高度统一1.0，全部climbable
+  const lowCrates=[
+    [-18,-18, 4, 4], [ 18,-18, 4, 4],
+    [-18, 18, 4, 4], [ 18, 18, 4, 4],
+    [ -6,-20, 3, 3], [  6,-20, 3, 3],
+    [ -6, 20, 3, 3], [  6, 20, 3, 3],
+    [-20,  0, 3, 3], [ 20,  0, 3, 3],
+    [  0,-20, 3, 3], [  0, 20, 3, 3],
   ];
-  for(const [x,z,w,h,d] of crates) makeBox(x,0,z,w,h,d,mats.crate);
+  for(const [x,z,w,d] of lowCrates)
+    makeBox(x,0,z,w,1.0,d,mats.crate,true,true);
 
-  // 蓝色玻璃管和平台视觉
-  makeCylinder(-24,0,0,1.2,4.2,mats.glass,false);
-  makeCylinder(24,0,0,1.2,4.2,mats.glass,false);
-  makeBox(0,0,0,5,1.2,5,mats.metal);
-  makeBox(0,1.2,0,4.7,.25,4.7,new THREE.MeshStandardMaterial({color:0x354964,roughness:.65}),false);
+  // ── 西北高台：宽台阶 → 大平台，AI 和玩家都能轻松上去 ──────────────
+  // ── 西北高台：错开位置的真实阶梯，每级在不同 xz，AI 逐步跳上去 ────
+  // 第1阶 顶y=1.0，在台阶入口处
+  makeBox(-15,0,-20, 5,1.0,5, mats.crate,true,true);
+  // 第2阶 顶y=2.0，向西北方向错开
+  makeBox(-19,0,-23, 5,1.0,5, mats.crate,true,true);
+  makeBox(-19,1.0,-23, 5,1.0,5, mats.crate,true,true);
+  // 顶部大平台 顶y=3.0，12×10
+  makeBox(-24,2.0,-27,12,1.0,10, mats.metal,true,true);
 
-  // 生化守点：可跳上的箱坡 + 细桥 + 高点。幽灵能被击退摔下桥，前期不必硬杀。
-  makeBox(-10,0,-24,5,1.0,5,mats.crate,true,true);
-  makeBox(-7,0,-24,4,2.0,4,mats.crate,true,true);
-  makeBox(-4.4,0,-24,3,3.0,3,mats.crate,true,true);
-  makeBox(3,3.05,-24,10,.35,2.0,mats.metal,true,true);     // 高处细桥
-  makeBox(11,0,-24,7,3.8,7,mats.metal,true,true);         // 高台
-  makeBox(11,3.8,-24,6.6,.35,6.6,new THREE.MeshStandardMaterial({color:0x425b7a,roughness:.62}),false);
-  makeBox(11,4.15,-20.7,7,.55,.35,mats.metal,false);
-  makeBox(14.3,4.15,-24,.35,.55,7,mats.metal,false);
+  // ── 东南高台：镜像 ──────────────────────────────────────────────
+  makeBox( 15,0, 20, 5,1.0,5, mats.crate,true,true);
+  makeBox( 19,0, 23, 5,1.0,5, mats.crate,true,true);
+  makeBox( 19,1.0, 23, 5,1.0,5, mats.crate,true,true);
+  makeBox( 24,2.0, 27,12,1.0,10, mats.metal,true,true);
 
-  makeBox(22,0,8,4,1.0,4,mats.crate,true,true);
-  makeBox(22,0,11,4,2.0,4,mats.crate,true,true);
-  makeBox(22,0,14,4,3.0,4,mats.crate,true,true);
-  makeBox(22,3.05,19,2.1,.35,8,mats.metal,true,true);
-  makeBox(22,0,25,6,3.5,6,mats.metal,true,true);
-  makeBox(22,3.5,25,5.7,.35,5.7,new THREE.MeshStandardMaterial({color:0x425b7a,roughness:.62}),false);
+  // ── 东北中台：单级台阶 + 平台 ──────────────────────────────────
+  makeBox( 20,0,-20, 5,1.0,5, mats.crate,true,true);
+  makeBox( 25,1.0,-25, 8,1.0,8, mats.metal,true,true);  // 顶y=2.0
 
-  // 补给光柱
-  addSupplyPad(-25,-25,'ammo');
-  addSupplyPad(25,-25,'armor');
-  addSupplyPad(-25,25,'ammo');
-  addSupplyPad(25,25,'health');
+  // ── 西南中台：单级台阶 + 平台 ──────────────────────────────────
+  makeBox(-20,0, 20, 5,1.0,5, mats.crate,true,true);
+  makeBox(-25,1.0, 25, 8,1.0,8, mats.metal,true,true);  // 顶y=2.0
 
-  // 导航点
-  for(let x=-24;x<=24;x+=8){
-    for(let z=-24;z<=24;z+=8){
+  // ── 补给光柱（四角）────────────────────────────────────────────
+  addSupplyPad(-27,-27);
+  addSupplyPad( 27,-27);
+  addSupplyPad(-27, 27);
+  addSupplyPad( 27, 27);
+
+  // ── 导航点（地面层，8格间距）────────────────────────────────────
+  for(let x=-24;x<=24;x+=8)
+    for(let z=-24;z<=24;z+=8)
       world.navPoints.push(new THREE.Vector3(x,0,z));
-    }
-  }
 }
 
-function addSupplyPad(x,z,type){
-  const base=new THREE.Mesh(new THREE.CylinderGeometry(1.3,1.3,.22,24),new THREE.MeshStandardMaterial({color:type==='ammo'?0x3d7cff:type==='health'?0x32cc77:0xd1d9ee,emissive:type==='ammo'?0x1133aa:type==='health'?0x0b662b:0x555555,roughness:.4}));
+function addSupplyPad(x,z){
+  const base=new THREE.Mesh(new THREE.CylinderGeometry(1.3,1.3,.22,24),new THREE.MeshStandardMaterial({color:0x32cc77,emissive:0x0b662b,roughness:.4}));
   base.position.set(x,.11,z);base.receiveShadow=true;scene.add(base);
-  const beam=new THREE.Mesh(new THREE.CylinderGeometry(.55,.55,4.5,18),new THREE.MeshBasicMaterial({color:type==='ammo'?0x6baeff:type==='health'?0x66ff9a:0xdce8ff,transparent:true,opacity:.18}));
+  const beam=new THREE.Mesh(new THREE.CylinderGeometry(.55,.55,4.5,18),new THREE.MeshBasicMaterial({color:0x66ff9a,transparent:true,opacity:.18}));
   beam.position.set(x,2.35,z);scene.add(beam);
-  world.supplyPads.push({x,z,type,cd:0,base,beam});
+  world.supplyPads.push({x,z,cd:0,base,beam});
 }
 
 
@@ -942,7 +962,8 @@ function makeHumanoid(type,pos,mother=false){
 
 function spawnHumans(){
   const points=[
-    [-5,12],[5,12],[-11,16],[11,16],[-20,10],[20,10],[-8,-4],[8,-4]
+    [-5,12],[5,12],[-11,16],[11,16],[-20,10],[20,10],
+    [-8,-4],[8,-4],[-14,6],[14,6]
   ];
   for(const [x,z] of points) entities.push(makeHumanoid('human',new THREE.Vector3(x,0,z)));
 }
@@ -1164,9 +1185,43 @@ function countMutants(){
 }
 
 function humanDamageMultiplier(){
-  // 越多幽灵，人类枪械越疼；前期打不太动，后期越打越像开了火力觉醒。
-  const m=countMutants();
-  return clamp(1 + Math.max(0,m-2)*0.22,1,2.9);
+  // 满员11人=1.0，剩1人=3.0，每少一人+0.2，线性
+  const h=clamp(countHumans(),1,11);
+  return clamp(1+(11-h)*0.2,1,3.0);
+}
+
+function activateHero(ent){
+  // 将一个 AI 佣兵实体变为终极猎手
+  if(!ent || ent.type!=='human' || ent.hero) return;
+  ent.hero=true;
+  ent.maxHp=760;
+  ent.hp=760;
+  ent.speed=Math.max(ent.speed,4.65);
+  ent.meleeCd=rand(.25,.55);
+  ent.mesh.scale.set(1.18,1.18,1.18);
+  const bladeMat=new THREE.MeshStandardMaterial({color:0xe9f3ff,metalness:.65,roughness:.28});
+  const handle=new THREE.Mesh(new THREE.BoxGeometry(.10,.24,.10),mats.black);
+  handle.position.set(.38,1.06,-.20);
+  const blade=new THREE.Mesh(new THREE.BoxGeometry(.08,.12,1.20),bladeMat);
+  blade.position.set(.42,1.08,-.82);
+  blade.rotation.x=.18;
+  ent.mesh.add(handle,blade);
+}
+
+function activatePlayerHero(){
+  if(player.team!=='human'||player.hero||!state.heroTriggered)return;
+  player.hero=true;
+  player.maxHp=620;
+  player.hp=620;
+  player.ac=100;
+  player.energy=100;
+  weapon=weapons.knife;
+  reloadT=0;
+  setScope(false);
+  announce('终极猎手觉醒','你拔出猎手双刃，免疫感染！',2800);
+  addLog('你变身终极猎手：免疫感染，左键轻击，右键重击。','good');
+  playBeep(360,.18,'sawtooth',.04);
+  updateHUD();
 }
 
 function checkHeroTransform(){
@@ -1175,44 +1230,28 @@ function checkHeroTransform(){
   if(humans<=2){
     state.heroTriggered=true;
 
-    if(player.team==='human'){
-      player.hero=true;
-      player.maxHp=620;
-      player.hp=620;
-      player.ac=100;
-      player.energy=100;
-      weapon=weapons.knife;
-      reloadT=0;
-      setScope(false);
-    }
-
+    // AI 佣兵自动变身
     for(const h of entities){
-      if(h.type==='human'){
-        h.hero=true;
-        h.maxHp=760;
-        h.hp=760;
-        h.speed=Math.max(h.speed,4.65);
-        h.meleeCd=rand(.25,.55);
-        h.mesh.scale.set(1.18,1.18,1.18);
-
-        const bladeMat=new THREE.MeshStandardMaterial({color:0xe9f3ff,metalness:.65,roughness:.28});
-        const handle=new THREE.Mesh(new THREE.BoxGeometry(.10,.24,.10),mats.black);
-        handle.position.set(.38,1.06,-.20);
-        const blade=new THREE.Mesh(new THREE.BoxGeometry(.08,.12,1.20),bladeMat);
-        blade.position.set(.42,1.08,-.82);
-        blade.rotation.x=.18;
-        h.mesh.add(handle,blade);
-      }
+      if(h.type==='human') activateHero(h);
     }
 
-    announce('终极猎手登场','剩余人类全部拔刀，免疫感染。',3600);
-    addLog('终极猎手觉醒：玩家和剩余 AI 佣兵都会变猎手，不再拿枪。','good');
+    // 玩家需要按 E 手动变身
+    if(player.team==='human'){
+      announce('终极猎手时刻！','按 E 键变身终极猎手，免疫感染。',0);
+      addLog('猎手觉醒：AI 佣兵已拔刀，按 E 键让玩家也变身！','warn');
+    }else{
+      announce('终极猎手登场','剩余 AI 佣兵全部拔刀，免疫感染。',3600);
+      addLog('终极猎手觉醒：AI 佣兵已变猎手。','good');
+    }
     playBeep(360,.18,'sawtooth',.04);
   }
 }
 
 function isLowMutant(ent){
-  return ent.type==='mutant' && ent.hp/ent.maxHp < .25;
+  // 普通幽灵：剩余 < 25% 变红（接近可被一刀秒）
+  // 母体：剩余 < 134 变红（普通刀重击134伤害，意味着再一刀必死）
+  if(ent.type!=='mutant') return false;
+  return ent.mother ? ent.hp < 134 : ent.hp/ent.maxHp < 0.25;
 }
 
 function respawnMutant(ent, delay=4.2){
@@ -1333,7 +1372,7 @@ function applyKnifeHit(heavy=false){
     const to=target.clone().sub(origin);
     const dist=to.length();
     const facing=to.normalize().dot(forward);
-    const range = player.hero ? (heavy ? 4.25 : 3.35) : (heavy ? 2.65 : 2.25);
+    const range = player.hero ? (heavy ? 4.25 : 3.35) : (heavy ? 3.2 : 2.8);
     if(dist<range && facing>.48 && !segmentBlocked(origin,target)){
       if(!best||dist<best.dist)best={ent,dist};
     }
@@ -1730,18 +1769,16 @@ function updatePlayer(dt){
       if(pad.cd>0)continue;
       const d=Math.hypot(player.pos.x-pad.x,player.pos.z-pad.z);
       if(d<1.8){
-        if(pad.type==='ammo'){
-          weapons.rifle.reserve=Math.min(245,weapons.rifle.reserve+70);
-          weapons.shotgun.reserve=Math.min(56,weapons.shotgun.reserve+14);
-          addLog('拾取弹药补给。','good');
-        }else if(pad.type==='armor'){
-          player.ac=Math.min(100,player.ac+45);
-          addLog('拾取 AC 护甲补给。','good');
-        }else{
-          player.hp=Math.min(player.maxHp,player.hp+38);
-          addLog('拾取医疗补给。','good');
+        // 统一补给：回30血 + 各武器弹药回30%
+        player.hp=Math.min(player.maxHp,player.hp+30);
+        for(const w of Object.values(weapons)){
+          if(w.reserve!==undefined && baseWeaponStats[w.key]){
+            const maxR=baseWeaponStats[w.key].reserve;
+            w.reserve=Math.min(maxR, w.reserve+Math.ceil(maxR*0.3));
+          }
         }
         pad.cd=24;
+        addLog('补给：+30 HP，所有武器弹药+30%。','good');
         playBeep(420,.09,'triangle',.025);
       }
     }
@@ -1788,20 +1825,30 @@ function nearestMutant(from,seeker=null){
   return best;
 }
 
-function aiMove(ent,desired,dt){
+function aiMove(ent,desired,dt,forceJump=false){
   if(desired.lengthSq()<.001)return;
   desired.normalize();
 
-  // AI 会判断前方地面高度：遇到箱坡、细桥、高台会主动跳/爬，不再在下面罚站。
   ent.jumpCd-=dt;
-  const curGround=floorHeightAt(ent.pos.x,ent.pos.z,ent.pos.y,.25);
-  const probeX=ent.pos.x+desired.x*1.15;
-  const probeZ=ent.pos.z+desired.z*1.15;
-  const nextGround=floorHeightAt(probeX,probeZ,ent.pos.y,1.05);
-  if(ent.onGround && ent.jumpCd<=0 && nextGround>curGround+.28 && nextGround-curGround<=1.15){
-    ent.vel.y=ent.type==='mutant'?5.75:5.05;
-    ent.onGround=false;
-    ent.jumpCd=rand(.82,1.35);
+
+  if(forceJump){
+    // 路径点跟随模式：只要在地面上且cd到了就直接跳，不管前方高度
+    if(ent.onGround && ent.jumpCd<=0){
+      ent.vel.y=ent.type==='mutant'?6.0:5.4;
+      ent.onGround=false;
+      ent.jumpCd=rand(.55,.85);
+    }
+  }else{
+    // 普通移动：前探地面高度，遇到台阶自动跳
+    const curGround=floorHeightAt(ent.pos.x,ent.pos.z,ent.pos.y,.25);
+    const probeX=ent.pos.x+desired.x*1.4;
+    const probeZ=ent.pos.z+desired.z*1.4;
+    const nextGround=floorHeightAt(probeX,probeZ,ent.pos.y,1.35);
+    if(ent.onGround && ent.jumpCd<=0 && nextGround>curGround+.22 && nextGround-curGround<=1.3){
+      ent.vel.y=ent.type==='mutant'?6.0:5.4;
+      ent.onGround=false;
+      ent.jumpCd=rand(.65,1.05);
+    }
   }
 
   const before=ent.pos.clone();
@@ -1847,12 +1894,61 @@ function updateEntities(dt){
     if(ent.type==='mutant'){
       const target=nearestHumanTarget(ent.pos,ent);
       if(target){
-        let desired=target.pos.clone().sub(ent.pos);desired.y=0;
-        if(ent.vel.lengthSq()>.05)desired.add(ent.vel.clone().setY(0).multiplyScalar(.25));
-        aiMove(ent,desired,dt);
+        // 目标高度差检测：若目标在高台，幽灵会寻路走向登台入口
         const targetY = target.kind==='player' ? (player.pos.y-1.7) : target.ent.pos.y;
-        const verticalGap = Math.abs(targetY - ent.pos.y);
+        const targetIsHigh = targetY > ent.pos.y + 1.5;
+        let desired=new THREE.Vector3();
+
+        if(targetIsHigh){
+          // 目标在高台上：找最近的高台，按 xzSteps 逐步爬上去
+          let bestPlat=null, bestDist=Infinity;
+          for(const plat of world.platforms){
+            const tgtDist=Math.hypot(target.pos.x-plat.top.x, target.pos.z-plat.top.z);
+            if(tgtDist<12){
+              const s0=plat.xzSteps[0];
+              const myDist=Math.hypot(ent.pos.x-s0[0], ent.pos.z-s0[1]);
+              if(myDist<bestDist){bestDist=myDist;bestPlat=plat;}
+            }
+          }
+          if(bestPlat){
+            if(ent.climbStepIdx===undefined)ent.climbStepIdx=0;
+            const xzs=bestPlat.xzSteps;
+
+            // 卡住检测：2秒没动就从第0点重走
+            if(!ent.climbStuckT) ent.climbStuckT=0;
+            if(!ent.climbLastPos) ent.climbLastPos=ent.pos.clone();
+            const cm=Math.hypot(ent.pos.x-ent.climbLastPos.x,ent.pos.z-ent.climbLastPos.z);
+            if(cm>0.3){ent.climbStuckT=0;ent.climbLastPos=ent.pos.clone();}
+            else{
+              ent.climbStuckT+=dt;
+              if(ent.climbStuckT>2.0){ent.climbStepIdx=0;ent.climbStuckT=0;ent.climbLastPos=ent.pos.clone();}
+            }
+
+            if(ent.climbStepIdx>=xzs.length){
+              desired.copy(target.pos).sub(ent.pos);
+            }else{
+              const g=xzs[ent.climbStepIdx];
+              const hDist=Math.hypot(ent.pos.x-g[0], ent.pos.z-g[1]);
+              if(hDist<1.4) ent.climbStepIdx=Math.min(ent.climbStepIdx+1, xzs.length);
+              const cur=xzs[Math.min(ent.climbStepIdx, xzs.length-1)];
+              desired.set(cur[0]-ent.pos.x, 0, cur[1]-ent.pos.z);
+            }
+          }else{
+            desired.copy(target.pos).sub(ent.pos);
+          }
+        }else{
+          // 目标不在高台：重置爬台计数，直接冲
+          ent.climbStepIdx=0;
+          desired.copy(target.pos).sub(ent.pos);
+        }
+
+        desired.y=0;
+        if(ent.vel.lengthSq()>.05)desired.add(ent.vel.clone().setY(0).multiplyScalar(.25));
+        // 爬台时全程 forceJump，避免桥边缘探测失败不跳
+        aiMove(ent,desired,dt,targetIsHigh);
+
         const horizontalGap = Math.hypot(target.pos.x-ent.pos.x, target.pos.z-ent.pos.z);
+        const verticalGap = Math.abs(targetY - ent.pos.y);
         if(horizontalGap<ent.radius+0.70 && verticalGap<1.05 && ent.attackCd<=0){
           ent.attackCd=ent.mother?.72:.92;
           if(target.kind==='player'){
@@ -1899,7 +1995,7 @@ function updateEntities(dt){
         ent.hp=Math.min(ent.maxHp,ent.hp+(ent.mother?28:18)*dt);
       }
       // 低血红闪
-      if(ent.hp/ent.maxHp<.25){
+      if(isLowMutant(ent)){
         ent.mesh.traverse(o=>{if(o.isMesh&&o.material.emissive)o.material.emissive.setHex(Math.sin(performance.now()/70)>0?0x551111:0x000000);});
       }
     }
@@ -1907,12 +2003,17 @@ function updateEntities(dt){
     if(ent.type==='human'){
       ent.meleeCd-=dt;
       const target=nearestMutant(ent.pos,ent);
+
+      // 判断自身是否在高台上（Y > 3）
+      const onPlatform = ent.pos.y > 2.8;
+
       if(target){
         const to=target.pos.clone().sub(ent.pos);
         const dist=to.length();
         let desired=new THREE.Vector3();
 
         if(ent.hero){
+          // 终极猎手：冲向目标近战
           if(dist>2.75) desired.copy(target.pos).sub(ent.pos);
           else desired.set(0,0,0);
           aiMove(ent,desired,dt);
@@ -1932,8 +2033,16 @@ function updateEntities(dt){
             }
           }
         }else{
-          if(dist<6.8)desired.copy(ent.pos).sub(target.pos);
-          else desired.set(0,0,0);
+          // 普通佣兵：在高台上时原地坚守射击；在地面时保持距离并向高台移动
+          if(onPlatform){
+            // 高台上：不主动走开，保持阵地，只在幽灵冲上来时小退
+            if(dist < 4.5) desired.copy(ent.pos).sub(target.pos); // 幽灵近了才退
+            else desired.set(0,0,0); // 否则原地守
+          }else{
+            // 地面上：保持中远距离
+            if(dist<6.8) desired.copy(ent.pos).sub(target.pos);
+            else desired.set(0,0,0);
+          }
           aiMove(ent,desired,dt);
 
           if(dist<30&&ent.shootCd<=0&&!segmentBlocked(ent.pos.clone().setY(ent.pos.y+1.35),target.pos.clone().setY(target.pos.y+1.05))){
@@ -1941,7 +2050,9 @@ function updateEntities(dt){
             const aw = weapons[aiKey] || weapons.rifle;
             ent.shootCd = aw.key==='sniper'?rand(1.25,1.95):aw.key==='magnum'?rand(1.05,1.65):aw.key==='shotgun'?rand(.82,1.25):aw.key==='bow'?rand(1.15,1.8):rand(.62,1.05);
             const from=ent.pos.clone().setY(ent.pos.y+1.35),toP=target.pos.clone().setY(target.pos.y+1.05);
-            const accuracy = aw.key==='sniper'?.38:aw.key==='magnum'?.34:aw.key==='shotgun'?.48:aw.key==='bow'?.42:aw.key==='pistol'?.46:.52;
+            // 高台射击精度提升（居高临下视野好）
+            const platformBonus = onPlatform ? 0.12 : 0;
+            const accuracy = Math.min(0.92, (aw.key==='sniper'?.38:aw.key==='magnum'?.34:aw.key==='shotgun'?.48:aw.key==='bow'?.42:aw.key==='pistol'?.46:.52) + platformBonus);
             const miss = Math.random()>accuracy;
             const missOffset = new THREE.Vector3(rand(-2.2,2.2),rand(-.8,.8),rand(-2.2,2.2));
             addTracer(from,miss?toP.clone().add(missOffset):toP,0x84caff);
@@ -1964,19 +2075,112 @@ function updateEntities(dt){
         }
         if(dist>0.01)ent.mesh.rotation.y=Math.atan2(to.x,to.z);
       }else{
-        if(!ent.wander || ent.pos.distanceTo(ent.wander)<2){
-          const holdPoints=[new THREE.Vector3(11,0,-24),new THREE.Vector3(22,0,25),new THREE.Vector3(-20,0,-18),new THREE.Vector3(20,0,-18),new THREE.Vector3(0,0,9)];
-          ent.wander=pick(holdPoints).clone();
+        // ── 无目标时守台逻辑 ─────────────────────────────────────
+        // 1. 检查分配的高台上是否有队友变成幽灵（就近判断）→ 立刻撤离
+        // 2. 每个高台最多2人，超员则重新分配
+        // 3. 没抢到高台的守中路普通点
+
+        // 计算各高台当前已有多少人类 AI 在上面
+        function platOccupancy(plat){
+          let n=0;
+          for(const h of entities){
+            if(h.type!=='human'||h===ent)continue;
+            const hd=Math.hypot(h.pos.x-plat.top.x,h.pos.z-plat.top.z);
+            if(h.pos.y>1.5&&hd<7)n++;
+          }
+          return n;
         }
-        const desired=ent.wander.clone().sub(ent.pos);desired.y=0;
-        if(desired.length()>3)aiMove(ent,desired,dt);
+
+        // 检测当前高台上有没有幽灵（队友刚变的）
+        function platHasMutant(plat){
+          for(const e of entities){
+            if(e.type!=='mutant'){continue;}
+            const hd=Math.hypot(e.pos.x-plat.top.x,e.pos.z-plat.top.z);
+            if(e.pos.y>1.5&&hd<8)return true;
+          }
+          return false;
+        }
+
+        // 初始化或重新评估分配
+        const needReassign = ent.assignedPlatform===undefined
+          || (ent.assignedPlatform && platHasMutant(ent.assignedPlatform))
+          || (ent.assignedPlatform && platOccupancy(ent.assignedPlatform)>=2 && ent.pos.y<1.5);
+
+        if(needReassign){
+          // 如果台上有幽灵，强制先跑到地面中路
+          if(ent.assignedPlatform && platHasMutant(ent.assignedPlatform)){
+            ent.assignedPlatform=null;
+            ent.platStepIdx=0;
+            ent.wander=new THREE.Vector3(rand(-8,8),0,rand(-8,8));
+          }else{
+            // 找一个未满员的高台
+            const shuffled=[...world.platforms].sort(()=>Math.random()-.5);
+            let picked=null;
+            for(const plat of shuffled){
+              if(platOccupancy(plat)<2){picked=plat;break;}
+            }
+            ent.assignedPlatform=picked; // 没有空台则 null，守中路
+            ent.platStepIdx=0;
+          }
+        }
+
+        if(ent.assignedPlatform){
+          const plat=ent.assignedPlatform;
+          const xzs=plat.xzSteps;
+          const topXZ=plat.top;
+          const hDistToTop=Math.hypot(ent.pos.x-topXZ.x,ent.pos.z-topXZ.z);
+          if(ent.pos.y>1.5&&hDistToTop<7){
+            // 已在台上：小幅游荡守位
+            if(!ent.wander||Math.hypot(ent.pos.x-ent.wander.x,ent.pos.z-ent.wander.z)<1.0){
+              ent.wander=new THREE.Vector3(topXZ.x+rand(-1.5,1.5),0,topXZ.z+rand(-1.5,1.5));
+            }
+            const d2=ent.wander.clone().sub(ent.pos);d2.y=0;
+            if(d2.length()>1.0)aiMove(ent,d2,dt);
+          }else{
+            // 沿路径点爬台
+            if(ent.platStepIdx===undefined||ent.platStepIdx>=xzs.length)ent.platStepIdx=0;
+
+            // 卡住检测：记录上次位置，若超过2秒没靠近目标点就从头重走
+            if(!ent.platStuckT) ent.platStuckT=0;
+            if(!ent.platLastPos) ent.platLastPos=ent.pos.clone();
+            const movedDist=Math.hypot(ent.pos.x-ent.platLastPos.x,ent.pos.z-ent.platLastPos.z);
+            if(movedDist>0.3){
+              // 有在动，刷新记录
+              ent.platStuckT=0;
+              ent.platLastPos=ent.pos.clone();
+            }else{
+              ent.platStuckT+=dt;
+              if(ent.platStuckT>2.0){
+                // 卡超过2秒，回到第0个路径点重新跑台阶入口
+                ent.platStepIdx=0;
+                ent.platStuckT=0;
+                ent.platLastPos=ent.pos.clone();
+              }
+            }
+
+            const g=xzs[ent.platStepIdx];
+            const hDist=Math.hypot(ent.pos.x-g[0],ent.pos.z-g[1]);
+            if(hDist<1.4)ent.platStepIdx=Math.min(ent.platStepIdx+1,xzs.length-1);
+            const cur=xzs[Math.min(ent.platStepIdx,xzs.length-1)];
+            const d2=new THREE.Vector3(cur[0]-ent.pos.x,0,cur[1]-ent.pos.z);
+            if(d2.length()>0.3)aiMove(ent,d2,dt,true);
+          }
+        }else{
+          // 守中路
+          if(!ent.wander||ent.pos.distanceTo(ent.wander)<2){
+            const holdPoints=[new THREE.Vector3(-10,0,-10),new THREE.Vector3(10,0,-10),new THREE.Vector3(-10,0,10),new THREE.Vector3(10,0,10),new THREE.Vector3(0,0,0)];
+            ent.wander=pick(holdPoints).clone();
+          }
+          const d2=ent.wander.clone().sub(ent.pos);d2.y=0;
+          if(d2.length()>3)aiMove(ent,d2,dt);
+        }
       }
       updateEntityVertical(ent,dt);
     }
 
     // 独立材质红闪：低血幽灵红光更明显，母体紫色时尤其清楚。
     if(ent.type==='mutant'){
-      const low=ent.hp/ent.maxHp<.25;
+      const low=isLowMutant(ent);
       ent.mesh.traverse(o=>{
         if(o.isMesh&&o.material&&o.material.emissive){
           o.material.emissive.setHex(low && Math.sin(performance.now()/70)>0 ? 0xff1010 : 0x000000);
@@ -2133,7 +2337,9 @@ function updateGame(dt){
     }
   }else{
     hud.status.textContent=player.team==='human'
-      ? (player.hero?'终极猎手：免疫感染；左键轻击（×2），右键重击（×2伤害）；重击一刀秒杀普通幽灵，两刀母体，刀杀永久封印。':weapon.key==='knife'?'小刀：左键轻击，右键重击（伤害×2）；把幽灵血打空即封印，不复活。'
+      ? (player.hero?'终极猎手：免疫感染；左键轻击（×2），右键重击（×2伤害）；重击一刀秒杀普通幽灵，两刀母体，刀杀永久封印。'
+        :(state.heroTriggered&&!player.hero)?'⚡ 按 E 键变身终极猎手！'
+        :weapon.key==='knife'?'小刀：左键轻击，右键重击（伤害×2）；把幽灵血打空即封印，不复活。'
         :weapon.key==='sniper'?'狙击枪：右键开镜；不开镜散布很大。'
         :weapon.key==='shotgun'?'霰弹枪：击退小，命中减速。'
         :weapon.key==='magnum'?'马格南：高伤高后摇，右键枪托。'
@@ -2327,6 +2533,11 @@ window.addEventListener('keydown',e=>{
   if(e.code==='Digit2')switchWeapon('secondary');
   if(e.code==='Digit3')switchWeapon('knife');
   if(e.code==='KeyF')mutantSkill();
+  if(e.code==='KeyE'){
+    if(state.running && !state.ended && state.heroTriggered && player.team==='human' && !player.hero){
+      activatePlayerHero();
+    }
+  }
 });
 window.addEventListener('keyup',e=>keys.delete(e.code));
 
