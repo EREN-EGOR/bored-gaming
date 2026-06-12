@@ -110,8 +110,8 @@ body{background:#000;overflow:hidden;font-family:'Courier New',monospace}
 #char-select{position:absolute;inset:0;background:rgba(0,0,0,.95);display:flex;flex-direction:column;align-items:center;justify-content:center;pointer-events:all;z-index:100}
 #char-select h1{font-size:38px;letter-spacing:10px;color:#e94560;text-shadow:0 0 24px #e94560;margin-bottom:6px}
 #char-select .sub{color:#555;font-size:13px;letter-spacing:4px;margin-bottom:36px}
-#cards{display:flex;gap:16px;margin-bottom:32px}
-.char-card{width:160px;background:#111;border:2px solid #333;border-radius:6px;padding:16px 12px;cursor:pointer;transition:border-color .15s,transform .15s,background .15s;user-select:none}
+#cards{display:flex;flex-wrap:wrap;gap:12px;margin-bottom:32px;justify-content:center;max-width:1100px}
+.char-card{width:148px;background:#111;border:2px solid #333;border-radius:6px;padding:14px 10px;cursor:pointer;transition:border-color .15s,transform .15s,background .15s;user-select:none}
 .char-card:hover{border-color:#666;background:#1a1a1a;transform:translateY(-3px)}
 .char-card.selected{border-color:#e94560;background:#1a0509;transform:translateY(-6px);box-shadow:0 0 20px rgba(233,69,96,.35)}
 .char-card .cname{font-size:15px;font-weight:bold;letter-spacing:3px;margin-bottom:2px}
@@ -248,6 +248,34 @@ function playGunshot(){
   const f=ctx.createBiquadFilter(); f.type='lowpass'; f.frequency.value=4000;
   const g=ctx.createGain(); g.gain.value=1.0;
   src.connect(f); f.connect(g); g.connect(ctx.destination); src.start();
+}
+function playFlame(){
+  const ctx=getAudio(), sr=ctx.sampleRate;
+  const buf=ctx.createBuffer(1,Math.floor(sr*0.08),sr);
+  const d=buf.getChannelData(0);
+  for(let i=0;i<d.length;i++){
+    const t=i/sr;
+    d[i]=((Math.random()*2-1)*0.7+Math.sin(2*Math.PI*120*t)*0.2)*Math.exp(-t*12);
+  }
+  const src=ctx.createBufferSource(); src.buffer=buf;
+  const f=ctx.createBiquadFilter(); f.type='bandpass'; f.frequency.value=520;
+  const g=ctx.createGain(); g.gain.value=0.35;
+  src.connect(f); f.connect(g); g.connect(ctx.destination); src.start();
+}
+function playVoltShot(){
+  const ctx=getAudio();
+  const osc=ctx.createOscillator();
+  const osc2=ctx.createOscillator();
+  const g=ctx.createGain();
+  osc.type='square'; osc.frequency.setValueAtTime(560,ctx.currentTime);
+  osc.frequency.exponentialRampToValueAtTime(180,ctx.currentTime+0.08);
+  osc2.type='triangle'; osc2.frequency.setValueAtTime(820,ctx.currentTime);
+  osc2.frequency.exponentialRampToValueAtTime(260,ctx.currentTime+0.09);
+  g.gain.setValueAtTime(0.20,ctx.currentTime);
+  g.gain.exponentialRampToValueAtTime(0.001,ctx.currentTime+0.10);
+  osc.connect(g); osc2.connect(g); g.connect(ctx.destination);
+  osc.start(); osc2.start();
+  osc.stop(ctx.currentTime+0.10); osc2.stop(ctx.currentTime+0.10);
 }
 function playStep(){
   const ctx=getAudio(), sr=ctx.sampleRate;
@@ -554,6 +582,56 @@ const GUN_BUILDERS={
     hammer.position.set(0,0.09,0.1); g.add(hammer);
     return g;
   },
+  volt(){ // 电磁脉冲枪
+    const g=new THREE.Group();
+    const body=new THREE.Mesh(new THREE.BoxGeometry(0.16,0.12,0.38),mat(0x1b2a33));
+    body.position.set(0,-0.01,0.02); g.add(body);
+    const rail1=new THREE.Mesh(new THREE.BoxGeometry(0.03,0.03,0.48),mat(0x00aacc));
+    rail1.position.set(-0.04,0.03,-0.18); g.add(rail1);
+    const rail2=rail1.clone(); rail2.position.x=0.04; g.add(rail2);
+    const core=new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.03,0.20,8),mat(0x00ccff));
+    core.rotation.x=Math.PI/2; core.position.set(0,0.01,-0.05); g.add(core);
+    const muzzle=new THREE.Mesh(new THREE.ConeGeometry(0.03,0.11,8),mat(0x66eeff));
+    muzzle.rotation.x=-Math.PI/2; muzzle.position.set(0,0.02,-0.47); g.add(muzzle);
+    const battery=new THREE.Mesh(new THREE.BoxGeometry(0.09,0.12,0.12),mat(0x114455));
+    battery.position.set(0,-0.10,0.10); g.add(battery);
+    return g;
+  },
+  grave(){ // 神话战斧
+    const g=new THREE.Group();
+    // 枢轴设在握把附近，确保挥击时永远是斧头端先命中
+    const shaft=new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.032,1.02,8),mat(0x4a3524));
+    shaft.rotation.x=Math.PI/2; shaft.position.set(0,-0.03,-0.40); g.add(shaft);
+    const pommel=new THREE.Mesh(new THREE.SphereGeometry(0.05,8,6),mat(0x777777));
+    pommel.position.set(0,-0.03,0.14); g.add(pommel);
+    // 斧头做成横向“一”字：宽刃横铺，不做镐尖
+    const headCore=new THREE.Mesh(new THREE.BoxGeometry(0.14,0.16,0.18),mat(0x6f6f6f));
+    headCore.position.set(0,-0.03,-0.94); g.add(headCore);
+    const bladeMain=new THREE.Mesh(new THREE.BoxGeometry(0.86,0.20,0.035),mat(0xc8c8c8));
+    bladeMain.position.set(0,-0.03,-0.95); g.add(bladeMain);
+    const edgeTop=new THREE.Mesh(new THREE.BoxGeometry(0.86,0.05,0.02),mat(0xe2e2e2));
+    edgeTop.position.set(0,0.07,-0.96); g.add(edgeTop);
+    const edgeBottom=edgeTop.clone();
+    edgeBottom.position.y=-0.13; g.add(edgeBottom);
+    return g;
+  },
+  pyro(){ // 火焰喷射器（前喷嘴+背罐）
+    const g=new THREE.Group();
+    const body=new THREE.Mesh(new THREE.BoxGeometry(0.15,0.14,0.32),mat(0x3a3a3a));
+    body.position.set(0,-0.02,0.03); g.add(body);
+    const nozzle=new THREE.Mesh(new THREE.CylinderGeometry(0.025,0.025,0.42,8),mat(0x1a1a1a));
+    nozzle.rotation.x=Math.PI/2; nozzle.position.set(0.01,0.03,-0.26); g.add(nozzle);
+    const tip=new THREE.Mesh(new THREE.ConeGeometry(0.03,0.12,8),mat(0xff6600));
+    tip.rotation.x=-Math.PI/2; tip.position.set(0.01,0.03,-0.50); g.add(tip);
+    const hose=new THREE.Mesh(new THREE.TorusGeometry(0.11,0.01,6,18,Math.PI*1.2),mat(0x222222));
+    hose.position.set(0.05,-0.05,0.14); hose.rotation.y=0.9; g.add(hose);
+    // 背罐：第一人称里放到相机后侧，模拟背在身后
+    const tankL=new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,0.28,8),mat(0x6b6b6b));
+    tankL.rotation.x=Math.PI/2; tankL.position.set(-0.12,-0.06,0.42); g.add(tankL);
+    const tankR=tankL.clone();
+    tankR.position.x=0.05; g.add(tankR);
+    return g;
+  },
   hawk_bow(){ // 爆炸弓
     const g=new THREE.Group();
     // 弓臂（竖弧形用两段Box模拟）
@@ -570,6 +648,29 @@ const GUN_BUILDERS={
     // 搭箭
     const arrow=new THREE.Mesh(new THREE.BoxGeometry(0.02,0.02,0.4),new THREE.MeshLambertMaterial({color:0xffcc00}));
     arrow.position.set(0.05,0,-0.1); g.add(arrow);
+    return g;
+  },
+  blade(){ // 双刀（持握视角，刀尖朝前）
+    const g=new THREE.Group();
+    // 右刀
+    const blade1=new THREE.Mesh(new THREE.BoxGeometry(0.025,0.07,0.48),new THREE.MeshLambertMaterial({color:0xdddddd}));
+    blade1.position.set(0.07,0.02,-0.18); g.add(blade1);
+    const tip1=new THREE.Mesh(new THREE.ConeGeometry(0.022,0.16,4),new THREE.MeshLambertMaterial({color:0xeeeeee}));
+    tip1.rotation.x=-Math.PI/2; tip1.position.set(0.07,0.02,-0.44); g.add(tip1);
+    const handle1=new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.022,0.14,6),new THREE.MeshLambertMaterial({color:0x1a0020}));
+    handle1.rotation.x=Math.PI/2; handle1.position.set(0.07,0.02,0.10); g.add(handle1);
+    // 左刀（稍低）
+    const blade2=new THREE.Mesh(new THREE.BoxGeometry(0.025,0.07,0.44),new THREE.MeshLambertMaterial({color:0xcccccc}));
+    blade2.position.set(-0.06,-0.04,-0.16); g.add(blade2);
+    const tip2=new THREE.Mesh(new THREE.ConeGeometry(0.022,0.16,4),new THREE.MeshLambertMaterial({color:0xdddddd}));
+    tip2.rotation.x=-Math.PI/2; tip2.position.set(-0.06,-0.04,-0.40); g.add(tip2);
+    const handle2=new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.022,0.14,6),new THREE.MeshLambertMaterial({color:0x1a0020}));
+    handle2.rotation.x=Math.PI/2; handle2.position.set(-0.06,-0.04,0.08); g.add(handle2);
+    // 紫色护手
+    const guard1=new THREE.Mesh(new THREE.BoxGeometry(0.10,0.03,0.03),new THREE.MeshLambertMaterial({color:0x8822cc}));
+    guard1.position.set(0.07,0.02,0.03); g.add(guard1);
+    const guard2=new THREE.Mesh(new THREE.BoxGeometry(0.10,0.03,0.03),new THREE.MeshLambertMaterial({color:0x8822cc}));
+    guard2.position.set(-0.06,-0.04,0.01); g.add(guard2);
     return g;
   },
 };
@@ -594,6 +695,13 @@ let currentGunMesh=null;
 function switchGunModel(id){
   if(currentGunMesh){ gunGroup.remove(currentGunMesh); }
   currentGunMesh=GUN_BUILDERS[id]?GUN_BUILDERS[id]():GUN_BUILDERS.reaper();
+  currentGunMesh.rotation.set(0,0,0);
+  // 掘墓者视角武器翻转180°，让前端锤头/斧头可见
+  if(id==='grave'){
+    currentGunMesh.rotation.y=Math.PI;
+    // 再绕持柄轴逆时针60°，让锤头/斧头朝下
+    currentGunMesh.rotation.z=Math.PI/3;
+  }
   gunGroup.add(currentGunMesh);
 }
 
@@ -699,7 +807,78 @@ const MELEE_WEAPONS={};
   MELEE_WEAPONS.cowboy=g;
 })();
 
-// 近战武器挂载组（挂在 gunPivot 下，与 gunGroup 平级）
+// 刺客：双刀横扫展示（比持握模型更大、更张扬）
+(function(){
+  const g=new THREE.Group();
+  // 右刀（宽幅大刀）
+  const blade1=new THREE.Mesh(new THREE.BoxGeometry(0.03,0.08,0.58),new THREE.MeshLambertMaterial({color:0xe0e0e0}));
+  blade1.position.set(0.12,0.02,-0.16); g.add(blade1);
+  const tip1=new THREE.Mesh(new THREE.ConeGeometry(0.028,0.20,4),new THREE.MeshLambertMaterial({color:0xf0f0f0}));
+  tip1.rotation.x=-Math.PI/2; tip1.position.set(0.12,0.02,-0.49); g.add(tip1);
+  const edge1=new THREE.Mesh(new THREE.BoxGeometry(0.01,0.04,0.58),new THREE.MeshLambertMaterial({color:0xffffff}));
+  edge1.position.set(0.13,0.04,-0.16); g.add(edge1);
+  const handle1=new THREE.Mesh(new THREE.CylinderGeometry(0.024,0.026,0.18,6),new THREE.MeshLambertMaterial({color:0x1a0020}));
+  handle1.rotation.x=Math.PI/2; handle1.position.set(0.12,0.02,0.14); g.add(handle1);
+  const guard1=new THREE.Mesh(new THREE.BoxGeometry(0.13,0.04,0.04),new THREE.MeshLambertMaterial({color:0x8822cc}));
+  guard1.position.set(0.12,0.02,0.05); g.add(guard1);
+  // 左刀（反握，稍矮）
+  const blade2=new THREE.Mesh(new THREE.BoxGeometry(0.03,0.08,0.52),new THREE.MeshLambertMaterial({color:0xcccccc}));
+  blade2.position.set(-0.11,-0.06,-0.14); g.add(blade2);
+  const tip2=new THREE.Mesh(new THREE.ConeGeometry(0.028,0.20,4),new THREE.MeshLambertMaterial({color:0xdddddd}));
+  tip2.rotation.x=-Math.PI/2; tip2.position.set(-0.11,-0.06,-0.43); g.add(tip2);
+  const handle2=new THREE.Mesh(new THREE.CylinderGeometry(0.024,0.026,0.18,6),new THREE.MeshLambertMaterial({color:0x1a0020}));
+  handle2.rotation.x=Math.PI/2; handle2.position.set(-0.11,-0.06,0.12); g.add(handle2);
+  const guard2=new THREE.Mesh(new THREE.BoxGeometry(0.13,0.04,0.04),new THREE.MeshLambertMaterial({color:0x8822cc}));
+  guard2.position.set(-0.11,-0.06,0.03); g.add(guard2);
+  MELEE_WEAPONS.blade=g;
+})();
+
+// 焚化者：燃烧左拳
+(function(){
+  const g=new THREE.Group();
+  const fist=new THREE.Mesh(new THREE.BoxGeometry(0.19,0.16,0.22),mat(0x2f2f2f));
+  g.add(fist);
+  const glow=new THREE.Mesh(new THREE.SphereGeometry(0.09,8,6),new THREE.MeshBasicMaterial({
+    color:0xff6600,transparent:true,opacity:0.85,depthWrite:false
+  }));
+  glow.position.set(0.02,0.02,-0.10); g.add(glow);
+  const knuckle=new THREE.Mesh(new THREE.BoxGeometry(0.20,0.05,0.05),mat(0xff8844));
+  knuckle.position.set(0,0.08,-0.13); g.add(knuckle);
+  MELEE_WEAPONS.pyro=g;
+})();
+
+// 电磁战士：电棍
+(function(){
+  const g=new THREE.Group();
+  const rod=new THREE.Mesh(new THREE.CylinderGeometry(0.02,0.02,0.46,8),mat(0x2a2a2a));
+  rod.rotation.x=Math.PI/2; rod.position.set(0,0,-0.12); g.add(rod);
+  const tip=new THREE.Mesh(new THREE.SphereGeometry(0.05,8,6),new THREE.MeshBasicMaterial({
+    color:0x00ccff,transparent:true,opacity:0.9,depthWrite:false
+  }));
+  tip.position.set(0,0,-0.36); g.add(tip);
+  const grip=new THREE.Mesh(new THREE.CylinderGeometry(0.028,0.03,0.16,8),mat(0x111111));
+  grip.rotation.x=Math.PI/2; grip.position.set(0,0,0.14); g.add(grip);
+  MELEE_WEAPONS.volt=g;
+})();
+
+// 掘墓者：神话战斧（近战与主攻共用）
+(function(){
+  const g=new THREE.Group();
+  // 同样把握把放在枢轴点附近，出招时不会出现“手柄先碰到敌人”
+  const shaft=new THREE.Mesh(new THREE.CylinderGeometry(0.03,0.032,1.06,8),mat(0x4a3524));
+  shaft.rotation.x=Math.PI/2; shaft.position.z=-0.42; g.add(shaft);
+  const pommel=new THREE.Mesh(new THREE.SphereGeometry(0.05,8,6),mat(0x777777));
+  pommel.position.z=0.14; g.add(pommel);
+  const headCore=new THREE.Mesh(new THREE.BoxGeometry(0.14,0.16,0.18),mat(0x6f6f6f));
+  headCore.position.z=-0.98; g.add(headCore);
+  const bladeMain=new THREE.Mesh(new THREE.BoxGeometry(0.92,0.21,0.035),mat(0xc8c8c8));
+  bladeMain.position.set(0,0,-0.99); g.add(bladeMain);
+  const edgeTop=new THREE.Mesh(new THREE.BoxGeometry(0.92,0.05,0.02),mat(0xe2e2e2));
+  edgeTop.position.set(0,0.11,-1.00); g.add(edgeTop);
+  const edgeBottom=edgeTop.clone();
+  edgeBottom.position.y=-0.11; g.add(edgeBottom);
+  MELEE_WEAPONS.grave=g;
+})();
 const meleeGroup=new THREE.Group();
 meleeGroup.visible=false;
 gunPivot.add(meleeGroup);
@@ -731,11 +910,72 @@ function spawnBlood(pos){
     scene.add(m); particles.push(m);
   }
 }
+function spawnFlameBurst(pos,count){
+  const n=count||8;
+  for(let i=0;i<n;i++){
+    const c=Math.random()<0.45?0xffaa33:Math.random()<0.8?0xff6600:0xff3300;
+    const m=new THREE.Mesh(
+      pGeo,
+      new THREE.MeshBasicMaterial({color:c,transparent:true,opacity:0.95,depthWrite:false})
+    );
+    m.position.copy(pos);
+    m.scale.setScalar(0.55+Math.random()*0.65);
+    const th=Math.random()*Math.PI*2;
+    const rise=2.0+Math.random()*2.8;
+    m._vx=Math.cos(th)*(0.6+Math.random()*2.0);
+    m._vy=rise;
+    m._vz=Math.sin(th)*(0.6+Math.random()*2.0);
+    m._life=0.20+Math.random()*0.20; m._age=0;
+    m._grav=2.6;
+    scene.add(m); particles.push(m);
+  }
+}
+function spawnShockBurst(pos,count){
+  const n=count||7;
+  for(let i=0;i<n;i++){
+    const c=Math.random()<0.6?0x66eeff:0x00ccff;
+    const m=new THREE.Mesh(
+      pGeo,
+      new THREE.MeshBasicMaterial({color:c,transparent:true,opacity:0.9,depthWrite:false})
+    );
+    m.position.copy(pos);
+    m.scale.setScalar(0.45+Math.random()*0.45);
+    const th=Math.random()*Math.PI*2;
+    const spd=2.4+Math.random()*3.2;
+    m._vx=Math.cos(th)*spd;
+    m._vy=(Math.random()-0.2)*2.2;
+    m._vz=Math.sin(th)*spd;
+    m._life=0.14+Math.random()*0.12; m._age=0;
+    m._grav=0.4;
+    scene.add(m); particles.push(m);
+  }
+}
+function spawnGraveBurst(pos,count){
+  const n=count||9;
+  for(let i=0;i<n;i++){
+    const c=Math.random()<0.5?0x888888:0x666666;
+    const m=new THREE.Mesh(
+      pGeo,
+      new THREE.MeshBasicMaterial({color:c,transparent:true,opacity:0.9,depthWrite:false})
+    );
+    m.position.copy(pos);
+    m.scale.setScalar(0.55+Math.random()*0.6);
+    const th=Math.random()*Math.PI*2;
+    const spd=1.8+Math.random()*2.8;
+    m._vx=Math.cos(th)*spd;
+    m._vy=1.0+Math.random()*1.5;
+    m._vz=Math.sin(th)*spd;
+    m._life=0.22+Math.random()*0.18; m._age=0;
+    m._grav=5.0;
+    scene.add(m); particles.push(m);
+  }
+}
 function updateParticles(dt){
   for(let i=particles.length-1;i>=0;i--){
     const p=particles[i]; p._age+=dt;
     if(p._age>=p._life){scene.remove(p);p.material.dispose();particles.splice(i,1);continue;}
-    p._vy-=12*dt;
+    const grav=(p._grav===undefined)?12:p._grav;
+    p._vy-=grav*dt;
     p.position.x+=p._vx*dt; p.position.y+=p._vy*dt; p.position.z+=p._vz*dt;
     p.material.opacity=Math.max(0,1-p._age/p._life);
   }
@@ -758,6 +998,8 @@ function spawnHole(pos,normal){
 // 掉落物
 // ═══════════════════════════════════════════════
 const drops=[];
+const DROP_MAX_COUNT=40;     // 地面掉落最大数量，防止无限堆积
+const DROP_LIFETIME=18;      // 掉落物存在时长（秒）
 
 function rollDrop(kind){
   const r=Math.random();
@@ -792,7 +1034,12 @@ function spawnDrop(pos,type){
   const pl=new THREE.PointLight(color,1.5,3); g.add(pl);
   g.position.set(pos.x,0.3,pos.z);
   scene.add(g);
-  drops.push({group:g,box,type,bobPhase:Math.random()*Math.PI*2});
+  drops.push({group:g,box,type,bobPhase:Math.random()*Math.PI*2,life:DROP_LIFETIME});
+  // 超出上限时，移除最旧掉落
+  while(drops.length>DROP_MAX_COUNT){
+    const oldest=drops.shift();
+    if(oldest) scene.remove(oldest.group);
+  }
 }
 
 function showPickupMsg(text,color){
@@ -816,13 +1063,34 @@ function showPassiveMsg(text,color){
   setTimeout(()=>el.remove(),1000);
 }
 
+function rollAmmoPickupAmount(){
+  switch(P.charId){
+    case 'reaper':   return 24+Math.floor(Math.random()*13); // 24-36
+    case 'fortress': return 38+Math.floor(Math.random()*19); // 38-56
+    case 'phantom':  return 6+Math.floor(Math.random()*5);   // 6-10
+    case 'hawk':     return 3+Math.floor(Math.random()*4);   // 3-6
+    case 'cowboy':   return 4+Math.floor(Math.random()*5);   // 4-8
+    case 'volt':     return 3+Math.floor(Math.random()*4);   // 3-6
+    case 'pyro':     return 28+Math.floor(Math.random()*17); // 28-44
+    case 'grave':    return 0; // 掘墓者不用弹药
+    case 'blade':    return 0; // 刺客不用弹药
+    default:         return 15+Math.floor(Math.random()*16); // 15-30
+  }
+}
+
 function pickupDrop(d,idx){
   scene.remove(d.group); drops.splice(idx,1);
   playPickup();
   if(d.type==='ammo'){
-    const add=15+Math.floor(Math.random()*16);
+    const add=rollAmmoPickupAmount();
     P.reserve=Math.min(P.reserve+add,999);
-    showPickupMsg('+'+add+' 弹药','#f0a500');
+    if(P.charId==='blade'||P.charId==='grave'){
+      showPickupMsg('当前角色无需弹药','#f0a500');
+    } else if(P.charId==='pyro'){
+      showPickupMsg('+'+add+' 燃料','#ff6600');
+    } else {
+      showPickupMsg('+'+add+' 弹药','#f0a500');
+    }
   } else if(d.type==='hp'){
     const before=P.hp;
     P.hp=Math.min(P.hp+25,P.maxHp);
@@ -842,6 +1110,12 @@ function pickupDrop(d,idx){
 function updateDrops(dt){
   for(let i=drops.length-1;i>=0;i--){
     const d=drops[i];
+    d.life-=dt;
+    if(d.life<=0){
+      scene.remove(d.group);
+      drops.splice(i,1);
+      continue;
+    }
     d.bobPhase+=dt*2.5;
     d.group.position.y=0.3+Math.sin(d.bobPhase)*0.12;
     d.box.rotation.y+=dt*2;
@@ -964,6 +1238,8 @@ function baseEnemy(x,z){
   return {
     state:'patrol',patrolTarget:null,patrolTimer:0,
     attackTimer:0,stunTimer:0,dying:false,dyingTimer:0,
+    slowTimer:0,
+    burnStacks:0,burnTimer:0,burnTick:0,burnFxTimer:0,
     legAnim:Math.random()*Math.PI*2,
   };
 }
@@ -1257,6 +1533,10 @@ const P={
   hawkScoping:false, // 开镜状态
   // 牛仔神射手
   cowboyAimTargets:[],cowboyAimTimer:0,cowboyAimPhase:0,
+  // 电磁战士被动
+  voltHitCount:0,voltOverloadReady:false,
+  // 掘墓者层数/蓄力
+  graveImpact:0,graveCharging:false,
   // 治疗药剂
   medkit:0, // 当前持有数量（上限1）
 };
@@ -1267,10 +1547,37 @@ const P={
 const xhair=document.getElementById('xhair');
 
 // 玩家受伤统一入口（处理钢皮减伤等被动）
-function damagePlayer(rawDmg){
+// source: 'ranged'=远程攻击, 'melee'=近战攻击, undefined=未分类
+function damagePlayer(rawDmg,source){
   let dmg=rawDmg;
   // 被动：重火力钢皮减伤20%
   if(P.charId==='fortress') dmg=Math.round(dmg*0.8);
+  // ── 刺客格挡 ──
+  if(P.charId==='blade'&&P.bladeBlocking){
+    // 反弹远程时也会承受10%伤害（与普通格挡一致）
+    dmg=Math.max(1,Math.round(rawDmg*0.1)); // 格挡减伤90%，至少受1点
+    if(source==='ranged'){
+      // 远程攻击：反弹600%原始伤害至准星前方第一个敌人
+      const reflectDmg=Math.round(rawDmg*6);
+      tmp.ray.setFromCamera({x:0,y:0},camera);
+      const eMeshes=enemies.flatMap(e=>e.meshes);
+      const rHits=tmp.ray.intersectObjects(eMeshes,false);
+      if(rHits.length>0){
+        for(const e of enemies){
+          if(e.meshes.includes(rHits[0].object)){
+            applyHitToEnemy(e,rHits[0],reflectDmg);
+            showPassiveMsg('⚔ 反弹 '+reflectDmg,'#cc44ff');
+            break;
+          }
+        }
+      } else {
+        showPassiveMsg('🛡 格挡（无目标）','#cc44ff');
+      }
+    } else {
+      // 近战格挡：仅减伤，无反弹
+      showPassiveMsg('🛡 格挡','#cc44ff');
+    }
+  }
   P.hp=Math.max(0,P.hp-dmg);
   updateHpUI();
   document.getElementById('pain').style.background='rgba(233,69,96,0.45)';
@@ -1297,6 +1604,12 @@ function updatePassiveStackUI(){
   }
 }
 function updateAmmoUI(){
+  if(P.charId==='grave'){
+    document.getElementById('ammo-main').textContent=P.graveImpact||0;
+    document.getElementById('ammo-res').textContent='5';
+    document.getElementById('ammo-main').style.color=(P.graveImpact||0)>=4?'#00ffaa':(P.graveImpact||0)>=2?'#f0a500':'#fff';
+    return;
+  }
   document.getElementById('ammo-main').textContent=P.ammo;
   document.getElementById('ammo-res').textContent=P.reserve;
   document.getElementById('ammo-main').style.color=P.ammo<=5?'#e94560':P.ammo<=10?'#f0a500':'#fff';
@@ -1363,12 +1676,49 @@ function showKillBanner(kind,headshot){
   setTimeout(()=>el.remove(),900);
 }
 
-function applyHitToEnemy(e,hit,baseDmg){
-  const headshot=hit.object===e.head;
+function igniteEnemy(e,addStacks,duration){
+  if(!e||e.dying) return;
+  e.burnStacks=Math.min(12,(e.burnStacks||0)+(addStacks||1));
+  e.burnTimer=Math.max(e.burnTimer||0,duration||2);
+}
+
+function tickEnemyBurn(e,dt){
+  if(!e||e.dying||!e.burnTimer||!e.burnStacks) return;
+  e.burnTimer=Math.max(0,e.burnTimer-dt);
+  e.burnFxTimer=(e.burnFxTimer||0)+dt;
+  while(e.burnFxTimer>=0.10){
+    e.burnFxTimer-=0.10;
+    const fxPos=e.group.position.clone();
+    fxPos.y+=0.7+Math.random()*0.9;
+    spawnFlameBurst(fxPos,3);
+  }
+  e.burnTick=(e.burnTick||0)+dt;
+  while(e.burnTick>=1.0 && !e.dying){
+    e.burnTick-=1.0;
+    const burnDmg=5*e.burnStacks;
+    const hitPoint=e.group.position.clone(); hitPoint.y+=1.0;
+    const fakeHit={object:e.armL||e.head,point:hitPoint};
+    applyHitToEnemy(e,fakeHit,burnDmg,{allowHeadshot:false,effect:'flame'});
+  }
+  if(e.burnTimer<=0){
+    e.burnStacks=0;
+    e.burnTick=0;
+    e.burnFxTimer=0;
+  }
+}
+
+function applyHitToEnemy(e,hit,baseDmg,opts){
+  const options=opts||{};
+  // 刺客与火焰系伤害都不触发爆头
+  const allowHeadshot=(options.allowHeadshot!==false)&&(options.effect!=='flame')&&(P.charId!=='blade');
+  const headshot=allowHeadshot&&(hit.object===e.head);
   const dmg=Math.round(baseDmg*(headshot?HEADSHOT_MULT:1));
   e.hp-=dmg;
   e.refreshHp(Math.max(0,e.hp),e.maxHp);
-  spawnBlood(hit.point);
+  if(options.effect==='flame') spawnFlameBurst(hit.point,2);
+  else if(options.effect==='volt') spawnShockBurst(hit.point,3);
+  else if(options.effect==='grave') spawnGraveBurst(hit.point,3);
+  else spawnBlood(hit.point);
   showDmgNum(hit.point,dmg,headshot);
   e.stunTimer=0.28;
   if(headshot){
@@ -1407,6 +1757,23 @@ function isPlayerObstructed(enemyPos){
   return hits.length>0 && hits[0].distance<dist-0.1;
 }
 
+// 玩家视角到敌人中心线是否被墙遮挡（用于牛仔锁定等）
+function isEnemyVisibleFromPlayer(enemy){
+  const v3a=tmp.v3a, v3b=tmp.v3b;
+  const targetY=enemy.head?enemy.head.getWorldPosition(v3b).y:1.5;
+  v3a.set(
+    enemy.group.position.x-camera.position.x,
+    targetY-camera.position.y,
+    enemy.group.position.z-camera.position.z
+  );
+  const dist=v3a.length();
+  if(dist<0.0001) return true;
+  v3a.normalize();
+  tmp.ray.set(camera.position,v3a);
+  const wHits=tmp.ray.intersectObjects(wallObjs,false);
+  return !(wHits.length>0&&wHits[0].distance<dist-0.1);
+}
+
 const PATROL_ARRIVE_SQ=0.09;
 
 function doPatrol(ep,e,dt,radius,timerBase){
@@ -1418,7 +1785,8 @@ function doPatrol(ep,e,dt,radius,timerBase){
     e.patrolTarget={x:ep.x+Math.cos(a)*radius,z:ep.z+Math.sin(a)*radius};
   }
   const pdx=e.patrolTarget.x-ep.x, pdz=e.patrolTarget.z-ep.z;
-  if(pdx*pdx+pdz*pdz>PATROL_ARRIVE_SQ) moveEntity(ep,pdx,pdz,e.speed,dt);
+  const mul=e.slowTimer>0?0.3:1.0;
+  if(pdx*pdx+pdz*pdz>PATROL_ARRIVE_SQ) moveEntity(ep,pdx,pdz,e.speed*mul,dt);
   else e.patrolTarget=null;
 }
 
@@ -1448,25 +1816,129 @@ function doRayDmg(ox,oy,baseDmg){
   }
 }
 
+function applyVoltSlow(e,duration){
+  if(!e||e.dying) return;
+  e.slowTimer=Math.max(e.slowTimer||0,duration||1.5);
+}
+
+function doVoltBeam(baseDmg){
+  tmp.ray.setFromCamera({x:0,y:0},camera);
+  const eMeshes=enemies.flatMap(e=>e.meshes);
+  const hits=tmp.ray.intersectObjects(eMeshes,false);
+  const hitEnemies=[];
+  const seen=new Set();
+  hits.forEach(hit=>{
+    const e=enemies.find(en=>en.meshes.includes(hit.object));
+    if(!e||e.dying||seen.has(e)) return;
+    seen.add(e);
+    hitEnemies.push({enemy:e,hit});
+  });
+  let anyHit=false;
+  let overloadBlastPending=P.voltOverloadReady;
+  hitEnemies.forEach(({enemy,hit},idx)=>{
+    anyHit=true;
+    applyHitToEnemy(enemy,hit,baseDmg,{allowHeadshot:false,effect:'volt'});
+    applyVoltSlow(enemy,1.5);
+    spawnShockBurst(hit.point,4);
+    P.voltHitCount++;
+    if(P.voltHitCount>=3&&!P.voltOverloadReady){
+      P.voltHitCount-=3;
+      P.voltOverloadReady=true;
+      showPassiveMsg('过载已就绪','#00ccff');
+    }
+    if(overloadBlastPending&&idx===0){
+      overloadBlastPending=false;
+      P.voltOverloadReady=false;
+      const center=hit.point.clone();
+      const r=2.5, r2=r*r;
+      enemies.forEach(e=>{
+        if(e.dying||e===enemy) return;
+        const dx=e.group.position.x-center.x;
+        const dz=e.group.position.z-center.z;
+        if(dx*dx+dz*dz<=r2){
+          const p=e.group.position.clone(); p.y+=1.0;
+          applyHitToEnemy(e,{object:e.armL||e.head,point:p},60,{allowHeadshot:false,effect:'volt'});
+          applyVoltSlow(e,1.5);
+        }
+      });
+      spawnShockBurst(center,14);
+      showPassiveMsg('过载爆炸 60','#00ccff');
+    }
+  });
+  if(!anyHit){
+    const p=camera.position.clone();
+    p.x+=-Math.sin(P.yaw)*7.5; p.y+=1.0; p.z+=-Math.cos(P.yaw)*7.5;
+    spawnShockBurst(p,5);
+  }
+}
+
 function shoot(){
+  if(P.charId==='blade'||P.charId==='grave') return; // 纯近战角色不使用枪
   if(P.reloading||P.meleeing||P.ammo<=0) return;
   const now=performance.now();
   if(now-P.lastShot<(P.fireRate||110)) return;
   P.lastShot=now; P.ammo--; updateAmmoUI();
-  playGunshot();
+  if(P.charId==='pyro') playFlame();
+  else if(P.charId==='volt') playVoltShot();
+  else playGunshot();
 
-  // 后坐力（狙击更大，机枪偏移随机）
-  const recoilScale=P.charId==='hawk'?2.2:P.charId==='fortress'?0.7:1.0;
+  // 后坐力（狙击更大，机枪偏移随机；焚化者后坐力很小）
+  const recoilScale=P.charId==='hawk'?2.2:P.charId==='fortress'?0.7:P.charId==='pyro'?0.35:P.charId==='volt'?0.9:1.0;
   P.recoilPitch-=(0.03+Math.random()*0.015)*recoilScale;
   P.recoilYaw+=(Math.random()-0.5)*0.018*recoilScale;
-  gunGroup.position.z=-0.25;
-  muzzleFlash.intensity=6; muzzleTimer=0.07;
+  gunGroup.position.z=P.charId==='pyro'?-0.20:-0.25;
+  muzzleFlash.intensity=P.charId==='pyro'?4.5:6;
+  muzzleTimer=P.charId==='pyro'?0.04:0.07;
   muzzleSprite.material.opacity=1.0;
 
   xhair.classList.add('spread');
   setTimeout(()=>xhair.classList.remove('spread'),100);
 
-  const baseDmg=P.dmgMin+Math.floor(Math.random()*(P.dmgMax-P.dmgMin+1));
+  let baseDmg=P.dmgMin+Math.floor(Math.random()*(P.dmgMax-P.dmgMin+1));
+  // 牛仔右键速射：每发伤害减半
+  if(P.charId==='cowboy'&&P.cowboyFanfire){
+    baseDmg=Math.max(1,Math.round(baseDmg*0.5));
+  }
+
+  // 焚化者：前方120°扇形AOE喷火（8单位）+ 点燃
+  if(P.charId==='pyro'){
+    const fwdX=-Math.sin(P.yaw), fwdZ=-Math.cos(P.yaw);
+    const range=8, rangeSq=range*range;
+    let hitCount=0;
+    enemies.forEach(e=>{
+      if(e.dying) return;
+      const dx=e.group.position.x-camera.position.x;
+      const dz=e.group.position.z-camera.position.z;
+      const distSq=dx*dx+dz*dz;
+      if(distSq>rangeSq||distSq<0.0001) return;
+      const dist=Math.sqrt(distSq);
+      const dot=fwdX*(dx/dist)+fwdZ*(dz/dist);
+      if(dot<0.5) return; // 120°扇形
+      if(!isEnemyVisibleFromPlayer(e)) return;
+      const falloff=Math.max(0.35,1-dist/range);
+      const flameDmg=Math.max(1,Math.round(baseDmg*falloff));
+      const p=e.group.position.clone(); p.y+=1.0;
+      const fakeHit={object:e.armL||e.head,point:p};
+      applyHitToEnemy(e,fakeHit,flameDmg,{allowHeadshot:false,effect:'flame'});
+      igniteEnemy(e,1,2);
+      hitCount++;
+    });
+    const muzzlePos=new THREE.Vector3();
+    muzzleFlash.getWorldPosition(muzzlePos);
+    spawnFlameBurst(muzzlePos,6);
+    if(hitCount===0){
+      const airPos=camera.position.clone();
+      airPos.x+=fwdX*2.4; airPos.y+=0.9; airPos.z+=fwdZ*2.4;
+      spawnFlameBurst(airPos,4);
+    }
+    if(P.ammo===0&&P.reserve>0) startReload();
+    return;
+  }
+  if(P.charId==='volt'){
+    doVoltBeam(baseDmg);
+    if(P.ammo===0&&P.reserve>0) startReload();
+    return;
+  }
 
   if(P.shotCount>1){
     // 霰弹：多弹丸扩散，近距离才有效
@@ -1552,7 +2024,95 @@ function killEnemy(e,headshot){
     P.hp=Math.min(P.maxHp,P.hp+10);
     if(P.hp>before){ updateHpUI(); showPassiveMsg('+10 HP','#f0a500'); }
   }
+  // 刺客：击杀触发血怒被动
+  if(P.charId==='blade'){
+    P.bladeFury=true;
+    P.bladeFuryTimer=2.0;
+    showPassiveMsg('血怒！下次攻击伤害翻倍','#cc44ff');
+  }
 }
+
+// ── 刺客：双刀攻击 ──────────────────────────────────
+// 与普通近战不同：用 fireRate 节流而非 meleeTimer 锁定，速度更快
+function doBladeAttack(){
+  const now=performance.now();
+  if(now-P.lastShot<(P.fireRate||350)) return;
+  P.lastShot=now;
+  playMelee();
+  P.meleeing=true; P.meleeTimer=0.35; // 短后摇，比普通近战快
+
+  tmp.ray.setFromCamera({x:0,y:0},camera);
+  const hits=tmp.ray.intersectObjects(enemies.flatMap(e=>e.meshes),false);
+  if(hits.length>0&&hits[0].distance<2.5){
+    const wHits=tmp.ray.intersectObjects(wallObjs,false);
+    if(!(wHits.length>0&&wHits[0].distance<hits[0].distance)){
+      for(const e of enemies){
+        if(e.meshes.includes(hits[0].object)){
+          let dmg=P.dmgMin+Math.floor(Math.random()*(P.dmgMax-P.dmgMin+1));
+          if(P.bladeFury){
+            dmg*=2;
+            P.bladeFury=false; P.bladeFuryTimer=0;
+            showPassiveMsg('💥 血怒爆发！','#cc44ff');
+          }
+          applyHitToEnemy(e,hits[0],dmg);
+          break;
+        }
+      }
+    }
+  }
+}
+
+// ── 掘墓者：链锤重击（慢速，高单次，带溅射）──────────────
+function doGraveAttack(){
+  const now=performance.now();
+  if(now-P.lastShot<(P.fireRate||800)) return;
+  P.lastShot=now;
+  playMelee();
+  P.meleeing=true; P.meleeTimer=0.62;
+
+  const dirX=-Math.sin(P.yaw), dirZ=-Math.cos(P.yaw);
+  const center=tmp.v3a.set(
+    camera.position.x+dirX*3.0,
+    1.0,
+    camera.position.z+dirZ*3.0
+  );
+  const splashR=2.5, splashR2=splashR*splashR;
+  const targets=[];
+  enemies.forEach(e=>{
+    if(e.dying) return;
+    const dx=e.group.position.x-center.x;
+    const dz=e.group.position.z-center.z;
+    if(dx*dx+dz*dz<=splashR2) targets.push(e);
+  });
+  if(targets.length===0){
+    spawnGraveBurst(center.clone(),10);
+    return;
+  }
+
+  const baseDmg=45+Math.floor(Math.random()*16); // 45-60
+  targets.sort((a,b)=>{
+    const adx=a.group.position.x-center.x, adz=a.group.position.z-center.z;
+    const bdx=b.group.position.x-center.x, bdz=b.group.position.z-center.z;
+    return (adx*adx+adz*adz)-(bdx*bdx+bdz*bdz);
+  });
+  const main=targets[0];
+  const p0=main.group.position.clone(); p0.y+=1.0;
+  applyHitToEnemy(main,{object:main.armL||main.head,point:p0},baseDmg,{allowHeadshot:false,effect:'grave'});
+
+  let splashHits=0;
+  for(let i=1;i<targets.length;i++){
+    const e=targets[i];
+    const p=e.group.position.clone(); p.y+=1.0;
+    applyHitToEnemy(e,{object:e.armL||e.head,point:p},Math.round(baseDmg*0.5),{allowHeadshot:false,effect:'grave'});
+    splashHits++;
+  }
+
+  P.graveImpact=Math.min(5,(P.graveImpact||0)+1);
+  updateAmmoUI();
+  spawnGraveBurst(center.clone(),12);
+  if(splashHits>0) showPassiveMsg('震地溅射 '+splashHits,'#aaaaaa');
+}
+
 
 function startReload(){
   if(P.reserve<=0||P.ammo===P.maxAmmo||P.reloading) return;
@@ -1577,7 +2137,18 @@ function doMelee(){
     if(!(wHits.length>0 && wHits[0].distance < hits[0].distance)){
       for(const e of enemies){
         if(e.meshes.includes(hits[0].object)){
-          applyHitToEnemy(e,hits[0],28+Math.floor(Math.random()*5)); // 28-32伤害
+          if(P.charId==='pyro'){
+            const meleeDmg=34+Math.floor(Math.random()*7);
+            applyHitToEnemy(e,hits[0],meleeDmg,{allowHeadshot:false,effect:'flame'});
+            igniteEnemy(e,2,2.2);
+          } else if(P.charId==='volt'){
+            const meleeDmg=30+Math.floor(Math.random()*7);
+            applyHitToEnemy(e,hits[0],meleeDmg,{allowHeadshot:false,effect:'volt'});
+            applyVoltSlow(e,1.5);
+            spawnShockBurst(hits[0].point,6);
+          } else {
+            applyHitToEnemy(e,hits[0],28+Math.floor(Math.random()*5)); // 28-32伤害
+          }
           break;
         }
       }
@@ -1618,13 +2189,73 @@ function showSkillBanner(text,color,duration){
 
 // 技能触发入口
 function useSkill(){
-  if(!P.charId||P.skillCd>0||gameDead||gamePaused) return;
+  if(!P.charId||gameDead||gamePaused) return;
   const id=P.charId;
+  // 刺客技能走独立逻辑（不用 P.skillCd 门控）
+  if(id==='blade'){ skillBlade(); return; }
+  if(P.skillCd>0) return;
   if(id==='reaper')  skillReaper();
   else if(id==='fortress') skillFortress();
   else if(id==='phantom')  skillPhantom();
   else if(id==='hawk')     skillHawk();
   else if(id==='cowboy')   skillCowboy();
+  else if(id==='pyro')     skillPyro();
+  else if(id==='volt')     skillVolt();
+  else if(id==='grave')    skillGrave();
+}
+
+// ── 刺客：残影斩（最多存3次，独立CD 10s/次）────────────
+function skillBlade(){
+  if(P.bladeCharges<=0) return; // 无存量时无法使用
+  P.bladeCharges--;
+  P.bladeChargeTimers.push(10.0); // 推入一个10s充能计时
+  updateBladeSkillUI();
+  showSkillBanner('残影斩','#cc44ff',800);
+
+  // 向前冲刺，路径上每个敌人最多连中3刀（每刀固定100伤害）
+  if(P.phantomDashing) return; // 复用冲刺锁
+  P.phantomDashing=true;
+  const DASH_DIST=10, DASH_DMG=100, SLASH_COUNT=3, STEPS=20;
+  const dirX=-Math.sin(P.yaw), dirZ=-Math.cos(P.yaw);
+  const startX=camera.position.x, startZ=camera.position.z;
+  let step=0;
+  const hitMap=new Map(); // enemy → slash count
+
+  const dashInterval=setInterval(()=>{
+    step++;
+    const t=step/STEPS;
+    const tx=startX+dirX*DASH_DIST*t;
+    const tz=startZ+dirZ*DASH_DIST*t;
+    if(canMove(tx,tz)){
+      camera.position.x=tx;
+      camera.position.z=tz;
+    }
+    enemies.forEach(e=>{
+      if(e.dying) return;
+      const slashes=hitMap.get(e)||0;
+      if(slashes>=SLASH_COUNT) return;
+      const ex=e.group.position.x-camera.position.x;
+      const ez=e.group.position.z-camera.position.z;
+      if(ex*ex+ez*ez<4.0){
+        hitMap.set(e,(slashes+1));
+        const fakeHit={object:e.head,point:e.group.position.clone()};
+        applyHitToEnemy(e,fakeHit,DASH_DMG);
+        if(!e.dying) e.state='chase';
+      }
+    });
+    if(step>=STEPS){ clearInterval(dashInterval); P.phantomDashing=false; }
+  },16);
+}
+
+// 刺客技能UI更新（中心显示存量/3，颜色按存量变化）
+function updateBladeSkillUI(){
+  if(P.charId!=='blade') return;
+  const fill=document.getElementById('skill-ring-fill');
+  const cdText=document.getElementById('skill-cd-text');
+  if(!fill) return;
+  fill.style.strokeDashoffset=0; // 圆环始终满格
+  fill.style.stroke=P.bladeCharges>0?'#cc44ff':'#555';
+  cdText.textContent=P.bladeCharges+'/3';
 }
 
 // ── 突击手：肾上腺素 ─────────────────────────────
@@ -1840,11 +2471,127 @@ function skillCowboy(){
     // 计算敌人方向与玩家朝向的夹角
     const dist=Math.sqrt(distSq);
     const dot=fwdX*(dx/dist)+fwdZ*(dz/dist);
-    if(dot>0.5) { // cos(60°)=0.5，即前方120°视野锥内
+    if(dot>0.5&&isEnemyVisibleFromPlayer(e)) { // 仅锁定无遮挡目标
       P.cowboyAimTargets.push(e);
     }
   });
   showSkillBanner('神射手：锁定 '+P.cowboyAimTargets.length+' 目标','#f0a500',2000);
+  updateSkillUI();
+}
+
+// ── 焚化者：助燃热浪 ────────────────────────────────
+// 向前释放热浪，触碰墙体停止；命中60伤害并点燃
+function skillPyro(){
+  P.skillCd=14; P.skillMaxCd=14;
+  const origin=new THREE.Vector3(camera.position.x,1.15,camera.position.z);
+  const dir=new THREE.Vector3(-Math.sin(P.yaw),0,-Math.cos(P.yaw)).normalize();
+  const maxRange=12;
+  tmp.ray.set(origin,dir);
+  const wHits=tmp.ray.intersectObjects(wallObjs,false);
+  const travel=(wHits.length>0)?Math.max(0,Math.min(maxRange,wHits[0].distance-0.2)):maxRange;
+  const waveRadius=2.7;
+  const waveR2=waveRadius*waveRadius;
+  let hitCount=0;
+
+  enemies.forEach(e=>{
+    if(e.dying) return;
+    const v=tmp.v3a.set(
+      e.group.position.x-origin.x,
+      0,
+      e.group.position.z-origin.z
+    );
+    const proj=v.x*dir.x+v.z*dir.z;
+    if(proj<0||proj>travel) return;
+    const sideSq=v.lengthSq()-proj*proj;
+    if(sideSq>waveR2) return;
+    const p=e.group.position.clone(); p.y+=1.0;
+    const fakeHit={object:e.armL||e.head,point:p};
+    applyHitToEnemy(e,fakeHit,60,{allowHeadshot:false,effect:'flame'});
+    igniteEnemy(e,2,2.5);
+    hitCount++;
+  });
+
+  for(let d=0.6;d<travel;d+=0.75){
+    const p=origin.clone().addScaledVector(dir,d);
+    spawnFlameBurst(p,5);
+  }
+  showSkillBanner('助燃热浪 '+(hitCount>0?('命中 '+hitCount):'未命中'),'#ff6600',1200);
+  updateSkillUI();
+}
+
+// ── 掘墓者：末日重击（0.8s蓄力后拉拽+回血）──────────────
+function skillGrave(){
+  if(P.graveCharging) return;
+  P.skillCd=20; P.skillMaxCd=20;
+  P.skillActive=true;
+  P.graveCharging=true;
+  showSkillBanner('末日重击 · 蓄力','#888888',800);
+  updateSkillUI();
+  setTimeout(()=>{
+    if(P.charId!=='grave'||gameDead) return;
+    P.graveCharging=false;
+    P.skillActive=false;
+    graveSlam();
+    updateSkillUI();
+  },800);
+}
+
+function graveSlam(){
+  const range=9, rangeSq=range*range;
+  const px=camera.position.x, pz=camera.position.z;
+  let pulled=0;
+  enemies.forEach((e,idx)=>{
+    if(e.dying) return;
+    const dx=e.group.position.x-px;
+    const dz=e.group.position.z-pz;
+    const d2=dx*dx+dz*dz;
+    if(d2>rangeSq) return;
+    const dist=Math.max(0.001,Math.sqrt(d2));
+    const dirX=dx/dist, dirZ=dz/dist;
+    const targetDist=1.8+0.2*(idx%5);
+    const tx=px+dirX*targetDist;
+    const tz=pz+dirZ*targetDist;
+    if(canMove(tx,tz)){
+      e.group.position.x=tx;
+      e.group.position.z=tz;
+      pulled++;
+    }
+    const p=e.group.position.clone(); p.y+=1.0;
+    applyHitToEnemy(e,{object:e.armL||e.head,point:p},52,{allowHeadshot:false,effect:'grave'});
+    e.stunTimer=Math.max(e.stunTimer||0,0.6);
+  });
+
+  const heal=pulled*30;
+  if(heal>0){
+    const before=P.hp;
+    P.hp=Math.min(P.maxHp,P.hp+heal);
+    if(P.hp>before) updateHpUI();
+  }
+  spawnGraveBurst(new THREE.Vector3(px,1.0,pz),18);
+  showSkillBanner('末日重击：拉拽 '+pulled+' 目标','#888888',1300);
+}
+
+// ── 电磁战士：电磁屏障 ──────────────────────────────
+// 周围5单位敌人眩晕2秒
+function skillVolt(){
+  P.skillCd=20; P.skillMaxCd=20;
+  const r=5, r2=r*r;
+  let stunned=0;
+  enemies.forEach(e=>{
+    if(e.dying) return;
+    const dx=e.group.position.x-camera.position.x;
+    const dz=e.group.position.z-camera.position.z;
+    if(dx*dx+dz*dz<=r2){
+      e.stunTimer=Math.max(e.stunTimer||0,2.0);
+      applyVoltSlow(e,1.5);
+      const p=e.group.position.clone(); p.y+=1.0;
+      spawnShockBurst(p,5);
+      stunned++;
+    }
+  });
+  const center=new THREE.Vector3(camera.position.x,1.0,camera.position.z);
+  spawnShockBurst(center,18);
+  showSkillBanner('电磁屏障：眩晕 '+stunned+' 目标','#00ccff',1300);
   updateSkillUI();
 }
 
@@ -1855,7 +2602,12 @@ const keys={};
 document.addEventListener('keydown',e=>{
   keys[e.code]=true;
   if(e.code==='KeyR') startReload();
-  if(e.code==='KeyF'||e.code==='KeyV') doMelee(); // F或V均可触发近战
+  // F/V 近战：刺客/掘墓者调用专属攻击，其他角色用通用近战
+  if(e.code==='KeyF'||e.code==='KeyV'){
+    if(P.charId==='blade') doBladeAttack();
+    else if(P.charId==='grave') doGraveAttack();
+    else doMelee();
+  }
   if(e.code==='Escape'||e.code==='KeyP') togglePause();
   if(e.code==='KeyE'&&gameStarted&&!gameDead&&!gamePaused) useSkill();
   // Shift：使用治疗药剂（回复50HP，上限1瓶，每波清完补充）
@@ -1887,6 +2639,12 @@ document.addEventListener('mousedown',e=>{
     // 猎手拿弓时：左键按下开始蓄力
     if(P.charId==='hawk'&&P.hawkBowActive){
       startHawkCharge();
+    } else if(P.charId==='blade'){
+      // 刺客：左键直接触发双刀攻击
+      doBladeAttack();
+    } else if(P.charId==='grave'){
+      // 掘墓者：左键触发链锤攻击
+      doGraveAttack();
     } else {
       P.shooting=true;
       if(!P.fullAuto) shoot();
@@ -1894,7 +2652,10 @@ document.addEventListener('mousedown',e=>{
   }
   // 右键处理
   if(e.button===2&&locked){
-    if(P.charId==='cowboy'){
+    if(P.charId==='blade'){
+      // 刺客右键：格挡
+      P.bladeBlocking=true;
+    } else if(P.charId==='cowboy'){
       // 牛仔右键：快速清空弹夹
       if(!P.reloading&&P.ammo>0){
         P.cowboyFanfire=true;
@@ -1906,7 +2667,11 @@ document.addEventListener('mousedown',e=>{
     }
   }
   // Mouse 4/5 侧键：近战（button 3=侧后, 4=侧前/Mouse5）
-  if((e.button===3||e.button===4)&&locked&&gameStarted&&!gameDead&&!gamePaused) doMelee();
+  if((e.button===3||e.button===4)&&locked&&gameStarted&&!gameDead&&!gamePaused){
+    if(P.charId==='blade') doBladeAttack();
+    else if(P.charId==='grave') doGraveAttack();
+    else doMelee();
+  }
 });
 document.addEventListener('mouseup',e=>{
   if(e.button===0){
@@ -1915,6 +2680,7 @@ document.addEventListener('mouseup',e=>{
     if(P.charId==='hawk'&&P.hawkBowActive&&P.hawkCharging) releaseHawkArrow();
   }
   if(e.button===2){
+    P.bladeBlocking=false; // 刺客松开右键：解除格挡
     P.cowboyFanfire=false;
     // 猎手松开右键：关镜
     if(P.charId==='hawk') P.hawkScoping=false;
@@ -1983,6 +2749,26 @@ function loop(now){
       shoot();
     }
     if(P.ammo===0) P.cowboyFanfire=false;
+  }
+
+  // ── 刺客：血怒计时 + 充能计时 ──
+  if(P.charId==='blade'){
+    // 血怒倒计时
+    if(P.bladeFuryTimer>0){
+      P.bladeFuryTimer-=dt;
+      if(P.bladeFuryTimer<=0){ P.bladeFury=false; P.bladeFuryTimer=0; }
+    }
+    // 残影斩充能：每个计时器各自倒计时，归零则加一层存量
+    if(P.bladeChargeTimers&&P.bladeChargeTimers.length>0){
+      for(let i=P.bladeChargeTimers.length-1;i>=0;i--){
+        P.bladeChargeTimers[i]-=dt;
+        if(P.bladeChargeTimers[i]<=0){
+          P.bladeChargeTimers.splice(i,1);
+          P.bladeCharges=Math.min(3,P.bladeCharges+1);
+        }
+      }
+      updateBladeSkillUI();
+    }
   }
 
   // 被动：突击手战意衰减
@@ -2110,6 +2896,47 @@ function loop(now){
       // x: 右→左(0.35→-0.25)  y: 下→上(-0.4→0.25)  z: 近→稍远(-0.25→-0.4)
       meleeGroup.position.set(0.35-s*0.60, -0.40+s*0.65, -0.25-s*0.15);
       meleeGroup.rotation.set(-0.4+s*0.5, 0.6-s*1.0, 1.2-s*2.2);
+    } else if(P.charId==='blade'){
+      // 双刀交叉横扫：右刀从右下→左前，左刀从左→右，交叉出击
+      meleeGroup.position.set(0.18-s*0.30, -0.22+s*0.06, -0.25-s*0.30);
+      meleeGroup.rotation.set(-0.2+s*0.35, -0.5+s*1.1, 0.6-s*1.2);
+    } else if(P.charId==='pyro'){
+      // 燃烧左拳：贴身冲拳
+      meleeGroup.position.set(-0.04+s2*0.05, -0.20+s*0.03, -0.22-s*0.68);
+      meleeGroup.rotation.set(-0.08+s*0.22, -0.22+s*0.28, 0.35-s*0.25);
+    } else if(P.charId==='volt'){
+      // 电棍斜劈
+      meleeGroup.position.set(0.16-s*0.30, -0.24+s*0.04, -0.22-s*0.55);
+      meleeGroup.rotation.set(-0.30+s*0.30, 0.45-s*0.65, 0.55-s*0.75);
+    } else if(P.charId==='grave'){
+      // 两段式战斧：前摇上举 -> 纵向下劈（减少前推，避免“拖把推刺感”）
+      if(t<0.35){
+        const u=t/0.35; // 0 -> 1
+        // 上举到头顶右后侧，蓄力感
+        meleeGroup.position.set(
+          0.18+u*0.03,
+          -0.42+u*0.50,
+          -0.52+u*0.08
+        );
+        meleeGroup.rotation.set(
+          -1.90-u*0.35,
+          0.06+u*0.18,
+          0.42+u*0.36
+        );
+      } else {
+        const v=(t-0.35)/0.65; // 0 -> 1
+        // 纵向砍下：主要沿Y轴下落，Z仅小幅前移
+        meleeGroup.position.set(
+          0.21-v*0.10,
+          0.08-v*0.90,
+          -0.44-v*0.55
+        );
+        meleeGroup.rotation.set(
+          -2.25+v*1.85,
+          0.24-v*0.18,
+          0.78-v*0.72
+        );
+      }
     } else {
       meleeGroup.position.set(0.2, -0.2-s*0.3, -0.3-s*0.4);
       meleeGroup.rotation.set(-s*1.0, 0, 0);
@@ -2123,8 +2950,15 @@ function loop(now){
       meleeGroup.position.set(0,0,0);
       meleeGroup.rotation.set(0,0,0);
     }
+  } else if(P.charId==='blade'&&P.bladeBlocking){
+    // 刺客右键格挡：双刀交叉挡在前方
+    gunGroup.visible=false;
+    meleeGroup.visible=true;
+    const sway=Math.sin(now*0.012)*0.02;
+    meleeGroup.position.set(0.02+sway, -0.06, -0.58);
+    meleeGroup.rotation.set(-0.30, 0.02, -0.12);
   } else {
-    // 非近战状态确保主武器可见、近战武器隐藏
+    // 非近战/非格挡状态确保主武器可见、近战武器隐藏
     if(!gunGroup.visible) gunGroup.visible=true;
     meleeGroup.visible=false;
   }
@@ -2148,6 +2982,12 @@ function loop(now){
   if(P.charId==='phantom') baseSpd*=1.35;
   // 猎手：略慢
   if(P.charId==='hawk') baseSpd*=0.88;
+  // 焚化者：偏慢
+  if(P.charId==='pyro') baseSpd*=0.84;
+  // 掘墓者：最慢
+  if(P.charId==='grave') baseSpd*=0.58;
+  // 刺客：最快
+  if(P.charId==='blade') baseSpd*=1.45;
   const spd=baseSpd;
   const sin=Math.sin(P.yaw), cos=Math.cos(P.yaw);
   let mx=0,mz=0;
@@ -2210,10 +3050,18 @@ function loop(now){
 
   // 枪摆动
   if(!P.reloading&&!P.meleeing){
-    gunGroup.position.y+=(-0.22+bobY*1.5-gunGroup.position.y)*0.15;
-    gunGroup.position.x+=(0.22+bobX-gunGroup.position.x)*0.1;
-    gunGroup.position.z+=(-0.4-gunGroup.position.z)*0.25;
-    gunGroup.rotation.z+=(0-gunGroup.rotation.z)*0.15;
+    const idleY=P.charId==='grave'?-0.10:-0.22;
+    const idleX=P.charId==='grave'?0.24:0.22;
+    const idleZ=P.charId==='grave'?-0.50:-0.4;
+    const idleRx=P.charId==='grave'?-2.79:0; // 约160°上举
+    const idleRy=P.charId==='grave'?0.12:0.05;
+    const idleRz=P.charId==='grave'?-0.22:0;
+    gunGroup.position.y+=(idleY+bobY*1.5-gunGroup.position.y)*0.15;
+    gunGroup.position.x+=(idleX+bobX-gunGroup.position.x)*0.1;
+    gunGroup.position.z+=(idleZ-gunGroup.position.z)*0.25;
+    gunGroup.rotation.x+=(idleRx-gunGroup.rotation.x)*0.15;
+    gunGroup.rotation.y+=(idleRy-gunGroup.rotation.y)*0.12;
+    gunGroup.rotation.z+=(idleRz-gunGroup.rotation.z)*0.15;
   }
 
   // 粒子
@@ -2239,6 +3087,12 @@ function loop(now){
       if(e.dyingTimer<=0){scene.remove(e.group);enemies.splice(i,1);}
       continue;
     }
+
+    // 灼烧DOT
+    tickEnemyBurn(e,dt);
+    if(e.dying) continue;
+    if(e.slowTimer>0) e.slowTimer=Math.max(0,e.slowTimer-dt);
+    const speedMul=e.slowTimer>0?0.3:1.0;
 
     // 硬直
     if(e.stunTimer>0){
@@ -2269,7 +3123,7 @@ function loop(now){
 
     // 逃跑
     if(e.state==='flee'){
-      moveEntity(ep,-dx,-dz,e.speed*1.2,dt);
+      moveEntity(ep,-dx,-dz,e.speed*1.2*speedMul,dt);
       if(distSq>400) e.state='patrol';
       continue;
     }
@@ -2280,18 +3134,18 @@ function loop(now){
     // 重装兵：中距离停下射击
     if(e.kind==='heavy'){
       if(distSq>attackRangeSq){
-        e.state='chase'; moveEntity(ep,dx,dz,e.speed,dt);
+        e.state='chase'; moveEntity(ep,dx,dz,e.speed*speedMul,dt);
       } else {
         // 检查是否有墙阻挡敌人和玩家之间的直线
         const wallObstructed=isPlayerObstructed(ep);
         if(wallObstructed){
-          e.state='chase'; moveEntity(ep,dx,dz,e.speed,dt);
+          e.state='chase'; moveEntity(ep,dx,dz,e.speed*speedMul,dt);
         } else {
           e.state='attack'; e.attackTimer+=dt;
           if(e.attackTimer>=e.attackRate){
             e.attackTimer=0;
             const dmg=e.attackDmg+Math.floor(Math.random()*3);
-            damagePlayer(dmg);
+            damagePlayer(dmg,'ranged'); // 重装兵远程攻击
           }
         }
       }
@@ -2302,14 +3156,14 @@ function loop(now){
     if(e.kind==='sniper'){
       const preferMinSq=(e.preferDist-1)*(e.preferDist-1);
       if(distSq<preferMinSq){
-        moveEntity(ep,-dx,-dz,e.speed,dt);
+        moveEntity(ep,-dx,-dz,e.speed*speedMul,dt);
       } else if(distSq<=attackRangeSq){
         if(isPlayerObstructed(ep)) doPatrol(ep,e,dt,3,2);
         else {
           e.state='attack'; e.attackTimer+=dt;
           if(e.attackTimer>=e.attackRate){
             e.attackTimer=0;
-            damagePlayer(e.attackDmg);
+            damagePlayer(e.attackDmg,'ranged'); // 狙击手远程攻击
           }
         }
       } else {
@@ -2323,7 +3177,7 @@ function loop(now){
       // 检查是否有墙阻挡敌人和玩家之间的直线
       const wallObstructed=isPlayerObstructed(ep);
       if(wallObstructed){
-        e.state='chase'; moveEntity(ep,dx,dz,e.speed,dt);
+        e.state='chase'; moveEntity(ep,dx,dz,e.speed*speedMul,dt);
       } else {
         e.state='attack'; e.attackTimer+=dt;
         if(e.attackTimer>=e.attackRate){
@@ -2331,11 +3185,11 @@ function loop(now){
           const dmg=e.kind==='berserker'?e.attackDmg:e.attackDmg+Math.floor(Math.random()*3);
           P.streak=0;
           document.getElementById('kill-streak').textContent='';
-          damagePlayer(dmg);
+          damagePlayer(dmg,'melee'); // 普通兵/狂战士近战攻击
         }
       }
     } else if(distSq<400){
-      e.state='chase'; moveEntity(ep,dx,dz,e.speed,dt);
+      e.state='chase'; moveEntity(ep,dx,dz,e.speed*speedMul,dt);
     } else {
       doPatrol(ep,e,dt,4,1.5);
     }
@@ -2408,8 +3262,52 @@ const CHARS={
         dmgMin:30,dmgMax:45,reloadTime:1.8,
         spread:0,shotCount:1,fullAuto:false,muzzleColor:0xf0a500},
   },
+  volt:{
+    id:'volt',name:'VOLT',title:'电磁战士',color:'#00ccff',
+    weapon:'电磁炮 · 5发 · 穿透与减速',
+    stats:{speed:3,hp:3,firepower:4},
+    passive:'过载：每3次命中，下一发触发感电爆炸（AOE 60）',
+    active:'电磁屏障[E]：5单位内敌人眩晕2秒，CD20s',
+    quote:'"Static. Then silence."',
+    wp:{ammo:5,maxAmmo:5,reserve:30,fireRate:620,
+        dmgMin:42,dmgMax:56,reloadTime:2.5,
+        spread:0,shotCount:1,fullAuto:false,muzzleColor:0x00ccff},
+  },
+  pyro:{
+    id:'pyro',name:'PYRO',title:'焚化者',color:'#ff6600',
+    weapon:'火焰喷射器 · 100燃料 · 持续喷火',
+    stats:{speed:2,hp:4,firepower:3},
+    passive:'灼烧：命中后附加2秒燃烧（每秒5点，可叠加）',
+    active:'助燃[E]：前方热浪60伤害并点燃，触墙停止，CD14s',
+    quote:'"Everything burns eventually."',
+    wp:{ammo:100,maxAmmo:100,reserve:260,fireRate:55,
+        dmgMin:8,dmgMax:12,reloadTime:1.35,
+        spread:0,shotCount:1,fullAuto:true,muzzleColor:0xff6600},
+  },
+  grave:{
+    id:'grave',name:'GRAVE',title:'掘墓者',color:'#888888',
+    weapon:'神话战斧 · 近中距离 · 震地溅射',
+    stats:{speed:1,hp:5,firepower:5},
+    passive:'震地：重击时范围2.5内敌人承受50%溅射',
+    active:'末日重击[E]：0.8s蓄力后拉拽敌人并每个回复30HP，CD20s',
+    quote:'"Feel the weight of your end."',
+    wp:{ammo:0,maxAmmo:0,reserve:0,fireRate:800,
+        dmgMin:45,dmgMax:60,reloadTime:99,
+        spread:0,shotCount:1,fullAuto:false,muzzleColor:0x888888},
+  },
+  blade:{
+    id:'blade',name:'BLADE',title:'刺客',color:'#cc44ff',
+    weapon:'双刃刀 · 纯近战 · 右键格挡/反弹',
+    stats:{speed:5,hp:2,firepower:5},
+    passive:'血怒：近战击杀后2秒内下次攻击伤害翻倍',
+    active:'残影斩[E]：冲刺连砍路径敌人（×3刀），存3次独立CD各10s',
+    quote:'"Close enough to breathe on you."',
+    wp:{ammo:0,maxAmmo:0,reserve:0,fireRate:350,
+        dmgMin:35,dmgMax:50,reloadTime:99,
+        spread:0,shotCount:1,fullAuto:false,muzzleColor:0xcc44ff},
+  },
 };
-const CHAR_ORDER=['reaper','fortress','phantom','hawk','cowboy'];
+const CHAR_ORDER=['reaper','fortress','phantom','hawk','cowboy','volt','pyro','grave','blade'];
 let selectedChar=null;
 
 // 应用角色属性到 P
@@ -2417,8 +3315,10 @@ function applyCharacter(id){
   const c=CHARS[id];
   P.charId=id;
   if(id==='fortress'){ P.maxHp=150; P.hp=150; }
+  else if(id==='pyro'){ P.maxHp=130; P.hp=130; }
+  else if(id==='grave'){ P.maxHp=125; P.hp=125; }
   else { P.maxHp=100; P.hp=100; }
-  P.maxJumps=1; // 幽灵被动改为击杀重置E冷却，不再有二段跳
+  P.maxJumps=1;
   const wp=c.wp;
   P.ammo=wp.ammo; P.maxAmmo=wp.maxAmmo; P.reserve=wp.reserve;
   P.fireRate=wp.fireRate;
@@ -2429,17 +3329,19 @@ function applyCharacter(id){
   P.fullAuto=wp.fullAuto;
   P.muzzleColor=wp.muzzleColor;
   switchGunModel(id);
-  switchMeleeWeapon(id); // 同步加载该角色的近战武器模型
+  switchMeleeWeapon(id);
   muzzleFlash.color.setHex(wp.muzzleColor);
   muzzleSprite.material.color.setHex(wp.muzzleColor);
-  const skillIcons={reaper:'💉',fortress:'🩸',phantom:'💨',hawk:'🏹',cowboy:'🎯'};
-  const skillCds={reaper:15,fortress:20,phantom:8,hawk:12,cowboy:25};
+  const skillIcons={reaper:'💉',fortress:'🩸',phantom:'💨',hawk:'🏹',cowboy:'🎯',volt:'⚡',pyro:'🔥',grave:'⛓',blade:'⚔'};
+  const skillCds={reaper:15,fortress:20,phantom:8,hawk:12,cowboy:25,volt:20,pyro:14,grave:20,blade:10};
   const iconEl=document.getElementById('skill-icon');
   const nameEl=document.getElementById('skill-name');
   const keyEl=document.getElementById('skill-key');
   if(iconEl) iconEl.textContent=skillIcons[id]||'⚡';
   if(nameEl) nameEl.textContent=c.name;
   if(keyEl) keyEl.style.color=c.color;
+  const ammoLabel=document.getElementById('ammo-label');
+  if(ammoLabel) ammoLabel.textContent=id==='pyro'?'FUEL':id==='grave'?'IMPACT':'AMMO';
   P.skillMaxCd=skillCds[id]||15;
   P.skillCd=0;
   P.skillActive=false; P.skillTimer=0;
@@ -2448,9 +3350,23 @@ function applyCharacter(id){
   P.hawkCharging=false; P.hawkCharge=0;
   P.hawkBowActive=false; P.hawkBowAmmo=3;
   P.cowboyAimTargets=[]; P.cowboyAimPhase=0;
+  P.voltHitCount=0; P.voltOverloadReady=false;
+  P.graveImpact=0; P.graveCharging=false;
+  // ── 刺客专属状态 ──
+  P.bladeFury=false; P.bladeFuryTimer=0;
+  P.bladeBlocking=false;
+  P.bladeCharges=3; P.bladeChargeTimers=[];
   updateSkillUI();
   updateHpUI();
   updateAmmoUI();
+  // 刺客：初始化技能UI为存量显示
+  if(id==='blade') updateBladeSkillUI();
+  // 刺客无弹药，隐藏弹药HUD（掘墓者需要显示冲击层数）
+  if(id==='blade'){
+    document.getElementById('ammo-wrap').style.display='none';
+  } else {
+    document.getElementById('ammo-wrap').style.display='';
+  }
 }
 
 // 生成选角卡片
@@ -2498,6 +3414,8 @@ document.getElementById('confirm-btn').onclick=()=>{
   ['xhair','wave-hud','hp-wrap','ammo-wrap','score-wrap','skill-ui'].forEach(id=>{
     document.getElementById(id).style.display='';
   });
+  // 刺客无弹药：隐藏弹药HUD
+  if(selectedChar==='blade') document.getElementById('ammo-wrap').style.display='none';
   // 初始化药剂UI（游戏开始时没有药剂）
   updateMedkitUI();
   gameStarted=true;
