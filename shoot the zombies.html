@@ -68,7 +68,7 @@ canvas { display:block; cursor:none; }
   <p class="sub">🖱 鼠标控制角色左右移动</p>
   <p class="sub">左道升级仅主角子弹有效，血量极厚，需蹲左道慢慢磨</p>
   <p class="sub">右赛道：门只标 +1、×2 等，人数自己心算</p>
-  <p class="sub">🔢 每5波左道出现三重质变（全部打爆均可获得）；中期有一次分支抉择（三选一）</p>
+  <p class="sub">🔢 每8波左道出现三重质变（全部打爆均可获得）；中期有一次分支抉择（三选一）</p>
   <p class="sub">每2分钟巨型尸王清场并发动有前摇的远程技</p>
   <p class="sub" style="color:#ff8888">☠ 第50波：终局魔主降临，左道关闭，击败它即可通关！</p>
   <div id="final"></div>
@@ -116,7 +116,7 @@ function safeHp(n){
 }
 
 // 终局Boss血量：绕过 safeHp / HP_CAP，按当前实战战力动态计算
-// estimatedDps() 严重低估实战DPS（不含实际射速加成、bossDmgMult、穿透多发）
+// estimatedDps() 严重低估实战DPS（不含实际射速加成、穿透多发）
 // 这里单独算更接近实战的"对Boss每秒伤害"
 function finalBossRealDps(){
   if(!S || S.wepIdx === undefined) return 100;
@@ -125,11 +125,11 @@ function finalBossRealDps(){
   const multi = wep.multi || 1;
   // 实际射速（含fireRateBonus）
   const fr = Math.max(5, Math.floor(wep.fireRate * (1 - (S.fireRateBonus || 0))));
-  // 主角对Boss的DPS = baseDmg × multi × bossDmgMult / fr * 60
-  const heroDps = baseDmg * multi * (S.bossDmgMult || 1) / fr * 60;
+  // 主角对Boss的DPS = baseDmg × multi / fr * 60
+  const heroDps = baseDmg * multi / fr * 60;
   // 队友对Boss的DPS（使用实际队友伤害系数）
   const tmMult = (S.squadFire ? 0.7 : 0.5) * (1 + (S.squadDmgBonus || 0));
-  const teamDps = (S.extra || 0) * baseDmg * multi * tmMult * (S.bossDmgMult || 1) / fr * 60;
+  const teamDps = (S.extra || 0) * baseDmg * multi * tmMult / fr * 60;
   return Math.max(heroDps + teamDps, 50);
 }
 
@@ -177,22 +177,31 @@ function zombieHpMult(){
 
 // 固定升级队列：随进度略微递增（第 idx 个升级比第 0 个稍硬）
 function calcFixedUpgradeHp(base, idx){
-  return safeHp(estimatedDps() * TARGET_SHOOT_SECS * (1 + idx * 0.15));
+  const dpsHp = estimatedDps() * TARGET_SHOOT_SECS * (1 + idx * 0.15);
+  const progressFloor = base * (6 + idx * 0.45);
+  return safeHp(Math.max(dpsHp, progressFloor));
 }
 
 // 随机池：随池数略微递增
 function calcPoolUpgradeHp(){
-  return safeHp(estimatedDps() * TARGET_SHOOT_SECS * (1 + (S.poolCount || 0) * 0.1));
+  const poolCount = S.poolCount || 0;
+  const dpsHp = estimatedDps() * TARGET_SHOOT_SECS * (1 + poolCount * 0.1);
+  const progressFloor = 180 + poolCount * 28;
+  return safeHp(Math.max(dpsHp, progressFloor));
 }
 
 // 五波强化（质变）：稍硬
 function calcMajorHp(){
-  return safeHp(estimatedDps() * TARGET_SHOOT_SECS * 1.5);
+  const dpsHp = estimatedDps() * TARGET_SHOOT_SECS * 1.0;
+  const progressFloor = 320 + Math.max(0, S.wave - 1) * 60;
+  return safeHp(Math.max(dpsHp, progressFloor));
 }
 
 // 战术分支选择：略硬
 function calcBranchHp(){
-  return safeHp(estimatedDps() * TARGET_SHOOT_SECS * 1.2);
+  const dpsHp = estimatedDps() * TARGET_SHOOT_SECS * 1.2;
+  const progressFloor = 260 + Math.max(0, S.wave - 1) * 50;
+  return safeHp(Math.max(dpsHp, progressFloor));
 }
 
 function hurtHero(dmg){
@@ -282,7 +291,6 @@ const UPGRADE_POOL = [
   { id:'clear1',    label:'清场+1',    desc:'清场次数+1',       type:'clear',     value:1,    maxStack:5, weight:8 },
   { id:'killHeal2', label:'击杀回血',  desc:'每6杀回1血',       type:'killHeal',  value:6,    maxStack:2, weight:7 },
   { id:'leftFocus2',label:'专注强化',  desc:'左道打靶×1.25',    type:'leftFocus', value:1.25, maxStack:3, weight:8 },
-  { id:'bossDmg',   label:'BOSS克星',  desc:'对BOSS伤害+50%',   type:'bossDmg',   value:0.5,  maxStack:3, weight:7 },
   { id:'gateSlow',  label:'门减速',    desc:'数字门下落更慢',   type:'gateSlow',  value:0.12, maxStack:3, weight:8 },
   { id:'squadDmg',  label:'队员强化',  desc:'队员弹伤+15%',     type:'squadDmg',  value:0.15, maxStack:4, weight:9 },
   { id:'extraCap',  label:'人数上限',  desc:'门人数上限+3',     type:'extraCap',  value:3,    maxStack:3, weight:6 },
@@ -290,7 +298,7 @@ const UPGRADE_POOL = [
   { id:'magnet2',   label:'强追踪',    desc:'偏转角扩大到42°',       type:'magnet2',   value:1,    maxStack:2, weight:5 },
 ];
 
-// 每5波三选一（质变）
+// 每8波三选一（质变）
 const MAJOR_CHOICE_DEFS = [
   { label:'穿透风暴', desc:'穿透+2',           type:'pierce',    value:2 },
   { label:'全员火力', desc:'队员弹伤大幅提升', type:'squadFire', value:1 },
@@ -300,7 +308,6 @@ const MAJOR_CHOICE_DEFS = [
   { label:'清场专家', desc:'清场+2且CD-30%',   type:'clearMega', value:1 },
   { label:'门神眷顾', desc:'门慢20%+人数上限+5',type:'gateMega',  value:1 },
   { label:'左道宗师', desc:'左道打靶×2',       type:'leftFocus', value:2 },
-  { label:'BOSS猎手', desc:'对BOSS×2伤害',     type:'bossDmg',   value:1 },
 ];
 
 // ─────────────────────────────────────────────
@@ -362,7 +369,6 @@ function initState() {
     killHealCount: 0,
     leftFocusMult: 1,
     fireRateBonus: 0,
-    bossDmgMult: 1,
     dmgBonus: 0,
     extraCap: 25,
     gateSlowBonus: 0,
@@ -498,6 +504,9 @@ function startMajorChoice(){
   pickMajorChoices();
   flash(`⚡ 第${S.wave}波强化：打爆左道全部！`,'#fd4');
 }
+
+const MAJOR_CHOICE_START_WAVE = 8;
+const MAJOR_CHOICE_INTERVAL = 8;
 
 function fixedQueueDone(){
   return S.upgradeIdx >= S.upgradeQueue.length;
@@ -712,7 +721,6 @@ function applyUpgrade(u){
     if(u.id) inc(u.id);
   }
   else if(t==='dmg'){ S.dmgBonus+=v; if(u.id) inc(u.id); }
-  else if(t==='bossDmg'){ S.bossDmgMult+=v; if(u.id) inc(u.id); }
   else if(t==='gateSlow'){ S.gateSlowBonus=Math.min(0.45, S.gateSlowBonus+v); if(u.id) inc(u.id); }
   else if(t==='squadDmg'){ S.squadDmgBonus+=v; if(u.id) inc(u.id); }
   else if(t==='extraCap'){ S.extraCap+=v; if(u.id) inc(u.id); }
@@ -780,7 +788,6 @@ function teammateDmgMult(){
 function bulletDamage(isHero, z){
   let d = WEAPONS[S.wepIdx].dmg + S.dmgBonus;
   if(!isHero) d *= teammateDmgMult();
-  if(z && (z.isMegaBoss || z.name==='BOSS')) d *= S.bossDmgMult;
   // 去掉波次自动伤害补偿——让血量增长真正有压力，玩家靠升级弥补
   return d;
 }
@@ -1288,22 +1295,24 @@ function update(){
   // 限制Y：只能在底部区域
   S.hero.y = H - 80;
 
-  // 波次推进（frameDelta 适配帧率）
-  S.waveTick += frameDelta;
-  if(S.waveTick >= S.waveDur){
-    S.waveTick=0; S.wave++;
-    invalidateLeftCache();
-    if(S.wave === 50){
-      // ── 第50波：触发终局Boss战 ──
-      S.finalBossActive = true;
-      S.megaBossTimer = 0;      // 重置普通尸王计时器，防止与终局Boss冲突
-      S.majorChoices = null;    // 清掉可能正在进行的质变（50是5的倍数，必须跳过）
-      S.branchChoices = null;
+  // 波次推进（frameDelta 适配帧率）；巨型尸王在场时暂停波数刷新
+  if(!hasMegaBoss()){
+    S.waveTick += frameDelta;
+    if(S.waveTick >= S.waveDur){
+      S.waveTick=0; S.wave++;
       invalidateLeftCache();
-      spawnFinalBoss();
-    } else {
-      flash(`🌊 第${S.wave}波来袭！`,'#7af');
-      if(S.wave % 5 === 0) startMajorChoice();
+      if(S.wave === 50){
+        // ── 第50波：触发终局Boss战 ──
+        S.finalBossActive = true;
+        S.megaBossTimer = 0;      // 重置普通尸王计时器，防止与终局Boss冲突
+        S.majorChoices = null;    // 清掉可能正在进行的质变（50是5的倍数，必须跳过）
+        S.branchChoices = null;
+        invalidateLeftCache();
+        spawnFinalBoss();
+      } else {
+        flash(`🌊 第${S.wave}波来袭！`,'#7af');
+        if(S.wave >= MAJOR_CHOICE_START_WAVE && S.wave % MAJOR_CHOICE_INTERVAL === 0) startMajorChoice();
+      }
     }
   }
 

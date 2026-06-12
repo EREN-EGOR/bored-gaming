@@ -212,6 +212,51 @@ button{
 }
 
 #mobileTip{display:none}
+
+/* 按E变身猎手——角落小提示，不挡视野 */
+#heroPrompt{
+  display:none;
+  position:fixed;
+  left:50%;
+  bottom:130px;
+  transform:translateX(-50%);
+  z-index:8;
+  pointer-events:none;
+  align-items:center;
+  justify-content:center;
+  flex-direction:column;
+}
+#heroPrompt.show{display:flex}
+.heroPromptBox{
+  background:rgba(0,0,0,.62);
+  border:2px solid #ffd15f;
+  border-radius:12px;
+  padding:8px 22px;
+  text-align:center;
+  white-space:nowrap;
+  box-shadow:0 0 20px rgba(255,209,95,.4);
+  animation:heroPulse 0.9s ease-in-out infinite alternate;
+}
+@keyframes heroPulse{
+  from{border-color:#ffd15f;box-shadow:0 0 12px rgba(255,209,95,.4);}
+  to  {border-color:#ffe89a;box-shadow:0 0 28px rgba(255,232,154,.7);}
+}
+.heroPromptTitle{
+  font-size:15px;font-weight:1000;color:#ffd15f;
+  text-shadow:0 0 10px rgba(255,209,95,.8);
+  letter-spacing:1px;display:inline;
+}
+.heroPromptKey{
+  font-size:15px;color:#ffffff;display:inline;margin-left:6px;
+}
+.heroPromptKey kbd{
+  background:rgba(255,209,95,.2);border:1px solid #ffd15f;
+  border-bottom-width:3px;border-radius:6px;
+  padding:1px 8px;color:#ffd15f;font-size:15px;font-weight:1000;
+}
+.heroPromptSub{
+  margin-top:3px;font-size:11px;color:#ffddaa;opacity:.85;
+}
 @media(max-width:820px){
   .grid{grid-template-columns:1fr}
   .log{display:none}
@@ -246,6 +291,14 @@ button{
   <div class="centerMsg" id="centerMsg"><div class="main" id="centerMain"></div><div class="sub" id="centerSub"></div></div>
   <div class="damageFlash" id="damageFlash"></div>
   <div class="infectFlash" id="infectFlash"></div>
+
+  <!-- 按E变猎手提示（底部居中小条，不挡视野） -->
+  <div id="heroPrompt">
+    <div class="heroPromptBox">
+      <span class="heroPromptTitle">⚡ 猎手觉醒</span><span class="heroPromptKey"> — 按 <kbd>E</kbd> 变身（可选）</span>
+      <div class="heroPromptSub">不变身也能用枪械/小刀刀完幽灵获胜</div>
+    </div>
+  </div>
 
   <div class="leftHud">
     <div class="hpLine"><b>HP</b><div class="bar"><div class="fill hpFill" id="hpFill"></div></div><div class="num" id="hpText">100</div></div>
@@ -339,7 +392,8 @@ const hud={
   infectFlash:document.getElementById('infectFlash'),
   crosshair:document.getElementById('crosshair'),
   scopeOverlay:document.getElementById('scopeOverlay'),
-  radar:document.getElementById('radar')
+  radar:document.getElementById('radar'),
+  heroPrompt:document.getElementById('heroPrompt')
 };
 const rctx=hud.radar.getContext('2d');
 
@@ -376,20 +430,17 @@ const mats={
 };
 
 const world={half:32, obstacles:[], supplyPads:[], navPoints:[],
-  // 新地图高台：台阶高差1.0，平台宽敞，AI直接跳上，无细桥无隐形墙
-  // 西北大台(顶y=3): 台阶x=-18,z=-22 → 平台中心x=-22,z=-26
-  // 东南大台(顶y=3): 台阶x=18,z=22   → 平台中心x=22,z=26
-  // 东北中台(顶y=2): 台阶x=20,z=-20  → 平台中心x=24,z=-24
-  // 西南中台(顶y=2): 台阶x=-20,z=20  → 平台中心x=-24,z=24
   platforms:[
-    {id:'northwest', top:new THREE.Vector3(-24,3.0,-27),
-     xzSteps:[[-15,-20],[-19,-23],[-24,-27]]},
-    {id:'southeast', top:new THREE.Vector3(24,3.0,27),
-     xzSteps:[[15,20],[19,23],[24,27]]},
-    {id:'northeast', top:new THREE.Vector3(25,2.0,-25),
-     xzSteps:[[20,-20],[25,-25]]},
-    {id:'southwest', top:new THREE.Vector3(-25,2.0,25),
-     xzSteps:[[-20,20],[-25,25]]},
+    // 西北：第2阶(-20,0,-24,6,2,6)→x:-23~-17 z:-27~-21；顶台(-26,2,-28,12,1,10)→x:-32~-20 z:-33~-23
+    // 重叠区 x:-23~-20 z:-27~-23，goal取中心(-21,-25)
+    {id:'northwest', top:new THREE.Vector3(-23,3.0,-24), goal:new THREE.Vector3(-21,3.0,-25)},
+    // 东南：镜像
+    {id:'southeast', top:new THREE.Vector3(23,3.0,24),   goal:new THREE.Vector3(21,3.0,25)},
+    // 东北：第2阶(20,0,-20,5,1,5)→x:17.5~22.5 z:-22.5~-17.5；顶台(25,1,-25,8,1,8)→x:21~29 z:-29~-21
+    // 重叠区 x:21~22.5 z:-22.5~-21，goal取(22,-22)
+    {id:'northeast', top:new THREE.Vector3(25,2.0,-25),  goal:new THREE.Vector3(22,2.0,-22)},
+    // 西南：镜像
+    {id:'southwest', top:new THREE.Vector3(-25,2.0,25),  goal:new THREE.Vector3(-22,2.0,22)},
   ]
 };
 
@@ -576,29 +627,26 @@ function buildMap(){
   for(const [x,z,w,d] of lowCrates)
     makeBox(x,0,z,w,1.0,d,mats.crate,true,true);
 
-  // ── 西北高台：宽台阶 → 大平台，AI 和玩家都能轻松上去 ──────────────
-  // ── 西北高台：错开位置的真实阶梯，每级在不同 xz，AI 逐步跳上去 ────
-  // 第1阶 顶y=1.0，在台阶入口处
-  makeBox(-15,0,-20, 5,1.0,5, mats.crate,true,true);
-  // 第2阶 顶y=2.0，向西北方向错开
-  makeBox(-19,0,-23, 5,1.0,5, mats.crate,true,true);
-  makeBox(-19,1.0,-23, 5,1.0,5, mats.crate,true,true);
-  // 顶部大平台 顶y=3.0，12×10
-  makeBox(-24,2.0,-27,12,1.0,10, mats.metal,true,true);
+  // ── 西北高台：三级阶梯 + 大平台 ──────────────────────────────────────
+  // 第1阶：底y=0，顶y=1.0
+  makeBox(-15, 0, -20, 6, 1.0, 6, mats.crate, true, true);
+  // 第2阶：底y=0，顶y=2.0
+  makeBox(-20, 0, -24, 6, 2.0, 6, mats.crate, true, true);
+  // 顶部大平台：底y=2，顶y=3.0（只有1米厚），这样侧面高差只有1米，从第2阶能直接步进上去
+  makeBox(-26, 2, -28, 12, 1.0, 10, mats.metal, true, true);
 
-  // ── 东南高台：镜像 ──────────────────────────────────────────────
-  makeBox( 15,0, 20, 5,1.0,5, mats.crate,true,true);
-  makeBox( 19,0, 23, 5,1.0,5, mats.crate,true,true);
-  makeBox( 19,1.0, 23, 5,1.0,5, mats.crate,true,true);
-  makeBox( 24,2.0, 27,12,1.0,10, mats.metal,true,true);
+  // ── 东南高台：西北镜像 ──────────────────────────────────────────────
+  makeBox( 15, 0,  20, 6, 1.0, 6, mats.crate, true, true);
+  makeBox( 20, 0,  24, 6, 2.0, 6, mats.crate, true, true);
+  makeBox( 26, 2,  28, 12, 1.0, 10, mats.metal, true, true);
 
-  // ── 东北中台：单级台阶 + 平台 ──────────────────────────────────
-  makeBox( 20,0,-20, 5,1.0,5, mats.crate,true,true);
-  makeBox( 25,1.0,-25, 8,1.0,8, mats.metal,true,true);  // 顶y=2.0
+  // ── 东北中台 ─────────────────────────────────────────────────────
+  makeBox( 20, 0, -20, 5, 1.0, 5, mats.crate, true, true);
+  makeBox( 25, 1, -25, 8, 1.0, 8, mats.metal, true, true);
 
-  // ── 西南中台：单级台阶 + 平台 ──────────────────────────────────
-  makeBox(-20,0, 20, 5,1.0,5, mats.crate,true,true);
-  makeBox(-25,1.0, 25, 8,1.0,8, mats.metal,true,true);  // 顶y=2.0
+  // ── 西南中台 ─────────────────────────────────────────────────────
+  makeBox(-20, 0,  20, 5, 1.0, 5, mats.crate, true, true);
+  makeBox(-25, 1,  25, 8, 1.0, 8, mats.metal, true, true);
 
   // ── 补给光柱（四角）────────────────────────────────────────────
   addSupplyPad(-27,-27);
@@ -1004,6 +1052,7 @@ function turnEntityToMutant(ent,mother=false,byPlayer=false){
   if(byPlayer) state.score+=45;
   addLog(mother?'佣兵突变为母体。':'佣兵被感染，变成幽灵。',mother?'bad':'warn');
   announce(mother?'生化母体出现':'感染扩散',mother?'佣兵阵线开始崩坏':'有人加入幽灵阵营');
+  return z; // 返回新幽灵实体，供调用者决定是否让它进化
 }
 
 function infectPlayer(){
@@ -1037,14 +1086,18 @@ function startMutation(){
 }
 
 function evolveMutant(ent){
-  if(ent.level>=3)return;
-  ent.level++;
-  ent.maxHp += ent.mother ? 280 : 160;
-  ent.hp = Math.min(ent.maxHp, ent.hp + 220);
-  ent.speed += .35;
-  ent.mesh.scale.multiplyScalar(1.12);
-  updateLabel(ent.label,ent.mother?'强化母体':'进化幽灵',ent.mother?'#c4a7ff':'#ccff9d');
-  addLog((ent.mother?'母体':'幽灵')+'进化了，速度和血量上升。','warn');
+  // 每感染一次：血量+150，伤害倍率+15%，无上限，不改体型/速度
+  ent.level = (ent.level||1) + 1;
+  const hpGain = ent.mother ? 220 : 150;
+  ent.maxHp += hpGain;
+  ent.hp = Math.min(ent.maxHp, ent.hp + hpGain);
+  ent.infectDmgMul = (ent.infectDmgMul||1) + 0.15; // 爪击/感染伤害倍率
+  const lv = ent.level - 1; // 进化次数
+  const tag = ent.mother
+    ? `强化母体 Lv${lv}`
+    : `进化幽灵 Lv${lv}`;
+  updateLabel(ent.label, tag, ent.mother?'#c4a7ff':'#ccff9d');
+  addLog(`${ent.mother?'母体':'幽灵'}进化 Lv${lv}：+${hpGain}HP，爪击伤害×${ent.infectDmgMul.toFixed(2)}。`,'warn');
 }
 
 function playBeep(freq=220,dur=.06,type='square',gain=.025){
@@ -1059,7 +1112,22 @@ function playBeep(freq=220,dur=.06,type='square',gain=.025){
   }catch(e){}
 }
 
+// 上帝视角观战状态
+const spectator={
+  pos: new THREE.Vector3(0, 22, 0),
+  yaw: 0, pitch: -Math.PI/2.5,
+  speed: 18
+};
+
 function updateCamera(){
+  if(player.dead && state.running && !state.ended){
+    // 上帝视角：WASD 平移，鼠标转向
+    camera.rotation.order='YXZ';
+    camera.rotation.y = spectator.yaw;
+    camera.rotation.x = spectator.pitch;
+    camera.position.copy(spectator.pos);
+    return;
+  }
   camera.rotation.order='YXZ';
   camera.rotation.y=player.yaw;
   camera.rotation.x=player.pitch;
@@ -1068,40 +1136,46 @@ function updateCamera(){
   camera.position.set(player.pos.x+sx,player.pos.y+sy,player.pos.z);
 }
 
-function floorHeightAt(x,z,currentFeetY=Infinity,maxStep=Infinity){
+function floorHeightAt(x,z,currentFeetY=Infinity,maxStep=Infinity,footRadius=0){
   let h=0;
   for(const o of world.obstacles){
-    // 只有标记为可攀爬、且当前脚部高度够得着的物体，才会被当成地面。
-    // 这防止玩家/AI 贴到高台侧面时直接“吸”上去。
-    if(
-      o.climbable &&
-      x>o.x-o.w/2-.18 && x<o.x+o.w/2+.18 &&
-      z>o.z-o.d/2-.18 && z<o.z+o.d/2+.18 &&
-      o.h <= currentFeetY + maxStep
-    ){
-      h=Math.max(h,o.h);
-    }
+    if(!o.climbable) continue;
+    // XZ 范围检测：footRadius>0 时向外扩展，让实体边缘仍压在台面上时也算”在台上”
+    if(x < o.x-o.w/2-footRadius || x > o.x+o.w/2+footRadius) continue;
+    if(z < o.z-o.d/2-footRadius || z > o.z+o.d/2+footRadius) continue;
+    // 只认脚能踩到的高度（不超过当前脚高 + maxStep）
+    if(o.h > currentFeetY + maxStep) continue;
+    h=Math.max(h,o.h);
   }
   return h;
 }
 
-function resolveCollision(pos,radius,eyeOffset=0){
+function resolveCollision(pos, radius, eyeOffset=0, velY=0){
   pos.x=clamp(pos.x,-world.half+radius+1.2,world.half-radius-1.2);
   pos.z=clamp(pos.z,-world.half+radius+1.2,world.half-radius-1.2);
-  const feetY=pos.y-eyeOffset;
+  const feetY = eyeOffset>0 ? pos.y - eyeOffset : pos.y;
   for(const o of world.obstacles){
-    const minX=o.x-o.w/2-radius,maxX=o.x+o.w/2+radius;
-    const minZ=o.z-o.d/2-radius,maxZ=o.z+o.d/2+radius;
-    if(pos.x>minX&&pos.x<maxX&&pos.z>minZ&&pos.z<maxZ){
-      // 高架桥从下面可以通过；实心高台/箱子从侧面会挡住。
-      if((o.baseY??0) > feetY + 1.35) continue;
-      // 已经在可攀爬物体顶面附近时，不做侧面挤出。
-      if(o.climbable && feetY > o.h - .42) continue;
-      if(feetY > o.h + .08) continue;
-      const dx1=Math.abs(pos.x-minX),dx2=Math.abs(maxX-pos.x),dz1=Math.abs(pos.z-minZ),dz2=Math.abs(maxZ-pos.z);
-      const m=Math.min(dx1,dx2,dz1,dz2);
-      if(m===dx1)pos.x=minX;else if(m===dx2)pos.x=maxX;else if(m===dz1)pos.z=minZ;else pos.z=maxZ;
+    const minX=o.x-o.w/2-radius, maxX=o.x+o.w/2+radius;
+    const minZ=o.z-o.d/2-radius, maxZ=o.z+o.d/2+radius;
+    if(pos.x<=minX||pos.x>=maxX||pos.z<=minZ||pos.z>=maxZ) continue;
+
+    if(o.climbable){
+      // 脚底已到台面或以上：不做侧面推挤（可自由离台，也可从上方落入）
+      if(feetY >= o.h - 0.05) continue;
+      // 脚底高于底部超过1.0（已经跳起来越过台沿）：也不推挤，让步进吸附接管
+      if(feetY >= (o.baseY ?? 0) + 1.0) continue;
+    } else {
+      if((o.baseY??0) > feetY + 1.4) continue;
+      if(feetY >= o.h - 0.05) continue;
     }
+    // 侧面挤出：往距离最短的轴推
+    const dx1=pos.x-minX, dx2=maxX-pos.x;
+    const dz1=pos.z-minZ, dz2=maxZ-pos.z;
+    const m=Math.min(dx1,dx2,dz1,dz2);
+    if(m===dx1) pos.x=minX;
+    else if(m===dx2) pos.x=maxX;
+    else if(m===dz1) pos.z=minZ;
+    else pos.z=maxZ;
   }
 }
 
@@ -1218,6 +1292,8 @@ function activatePlayerHero(){
   weapon=weapons.knife;
   reloadT=0;
   setScope(false);
+  // 隐藏全屏提示
+  if(hud.heroPrompt) hud.heroPrompt.classList.remove('show');
   announce('终极猎手觉醒','你拔出猎手双刃，免疫感染！',2800);
   addLog('你变身终极猎手：免疫感染，左键轻击，右键重击。','good');
   playBeep(360,.18,'sawtooth',.04);
@@ -1229,6 +1305,7 @@ function checkHeroTransform(){
   const humans=countHumans();
   if(humans<=2){
     state.heroTriggered=true;
+    state.heroTime=60; // 猎手60秒倒计时
 
     // AI 佣兵自动变身
     for(const h of entities){
@@ -1237,11 +1314,16 @@ function checkHeroTransform(){
 
     // 玩家需要按 E 手动变身
     if(player.team==='human'){
-      announce('终极猎手时刻！','按 E 键变身终极猎手，免疫感染。',0);
-      addLog('猎手觉醒：AI 佣兵已拔刀，按 E 键让玩家也变身！','warn');
+      // 底部小条提示，不挡视野
+      if(hud.heroPrompt) hud.heroPrompt.classList.add('show');
+      announce('猎手觉醒！','按 E 变身猎手（可选），坚持60秒或清光幽灵即胜！',3500);
+      addLog('猎手觉醒：60秒倒计时！枪/刀/猎手均可获胜。','warn');
+    }else if(player.dead){
+      announce('终极猎手登场','猎手需坚持60秒。幽灵需杀死所有猎手。',3600);
+      addLog('猎手觉醒（你在观战）：幽灵须杀死所有猎手才能获胜。','warn');
     }else{
-      announce('终极猎手登场','剩余 AI 佣兵全部拔刀，免疫感染。',3600);
-      addLog('终极猎手觉醒：AI 佣兵已变猎手。','good');
+      announce('终极猎手登场','你是幽灵！杀死所有猎手，或阻止他们撑过60秒！',3600);
+      addLog('猎手觉醒：60秒倒计时！幽灵须杀死所有猎手获胜。','warn');
     }
     playBeep(360,.18,'sawtooth',.04);
   }
@@ -1672,7 +1754,8 @@ function clawAttack(){
     const facing=to.normalize().dot(forward);
     if(dist<2.45&&facing>.55&&!segmentBlocked(origin,ent.pos.clone().setY(1.1))){
       if(ent.hero){
-        ent.hp-=34;
+        const mul = player.infectDmgMul||1;
+        ent.hp -= 34 * mul;
         ent.hurtFlash=.12;
         player.hp=Math.min(player.maxHp,player.hp+12);
         addParticles(ent.pos.clone().setY(ent.pos.y+1.05),10,0xff8a65);
@@ -1685,7 +1768,9 @@ function clawAttack(){
         }
         result='hero';
       }else{
+        // 玩家爪击感染：玩家自己进化，新幽灵是普通体
         turnEntityToMutant(ent,false,true);
+        evolveMutant(player); // player 作为感染者进化
         player.hp=Math.min(player.maxHp,player.hp+80);
         state.mutantScore++;
         result='infect';
@@ -1711,6 +1796,25 @@ function mutantSkill(){
 }
 
 function updatePlayer(dt){
+  // 观战模式：WASD 飞行，Space/Shift 升降
+  if(player.dead){
+    const forward=new THREE.Vector3(
+      Math.sin(spectator.yaw)*Math.cos(spectator.pitch),
+      -Math.sin(spectator.pitch),
+      Math.cos(spectator.yaw)*Math.cos(spectator.pitch)
+    );
+    const right=new THREE.Vector3(Math.sin(spectator.yaw+Math.PI/2),0,Math.cos(spectator.yaw+Math.PI/2));
+    const spd=spectator.speed*dt;
+    if(keys.has('KeyW')) spectator.pos.addScaledVector(forward,-spd);
+    if(keys.has('KeyS')) spectator.pos.addScaledVector(forward, spd);
+    if(keys.has('KeyA')) spectator.pos.addScaledVector(right,  -spd);
+    if(keys.has('KeyD')) spectator.pos.addScaledVector(right,   spd);
+    if(keys.has('Space'))    spectator.pos.y+=spd;
+    if(keys.has('ShiftLeft'))spectator.pos.y-=spd;
+    spectator.pos.y=clamp(spectator.pos.y,3,60);
+    return;
+  }
+
   const input=new THREE.Vector3();
   if(keys.has('KeyW'))input.z-=1;
   if(keys.has('KeyS'))input.z+=1;
@@ -1732,23 +1836,26 @@ function updatePlayer(dt){
   player.vel.z=move.z*speed;
 
   if(keys.has('Space')&&player.onGround){
-    player.vel.y=player.team==='human'?5.35:6.15;
+    // 跳跃力度7.5，可跨越高差3的单体台阶（原5.35太小）
+    player.vel.y=player.team==='human'?7.5:8.0;
     player.onGround=false;
   }
   player.vel.y-=18*dt;
-  player.pos.x+=player.vel.x*dt;resolveCollision(player.pos,player.radius,1.7);
-  player.pos.z+=player.vel.z*dt;resolveCollision(player.pos,player.radius,1.7);
+  player.pos.x+=player.vel.x*dt;resolveCollision(player.pos,player.radius,1.7,player.vel.y);
+  player.pos.z+=player.vel.z*dt;resolveCollision(player.pos,player.radius,1.7,player.vel.y);
   const velYBeforeLand=player.vel.y; // 落地前记录垂直速度
   player.pos.y+=player.vel.y*dt;
   const feetY=player.pos.y-1.7;
-  const groundY=1.7+floorHeightAt(player.pos.x,player.pos.z,feetY,.52);
+  // 真正空中下落时用大 maxStep；地面行走用 1.15 逐级爬台，玩家半径0.42×0.7≈0.29 边缘容差
+  const pMaxStep = (!player.onGround && player.vel.y < -2.0) ? 4.0 : 1.15;
+  const groundY=1.7+floorHeightAt(player.pos.x,player.pos.z,feetY,pMaxStep,player.radius*0.7);
   if(player.pos.y<groundY){
-    // 落地：检测掉落伤害（只有下落时才算，速度越快伤越重）
-    if(!player.onGround && velYBeforeLand < -7){
-      const impact = -velYBeforeLand; // 正值，越大越疼
-      const fallDmg = (impact - 7) * 8; // 阈值7，系数8
+    // 落地：检测掉落伤害
+    if(!player.onGround && velYBeforeLand < -8){
+      const impact = -velYBeforeLand;
+      const fallDmg = (impact - 8) * 7;
       if(fallDmg > 0 && player.team==='human'){
-        hurtPlayer(fallDmg, '高空坠落', true); // 掉落伤害无视无敌帧
+        hurtPlayer(fallDmg, '高空坠落', true);
         if(fallDmg > 40) announce('坠落伤害', `跌落造成 ${Math.round(fallDmg)} 点伤害`, 1200);
       }
     }
@@ -1831,60 +1938,74 @@ function aiMove(ent,desired,dt,forceJump=false){
 
   ent.jumpCd-=dt;
 
-  if(forceJump){
-    // 路径点跟随模式：只要在地面上且cd到了就直接跳，不管前方高度
-    if(ent.onGround && ent.jumpCd<=0){
-      ent.vel.y=ent.type==='mutant'?6.0:5.4;
-      ent.onGround=false;
-      ent.jumpCd=rand(.55,.85);
+  // 检测前方是否有可攀爬台阶挡路（扫三个探测点：正前、左前、右前）
+  if(ent.onGround && ent.jumpCd<=0){
+    const side=new THREE.Vector3(-desired.z,0,desired.x);
+    const probes=[
+      ent.pos.clone().addScaledVector(desired, ent.radius+0.7),
+      ent.pos.clone().addScaledVector(desired, ent.radius+0.7).addScaledVector(side, 0.35),
+      ent.pos.clone().addScaledVector(desired, ent.radius+0.7).addScaledVector(side,-0.35),
+    ];
+    outer: for(const probe of probes){
+      for(const o of world.obstacles){
+        if(!o.climbable) continue;
+        if(probe.x<=o.x-o.w/2||probe.x>=o.x+o.w/2) continue;
+        if(probe.z<=o.z-o.d/2||probe.z>=o.z+o.d/2) continue;
+        if(o.h > ent.pos.y + 0.2){
+          ent.vel.y = 8.8;
+          ent.onGround = false;
+          ent.jumpCd = rand(.5,.9);
+          break outer;
+        }
+      }
     }
-  }else{
-    // 普通移动：前探地面高度，遇到台阶自动跳
-    const curGround=floorHeightAt(ent.pos.x,ent.pos.z,ent.pos.y,.25);
-    const probeX=ent.pos.x+desired.x*1.4;
-    const probeZ=ent.pos.z+desired.z*1.4;
-    const nextGround=floorHeightAt(probeX,probeZ,ent.pos.y,1.35);
-    if(ent.onGround && ent.jumpCd<=0 && nextGround>curGround+.22 && nextGround-curGround<=1.3){
-      ent.vel.y=ent.type==='mutant'?6.0:5.4;
-      ent.onGround=false;
-      ent.jumpCd=rand(.65,1.05);
-    }
+  }
+
+  if(forceJump && ent.onGround && ent.jumpCd<=0){
+    ent.vel.y = 8.8;
+    ent.onGround=false;
+    ent.jumpCd=rand(.45,.75);
   }
 
   const before=ent.pos.clone();
   const slowFactor=ent.slowT>0?(ent.slowMul||.6):1;
   ent.pos.addScaledVector(desired,ent.speed*slowFactor*dt);
-  resolveCollision(ent.pos,ent.radius);
+  resolveCollision(ent.pos,ent.radius,0,ent.vel.y);
+
+  // 卡住检测：移动量不足时侧移解卡，不再无条件触发跳跃
   if(ent.pos.distanceTo(before)<.03){
     ent.stuck-=dt;
     if(ent.stuck<=0){
-      ent.stuck=rand(.18,.45);
+      ent.stuck=rand(.22,.55);
       const side=new THREE.Vector3(-desired.z,0,desired.x).multiplyScalar(Math.random()<.5?1:-1);
-      ent.vel.add(side.multiplyScalar(ent.speed*.8));
-      if(ent.onGround && ent.jumpCd<=0){
-        ent.vel.y=4.85;
+      ent.vel.add(side.multiplyScalar(ent.speed*.6));
+      // 只有正在执行爬台任务时才允许解卡跳
+      if(forceJump && ent.onGround && ent.jumpCd<=0){
+        ent.vel.y=8.8;
         ent.onGround=false;
-        ent.jumpCd=rand(.9,1.4);
+        ent.jumpCd=rand(1.0,1.6);
       }
     }
   }
 }
 
 function updateEntityVertical(ent,dt){
-  const ground=floorHeightAt(ent.pos.x,ent.pos.z,ent.pos.y,.48);
-  if(!ent.onGround || ent.pos.y>ground+.02 || ent.vel.y>0){
-    ent.vel.y-=18*dt;
-    ent.pos.y+=ent.vel.y*dt;
-    const newGround=floorHeightAt(ent.pos.x,ent.pos.z,ent.pos.y,.48);
-    if(ent.pos.y<=newGround){
-      ent.pos.y=newGround;
-      ent.vel.y=0;
-      ent.onGround=true;
-    }
-  }else{
-    ent.pos.y=ground;
-    ent.vel.y=0;
-    ent.onGround=true;
+  // 施加重力
+  ent.vel.y -= 18*dt;
+  ent.pos.y += ent.vel.y*dt;
+
+  // maxStep：真正在空中/下落时（vel.y < -2）允许看到任意台面；
+  // 地面行走时只能向上"步入" 1.15 米以内的台面，逐级爬台，防止直接飞到高台顶。
+  // footRadius 用实体半径扩展台面边缘检测，防止实体中心迈出台沿就立刻掉落（抖动根源）。
+  const maxStep = (!ent.onGround && ent.vel.y < -2.0) ? 4.0 : 1.15;
+  const fr = ent.radius * 0.7; // 台面边缘容差：实体半径的70%，中心越出台沿时仍有支撑
+  const groundBelow = floorHeightAt(ent.pos.x, ent.pos.z, ent.pos.y, maxStep, fr);
+  if(ent.pos.y <= groundBelow){
+    ent.pos.y = groundBelow;
+    ent.vel.y = 0;
+    ent.onGround = true;
+  } else {
+    ent.onGround = false;
   }
 }
 
@@ -1894,70 +2015,26 @@ function updateEntities(dt){
     if(ent.type==='mutant'){
       const target=nearestHumanTarget(ent.pos,ent);
       if(target){
-        // 目标高度差检测：若目标在高台，幽灵会寻路走向登台入口
-        const targetY = target.kind==='player' ? (player.pos.y-1.7) : target.ent.pos.y;
-        const targetIsHigh = targetY > ent.pos.y + 1.5;
-        let desired=new THREE.Vector3();
-
-        if(targetIsHigh){
-          // 目标在高台上：找最近的高台，按 xzSteps 逐步爬上去
-          let bestPlat=null, bestDist=Infinity;
-          for(const plat of world.platforms){
-            const tgtDist=Math.hypot(target.pos.x-plat.top.x, target.pos.z-plat.top.z);
-            if(tgtDist<12){
-              const s0=plat.xzSteps[0];
-              const myDist=Math.hypot(ent.pos.x-s0[0], ent.pos.z-s0[1]);
-              if(myDist<bestDist){bestDist=myDist;bestPlat=plat;}
-            }
-          }
-          if(bestPlat){
-            if(ent.climbStepIdx===undefined)ent.climbStepIdx=0;
-            const xzs=bestPlat.xzSteps;
-
-            // 卡住检测：2秒没动就从第0点重走
-            if(!ent.climbStuckT) ent.climbStuckT=0;
-            if(!ent.climbLastPos) ent.climbLastPos=ent.pos.clone();
-            const cm=Math.hypot(ent.pos.x-ent.climbLastPos.x,ent.pos.z-ent.climbLastPos.z);
-            if(cm>0.3){ent.climbStuckT=0;ent.climbLastPos=ent.pos.clone();}
-            else{
-              ent.climbStuckT+=dt;
-              if(ent.climbStuckT>2.0){ent.climbStepIdx=0;ent.climbStuckT=0;ent.climbLastPos=ent.pos.clone();}
-            }
-
-            if(ent.climbStepIdx>=xzs.length){
-              desired.copy(target.pos).sub(ent.pos);
-            }else{
-              const g=xzs[ent.climbStepIdx];
-              const hDist=Math.hypot(ent.pos.x-g[0], ent.pos.z-g[1]);
-              if(hDist<1.4) ent.climbStepIdx=Math.min(ent.climbStepIdx+1, xzs.length);
-              const cur=xzs[Math.min(ent.climbStepIdx, xzs.length-1)];
-              desired.set(cur[0]-ent.pos.x, 0, cur[1]-ent.pos.z);
-            }
-          }else{
-            desired.copy(target.pos).sub(ent.pos);
-          }
-        }else{
-          // 目标不在高台：重置爬台计数，直接冲
-          ent.climbStepIdx=0;
-          desired.copy(target.pos).sub(ent.pos);
-        }
-
+        // 直接冲向目标，步进物理自动处理爬台
+        const desired=new THREE.Vector3();
+        desired.copy(target.pos).sub(ent.pos);
         desired.y=0;
-        if(ent.vel.lengthSq()>.05)desired.add(ent.vel.clone().setY(0).multiplyScalar(.25));
-        // 爬台时全程 forceJump，避免桥边缘探测失败不跳
-        aiMove(ent,desired,dt,targetIsHigh);
+        if(ent.vel.lengthSq()>.05) desired.add(ent.vel.clone().setY(0).multiplyScalar(.25));
+        aiMove(ent,desired,dt);
 
         const horizontalGap = Math.hypot(target.pos.x-ent.pos.x, target.pos.z-ent.pos.z);
+        const targetY = target.kind==='player' ? (player.pos.y-1.7) : target.ent.pos.y;
         const verticalGap = Math.abs(targetY - ent.pos.y);
         if(horizontalGap<ent.radius+0.70 && verticalGap<1.05 && ent.attackCd<=0){
           ent.attackCd=ent.mother?.72:.92;
+          const mul = ent.infectDmgMul||1;
           if(target.kind==='player'){
             if(player.hero){
-              hurtPlayer(ent.mother?56:38,'幽灵爪击');
+              hurtPlayer((ent.mother?56:38)*mul,'幽灵爪击');
             }else if(ent.mother||Math.random()<.58){
               infectPlayer();
             }else{
-              hurtPlayer(45,'幽灵爪击');
+              hurtPlayer(45*mul,'幽灵爪击');
             }
           }else{
             turnEntityToMutant(target.ent,false);
@@ -1966,7 +2043,7 @@ function updateEntities(dt){
           }
         }
         const look=target.pos.clone().sub(ent.pos);
-        if(look.lengthSq()>0.01)ent.mesh.rotation.y=Math.atan2(look.x,look.z);
+        if(look.lengthSq()>0.01) ent.mesh.rotation.y=Math.atan2(look.x,look.z);
       }else{
         let desired=new THREE.Vector3();
         if(!ent.mother){
@@ -2004,27 +2081,22 @@ function updateEntities(dt){
       ent.meleeCd-=dt;
       const target=nearestMutant(ent.pos,ent);
 
-      // 判断自身是否在高台上（Y > 3）
-      const onPlatform = ent.pos.y > 2.8;
-
-      if(target){
-        const to=target.pos.clone().sub(ent.pos);
-        const dist=to.length();
+      if(ent.hero){
+        // 终极猎手：直接冲向目标近战
         let desired=new THREE.Vector3();
-
-        if(ent.hero){
-          // 终极猎手：冲向目标近战
-          if(dist>2.75) desired.copy(target.pos).sub(ent.pos);
-          else desired.set(0,0,0);
+        if(target){
+          const to=target.pos.clone().sub(ent.pos);
+          const dist=to.length();
+          if(dist>2.75) desired.copy(to);
           aiMove(ent,desired,dt);
-
-          const verticalGap=Math.abs((target.kind==='player'?player.pos.y-1.7:target.ent.pos.y)-ent.pos.y);
+          if(dist>0.01) ent.mesh.rotation.y=Math.atan2(to.x,to.z);
+          const verticalGap=Math.abs((target.kind==='player'?player.pos.y-1.7:target.ent?.pos.y||0)-ent.pos.y);
           if(dist<3.35 && verticalGap<1.25 && ent.meleeCd<=0){
             ent.meleeCd=.62;
-            const dmg=target.ent?.mother?190:360;
             if(target.kind==='player'&&player.team==='mutant'){
               hurtPlayer(rand(160,260),'AI 终极猎手');
             }else if(target.ent){
+              const dmg=target.ent.mother?190:360;
               target.ent.hp-=dmg;
               target.ent.lastHit=0;
               target.ent.vel.add(target.pos.clone().sub(ent.pos).setY(0).normalize().multiplyScalar(7.5));
@@ -2033,32 +2105,67 @@ function updateEntities(dt){
             }
           }
         }else{
-          // 普通佣兵：在高台上时原地坚守射击；在地面时保持距离并向高台移动
-          if(onPlatform){
-            // 高台上：不主动走开，保持阵地，只在幽灵冲上来时小退
-            if(dist < 4.5) desired.copy(ent.pos).sub(target.pos); // 幽灵近了才退
-            else desired.set(0,0,0); // 否则原地守
-          }else{
-            // 地面上：保持中远距离
-            if(dist<6.8) desired.copy(ent.pos).sub(target.pos);
-            else desired.set(0,0,0);
+          // 无目标：游荡
+          if(!ent.wander||ent.pos.distanceTo(ent.wander)<2)
+            ent.wander=pick(world.navPoints).clone();
+          desired.copy(ent.wander).sub(ent.pos); desired.y=0;
+          if(desired.length()>2) aiMove(ent,desired,dt);
+        }
+      }else{
+        // ── 普通佣兵：优先完成爬台，再射击 ──────────────────────────
+        // 计算台子分配（初次或重新分配）
+        // 台子分配：每人分配一个顶台，每台最多2人
+        if(!ent.assignedPlatform){
+          const shuffled=[...world.platforms].sort(()=>Math.random()-.5);
+          for(const plat of shuffled){
+            const occ=entities.filter(h=>h.type==='human'&&h!==ent&&h.assignedPlatform===plat).length;
+            if(occ<2){ent.assignedPlatform=plat;break;}
           }
-          aiMove(ent,desired,dt);
+          if(!ent.assignedPlatform) ent.assignedPlatform=world.platforms[0];
+        }
 
-          if(dist<30&&ent.shootCd<=0&&!segmentBlocked(ent.pos.clone().setY(ent.pos.y+1.35),target.pos.clone().setY(target.pos.y+1.05))){
-            const aiKey = (dist<9 && Math.random()<.45) ? ent.aiSecondary : ent.aiPrimary;
-            const aw = weapons[aiKey] || weapons.rifle;
-            ent.shootCd = aw.key==='sniper'?rand(1.25,1.95):aw.key==='magnum'?rand(1.05,1.65):aw.key==='shotgun'?rand(.82,1.25):aw.key==='bow'?rand(1.15,1.8):rand(.62,1.05);
-            const from=ent.pos.clone().setY(ent.pos.y+1.35),toP=target.pos.clone().setY(target.pos.y+1.05);
-            // 高台射击精度提升（居高临下视野好）
-            const platformBonus = onPlatform ? 0.12 : 0;
-            const accuracy = Math.min(0.92, (aw.key==='sniper'?.38:aw.key==='magnum'?.34:aw.key==='shotgun'?.48:aw.key==='bow'?.42:aw.key==='pistol'?.46:.52) + platformBonus);
-            const miss = Math.random()>accuracy;
-            const missOffset = new THREE.Vector3(rand(-2.2,2.2),rand(-.8,.8),rand(-2.2,2.2));
+        const onTop = ent.pos.y >= ent.assignedPlatform.top.y - 0.5
+                   && Math.hypot(ent.pos.x-ent.assignedPlatform.top.x, ent.pos.z-ent.assignedPlatform.top.z) < 7;
+
+        let desired=new THREE.Vector3();
+        if(!onTop){
+          // 朝 goal 点的 XZ 走，y 忽略，步进物理逐级带上去
+          const goal=ent.assignedPlatform.goal;
+          desired.set(goal.x-ent.pos.x, 0, goal.z-ent.pos.z);
+          if(desired.length()>0.3) aiMove(ent,desired,dt);
+        }else{
+          // 已在台上：幽灵靠近时小退，否则原地游荡
+          if(target){
+            const to=target.pos.clone().sub(ent.pos);
+            if(to.length()<4.0) desired.copy(ent.pos).sub(target.pos);
+          }else{
+            const top=ent.assignedPlatform.top;
+            if(!ent.wander||Math.hypot(ent.pos.x-ent.wander.x,ent.pos.z-ent.wander.z)<1.0)
+              ent.wander=new THREE.Vector3(top.x+rand(-2,2),0,top.z+rand(-2,2));
+            desired.copy(ent.wander).sub(ent.pos);
+          }
+          if(desired.length()>0.3) aiMove(ent,desired,dt);
+        }
+
+        // 射击（无论在爬台途中还是台上都可以射击）
+        if(target){
+          const to=target.pos.clone().sub(ent.pos);
+          const dist=to.length();
+          if(dist>0.01) ent.mesh.rotation.y=Math.atan2(to.x,to.z);
+          if(dist<30&&ent.shootCd<=0&&!segmentBlocked(ent.pos.clone().setY(ent.pos.y+1.35),target.pos.clone().setY((target.ent?.pos.y||0)+1.05))){
+            const aiKey=(dist<9&&Math.random()<.45)?ent.aiSecondary:ent.aiPrimary;
+            const aw=weapons[aiKey]||weapons.rifle;
+            ent.shootCd=aw.key==='sniper'?rand(1.25,1.95):aw.key==='magnum'?rand(1.05,1.65):aw.key==='shotgun'?rand(.82,1.25):aw.key==='bow'?rand(1.15,1.8):rand(.62,1.05);
+            const from=ent.pos.clone().setY(ent.pos.y+1.35);
+            const toP=(target.kind==='player'?new THREE.Vector3(player.pos.x,player.pos.y-0.3,player.pos.z):target.ent.pos.clone().setY(target.ent.pos.y+1.05));
+            const platformBonus=onTop?0.12:0;
+            const accuracy=Math.min(0.92,(aw.key==='sniper'?.38:aw.key==='magnum'?.34:aw.key==='shotgun'?.48:aw.key==='bow'?.42:aw.key==='pistol'?.46:.52)+platformBonus);
+            const miss=Math.random()>accuracy;
+            const missOffset=new THREE.Vector3(rand(-2.2,2.2),rand(-.8,.8),rand(-2.2,2.2));
             addTracer(from,miss?toP.clone().add(missOffset):toP,0x84caff);
             playBeep(150,.025,'square',.005);
             if(!miss){
-              const aiDmgBase = aw.key==='sniper'?95:aw.key==='magnum'?46:aw.key==='shotgun'?32:aw.key==='bow'?42:aw.key==='pistol'?18:16;
+              const aiDmgBase=aw.key==='sniper'?95:aw.key==='magnum'?46:aw.key==='shotgun'?32:aw.key==='bow'?42:aw.key==='pistol'?18:16;
               if(target.kind==='player'&&player.team==='mutant'){
                 hurtPlayer(rand(aiDmgBase*.55,aiDmgBase*.9),'佣兵火力');
                 if(aw.slowDur||aw.key==='bow')player.slowT=Math.max(player.slowT,aw.slowDur||1.2);
@@ -2066,113 +2173,12 @@ function updateEntities(dt){
                 target.ent.hp-=rand(aiDmgBase*.8,aiDmgBase*1.15);
                 target.ent.lastHit=0;
                 if(aw.slowDur||aw.key==='bow')applySlow(target.ent,aw.slowDur||1.3,aw.slowMul||.6);
-                const shield = target.ent.mother && target.ent.lastHit>4 ? .55 : 1;
+                const shield=target.ent.mother&&target.ent.lastHit>4?.55:1;
                 target.ent.vel.add(toP.clone().sub(from).setY(0).normalize().multiplyScalar((aw.knock||1.2)*shield));
                 if(target.ent.hp<=0)killEntity(target.ent,'gun');
               }
             }
           }
-        }
-        if(dist>0.01)ent.mesh.rotation.y=Math.atan2(to.x,to.z);
-      }else{
-        // ── 无目标时守台逻辑 ─────────────────────────────────────
-        // 1. 检查分配的高台上是否有队友变成幽灵（就近判断）→ 立刻撤离
-        // 2. 每个高台最多2人，超员则重新分配
-        // 3. 没抢到高台的守中路普通点
-
-        // 计算各高台当前已有多少人类 AI 在上面
-        function platOccupancy(plat){
-          let n=0;
-          for(const h of entities){
-            if(h.type!=='human'||h===ent)continue;
-            const hd=Math.hypot(h.pos.x-plat.top.x,h.pos.z-plat.top.z);
-            if(h.pos.y>1.5&&hd<7)n++;
-          }
-          return n;
-        }
-
-        // 检测当前高台上有没有幽灵（队友刚变的）
-        function platHasMutant(plat){
-          for(const e of entities){
-            if(e.type!=='mutant'){continue;}
-            const hd=Math.hypot(e.pos.x-plat.top.x,e.pos.z-plat.top.z);
-            if(e.pos.y>1.5&&hd<8)return true;
-          }
-          return false;
-        }
-
-        // 初始化或重新评估分配
-        const needReassign = ent.assignedPlatform===undefined
-          || (ent.assignedPlatform && platHasMutant(ent.assignedPlatform))
-          || (ent.assignedPlatform && platOccupancy(ent.assignedPlatform)>=2 && ent.pos.y<1.5);
-
-        if(needReassign){
-          // 如果台上有幽灵，强制先跑到地面中路
-          if(ent.assignedPlatform && platHasMutant(ent.assignedPlatform)){
-            ent.assignedPlatform=null;
-            ent.platStepIdx=0;
-            ent.wander=new THREE.Vector3(rand(-8,8),0,rand(-8,8));
-          }else{
-            // 找一个未满员的高台
-            const shuffled=[...world.platforms].sort(()=>Math.random()-.5);
-            let picked=null;
-            for(const plat of shuffled){
-              if(platOccupancy(plat)<2){picked=plat;break;}
-            }
-            ent.assignedPlatform=picked; // 没有空台则 null，守中路
-            ent.platStepIdx=0;
-          }
-        }
-
-        if(ent.assignedPlatform){
-          const plat=ent.assignedPlatform;
-          const xzs=plat.xzSteps;
-          const topXZ=plat.top;
-          const hDistToTop=Math.hypot(ent.pos.x-topXZ.x,ent.pos.z-topXZ.z);
-          if(ent.pos.y>1.5&&hDistToTop<7){
-            // 已在台上：小幅游荡守位
-            if(!ent.wander||Math.hypot(ent.pos.x-ent.wander.x,ent.pos.z-ent.wander.z)<1.0){
-              ent.wander=new THREE.Vector3(topXZ.x+rand(-1.5,1.5),0,topXZ.z+rand(-1.5,1.5));
-            }
-            const d2=ent.wander.clone().sub(ent.pos);d2.y=0;
-            if(d2.length()>1.0)aiMove(ent,d2,dt);
-          }else{
-            // 沿路径点爬台
-            if(ent.platStepIdx===undefined||ent.platStepIdx>=xzs.length)ent.platStepIdx=0;
-
-            // 卡住检测：记录上次位置，若超过2秒没靠近目标点就从头重走
-            if(!ent.platStuckT) ent.platStuckT=0;
-            if(!ent.platLastPos) ent.platLastPos=ent.pos.clone();
-            const movedDist=Math.hypot(ent.pos.x-ent.platLastPos.x,ent.pos.z-ent.platLastPos.z);
-            if(movedDist>0.3){
-              // 有在动，刷新记录
-              ent.platStuckT=0;
-              ent.platLastPos=ent.pos.clone();
-            }else{
-              ent.platStuckT+=dt;
-              if(ent.platStuckT>2.0){
-                // 卡超过2秒，回到第0个路径点重新跑台阶入口
-                ent.platStepIdx=0;
-                ent.platStuckT=0;
-                ent.platLastPos=ent.pos.clone();
-              }
-            }
-
-            const g=xzs[ent.platStepIdx];
-            const hDist=Math.hypot(ent.pos.x-g[0],ent.pos.z-g[1]);
-            if(hDist<1.4)ent.platStepIdx=Math.min(ent.platStepIdx+1,xzs.length-1);
-            const cur=xzs[Math.min(ent.platStepIdx,xzs.length-1)];
-            const d2=new THREE.Vector3(cur[0]-ent.pos.x,0,cur[1]-ent.pos.z);
-            if(d2.length()>0.3)aiMove(ent,d2,dt,true);
-          }
-        }else{
-          // 守中路
-          if(!ent.wander||ent.pos.distanceTo(ent.wander)<2){
-            const holdPoints=[new THREE.Vector3(-10,0,-10),new THREE.Vector3(10,0,-10),new THREE.Vector3(-10,0,10),new THREE.Vector3(10,0,10),new THREE.Vector3(0,0,0)];
-            ent.wander=pick(holdPoints).clone();
-          }
-          const d2=ent.wander.clone().sub(ent.pos);d2.y=0;
-          if(d2.length()>3)aiMove(ent,d2,dt);
         }
       }
       updateEntityVertical(ent,dt);
@@ -2215,8 +2221,15 @@ function hurtPlayer(amount,source,ignoreHurtCd=false){
     if(player.team==='human'){
       if(player.hero) endRound(false,'终极猎手阵亡');
       else infectPlayer();
+    }else{
+      // 玩家幽灵被杀：进入观战，不直接结束
+      player.dead=true;
+      player.hp=0;
+      announce('你已阵亡','以观战者身份继续观察战局，直到一方胜利。',3500);
+      addLog('你作为幽灵被击杀，进入观战模式。','bad');
+      document.exitPointerLock?.();
+      // 释放鼠标锁定但不显示overlay，让玩家继续看战局
     }
-    else endRound(false,'你作为幽灵被击杀');
   }
 }
 
@@ -2350,16 +2363,29 @@ function updateGame(dt){
   }
 
   if(state.mouseDown){
-    if(player.team==='human'&&weapon.auto&&weapon.key!=='knife'&&weapon.key!=='bow')fire();
-    if(player.team==='mutant')clawAttack();
+    if(player.team==='human'&&!player.dead&&weapon.auto&&weapon.key!=='knife'&&weapon.key!=='bow')fire();
+    if(player.team==='mutant'&&!player.dead)clawAttack();
   }
 
   // 胜负检查
   if(state.phase==='fight'){
-    const humanCount=entities.filter(e=>e.type==='human').length+(player.team==='human'?1:0);
-    const mutantCount=entities.filter(e=>e.type==='mutant').length+(player.team==='mutant'?1:0);
-    if(humanCount<=0)endRound(false,'全部人类被感染');
-    if(mutantCount<=0 && state.pendingRespawns<=0)endRound(true,'幽灵被全部清除');
+    // 统计：玩家观战时不算入任何阵营
+    const playerAlive = !player.dead;
+    const humanCount = entities.filter(e=>e.type==='human').length + (player.team==='human'&&playerAlive?1:0);
+    const mutantCount = entities.filter(e=>e.type==='mutant').length + (player.team==='mutant'&&playerAlive?1:0);
+
+    if(humanCount<=0) endRound(false,'全部人类被感染');
+
+    // 猎手阶段：所有幽灵（含玩家）被清除
+    if(mutantCount<=0 && state.pendingRespawns<=0) endRound(true,'幽灵被全部清除');
+
+    // 猎手倒计时（heroTriggered 后追加60秒，到时候人类胜）
+    if(state.heroTriggered){
+      if(state.heroTime===undefined) state.heroTime=60;
+      state.heroTime-=dt;
+      if(state.heroTime<=0) endRound(true,'猎手坚持到最后');
+    }
+
     checkHeroTransform();
   }
 
@@ -2372,12 +2398,15 @@ function endRound(humansWin,title){
   state.ended=true;state.running=false;
   if(humansWin)state.humanScore++;else state.mutantScore++;
   const side=humansWin?'人类胜利':'幽灵胜利';
-  const final=state.score+(humansWin&&player.team==='human'?Math.ceil(state.time)*2:0);
+  // 观战玩家也结算：幽灵死亡观战后，结束时属于幽灵阵营
+  const playerWon=(humansWin&&player.team==='human'&&!player.dead)||((!humansWin)&&player.team==='mutant'&&!player.dead);
+  const final=state.score+(humansWin&&player.team==='human'&&!player.dead?Math.ceil(state.time)*2:0);
   state.score=final;
   document.exitPointerLock?.();
   hud.overlay.style.display='flex';
   hud.overlay.querySelector('h1').textContent=side+'：'+title;
-  hud.overlay.querySelector('p').innerHTML=`最终分数：<b>${final}</b>，击杀：<b>${state.kills}</b>。`+(player.team==='mutant'?'你最后属于幽灵阵营。':'你最后属于人类阵营。');
+  const resultNote=player.dead?'你在战斗中已阵亡（观战）。':playerWon?'你赢了！':'你输了。';
+  hud.overlay.querySelector('p').innerHTML=`最终分数：<b>${final}</b>，击杀：<b>${state.kills}</b>。${resultNote}`;
   announce(side,title,4000);
   updateHUD();
 }
@@ -2386,8 +2415,28 @@ function updateHUD(){
   // 顶部两边数字显示当前阵营人数，不再显示回合比分。
   hud.humanScore.textContent=countHumans();
   hud.mutantScore.textContent=countMutants();
-  hud.phase.textContent=state.phase==='prep'?'准备阶段':'生化模式';
-  hud.timer.textContent=Math.ceil(Math.max(0,state.phase==='prep'?state.prep:state.time));
+  // 猎手阶段：显示猎手60秒倒计时；普通阶段显示主计时
+  if(state.heroTriggered && state.heroTime!==undefined){
+    hud.phase.textContent='猎手决战';
+    hud.timer.textContent=Math.ceil(Math.max(0,state.heroTime));
+  }else{
+    hud.phase.textContent=state.phase==='prep'?'准备阶段':'生化模式';
+    hud.timer.textContent=Math.ceil(Math.max(0,state.phase==='prep'?state.prep:state.time));
+  }
+  if(player.dead){
+    hud.hpText.textContent='观战';
+    hud.acText.textContent='--';
+    hud.energyText.textContent='--';
+    hud.hpFill.style.width='0%';
+    hud.acFill.style.width='0%';
+    hud.energyFill.style.width='0%';
+    hud.weaponName.textContent='观战模式';
+    hud.ammoText.textContent='--';
+    hud.reserveText.textContent='--';
+    hud.damageText.textContent='等待战局结束…';
+    hud.status.textContent='你已阵亡，正在观战。';
+    return;
+  }
   hud.hpText.textContent=Math.ceil(player.hp);
   hud.acText.textContent=Math.ceil(player.ac);
   hud.energyLabel.textContent=player.team==='human'?'SP':'狂';
@@ -2447,17 +2496,20 @@ function resetRound(){
   player.pos.set(0,1.7,12);player.vel.set(0,0,0);player.yaw=Math.PI;player.pitch=0;
   player.maxHp=100;player.hp=100;player.ac=100;player.energy=100;player.radius=.42;player.mutantLevel=0;
   player.hurtCd=0;player.clawCd=0;player.skillCd=0;player.skillT=0;player.hero=false;player.knifeCd=0;player.heavyCd=0;
+  player.dead=false;
+  player.infectDmgMul=1;
+  if(hud.heroPrompt) hud.heroPrompt.classList.remove('show');
+  spectator.pos.set(0,22,0); spectator.yaw=0; spectator.pitch=-Math.PI/2.5;
   if(knifeGroup){knifeGroup.scale.set(1,1,1);knifeGroup.position.set(0,0,0);}player.slowT=0;
   resetWeaponAmmo();
   weapon=selectedPrimary();fireCd=0;reloadT=0;setScope(false);state.bowCharging=false;state.bowCharge=0;
-  state.phase='prep';state.prep=20;state.time=180;state.score=0;state.kills=0;state.heroTriggered=false;state.pendingRespawns=0;state.ended=false;state.running=false;
+  state.phase='prep';state.prep=20;state.time=180;state.score=0;state.kills=0;state.heroTriggered=false;state.heroTime=undefined;state.pendingRespawns=0;state.ended=false;state.running=false;
   state.mouseDown=false;state.shake=0;state.scoped=false;
   for(const pad of world.supplyPads)pad.cd=0;
   hud.log.innerHTML='';
   addLog('准备阶段：20秒内找守点，补给光柱可补弹/护甲/血。','warn');
-  addLog('武器模型已区分：步枪、霰弹、狙击、手枪、马格南、弓箭外形不同。');
-  addLog('剩余 AI 佣兵触发猎手后会收枪拔刀，不再继续开枪。','good');
-  addLog('v1.4：顶部左右数字改为实时阵营人数；免费模型改造准备转向 Quaternius/Poly Pizza 的 CC0 枪械包。','good');
+  addLog('猎手觉醒后：猎手须坚持60秒或清光幽灵胜；幽灵须杀死全部猎手胜。','warn');
+  addLog('你作为幽灵被杀后进入观战，战局继续直到一方真正胜利。');
   addLog('准备结束后随机两名佣兵变母体。别太信蓝名队友。');
   spawnHumans();
   announce('准备阶段','20秒后随机出现母体。',2400);
@@ -2500,6 +2552,8 @@ renderer.domElement.addEventListener('mousedown',e=>{
     renderer.domElement.requestPointerLock?.();
     return;
   }
+  // 观战时点击只用来保持鼠标锁定，不触发攻击
+  if(player.dead) return;
   if(e.button===0){
     state.mouseDown=true;
     if(player.team==='human'){
@@ -2544,13 +2598,21 @@ window.addEventListener('keyup',e=>keys.delete(e.code));
 window.addEventListener('mousemove',e=>{
   if(document.pointerLockElement!==renderer.domElement||!state.running)return;
   const sens=.0021;
-  player.yaw-=e.movementX*sens;
-  player.pitch-=e.movementY*sens;
-  player.pitch=clamp(player.pitch,-1.35,1.25);
+  if(player.dead){
+    // 上帝视角鼠标转向
+    spectator.yaw  -= e.movementX*sens;
+    spectator.pitch -= e.movementY*sens;
+    spectator.pitch = clamp(spectator.pitch, -1.4, 0.1);
+  }else{
+    player.yaw-=e.movementX*sens;
+    player.pitch-=e.movementY*sens;
+    player.pitch=clamp(player.pitch,-1.35,1.25);
+  }
 });
 
 document.addEventListener('pointerlockchange',()=>{
-  if(document.pointerLockElement!==renderer.domElement&&state.running&&!state.ended){
+  // 观战状态下鼠标解锁不弹出暂停界面，战局继续
+  if(document.pointerLockElement!==renderer.domElement&&state.running&&!state.ended&&!player.dead){
     hud.overlay.style.display='flex';
     hud.overlay.querySelector('h1').textContent='暂停 / 鼠标已释放';
     hud.overlay.querySelector('p').textContent='点击开始继续。';
