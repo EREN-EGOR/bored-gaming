@@ -1,0 +1,2650 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>深渊低语 — 克苏鲁研究站</title>
+<style>
+/* ─── RESET & BODY ─────────────────────────────────────── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+html, body {
+  width: 100%; height: 100%;
+  background: #020408;
+  overflow: hidden;
+  font-family: 'Courier New', Courier, monospace;
+  color: #c8c0b0;
+  user-select: none;
+}
+
+/* ─── CANVAS ────────────────────────────────────────────── */
+#c {
+  display: block;
+  position: absolute; top: 0; left: 0;
+  width: 100%; height: 100%;
+  cursor: crosshair;
+}
+
+/* ─── DOM HUD ───────────────────────────────────────────── */
+#ui {
+  position: absolute; top: 0; left: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+}
+
+/* 左上角：HP + 理智 */
+#hud-left {
+  position: absolute; top: 16px; left: 16px;
+  display: flex; flex-direction: column; gap: 7px;
+  min-width: 180px;
+}
+.bar-wrap { display: flex; flex-direction: column; gap: 3px; }
+.bar-label {
+  font-size: 10px; letter-spacing: 2px; text-transform: uppercase;
+  color: #606878;
+}
+.bar-track {
+  width: 180px; height: 8px;
+  background: #0d1018;
+  border: 1px solid #1e2530;
+  border-radius: 2px;
+  overflow: hidden;
+}
+.bar-fill {
+  height: 100%; width: 100%;
+  border-radius: 2px;
+  transition: width 0.12s ease, background-color 0.4s ease;
+}
+#hp-fill   { background: #c03040; }
+#san-fill  { background: #7b9e87; }
+
+.bar-text {
+  font-size: 10px; color: #505866;
+  letter-spacing: 1px;
+}
+
+/* 右上角：武器 + 弹药 */
+#hud-right {
+  position: absolute; top: 16px; right: 16px;
+  text-align: right;
+  display: flex; flex-direction: column; gap: 5px;
+}
+#wep-name {
+  font-size: 13px; letter-spacing: 3px;
+  color: #9090a0; text-transform: uppercase;
+}
+#wep-ammo {
+  font-size: 22px; font-weight: bold;
+  color: #c8c0b0; letter-spacing: 2px;
+}
+#wep-ammo.low { color: #e94560; }
+#reload-bar-wrap {
+  display: none;
+  width: 120px; height: 4px;
+  background: #0d1018;
+  border: 1px solid #1e2530;
+  border-radius: 2px;
+  overflow: hidden;
+  align-self: flex-end;
+}
+#reload-bar-fill {
+  height: 100%; width: 0%;
+  background: #e0b060;
+  border-radius: 2px;
+  transition: width 0.05s linear;
+}
+#reload-label {
+  font-size: 9px; letter-spacing: 2px; color: #e0b060;
+  display: none; text-align: right;
+}
+
+/* 中心消息 */
+#flash-msg {
+  position: absolute;
+  top: 45%; left: 50%; transform: translate(-50%, -50%);
+  font-size: 16px; letter-spacing: 4px;
+  color: #e94560;
+  text-shadow: 0 0 12px #e94560;
+  opacity: 0;
+  transition: opacity 0.2s;
+  pointer-events: none;
+  text-align: center;
+  white-space: pre-line;
+}
+
+/* ─── 文件阅读弹窗 ──────────────────────────────────────── */
+#doc-modal {
+  position: absolute; top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: min(560px, 88vw);
+  background: #06080e;
+  border: 1px solid #302040;
+  box-shadow: 0 0 60px rgba(40,10,80,0.8), inset 0 0 30px rgba(0,0,0,0.5);
+  padding: 32px 36px 28px;
+  display: none;
+  pointer-events: all;
+  z-index: 10;
+}
+#doc-modal.visible { display: block; }
+#doc-modal .doc-tag {
+  font-size: 9px; letter-spacing: 4px; color: #4a3860;
+  text-transform: uppercase; margin-bottom: 14px;
+}
+#doc-modal .doc-title {
+  font-size: 15px; letter-spacing: 3px; color: #9080b0;
+  margin-bottom: 20px; line-height: 1.5;
+}
+#doc-modal .doc-body {
+  font-size: 12px; line-height: 2; color: #7a7080;
+  white-space: pre-line; margin-bottom: 24px;
+  border-left: 2px solid #201830;
+  padding-left: 16px;
+}
+#doc-modal .doc-close {
+  display: block; width: 100%;
+  padding: 9px; border: 1px solid #302848;
+  background: transparent; color: #6050a0;
+  font-family: 'Courier New', monospace;
+  font-size: 11px; letter-spacing: 3px;
+  cursor: pointer; text-align: center;
+  text-transform: uppercase;
+  transition: all 0.15s;
+  pointer-events: all;
+}
+#doc-modal .doc-close:hover { background: #120a1e; color: #9070d0; border-color: #5040a0; }
+#doc-modal .doc-progress {
+  font-size: 9px; letter-spacing: 2px; color: #302040;
+  margin-bottom: 20px;
+}
+/* 逃生舱门提示 */
+#exit-hint {
+  position: absolute; bottom: 52px; left: 50%;
+  transform: translateX(-50%);
+  font-size: 11px; letter-spacing: 3px; color: #60a060;
+  text-shadow: 0 0 12px #306030;
+  pointer-events: none; display: none;
+  animation: exitpulse 1.2s ease-in-out infinite;
+}
+@keyframes exitpulse {
+  0%,100% { opacity: 0.5; } 50% { opacity: 1; }
+}
+
+/* 暗角 vignette */
+#vignette {
+  position: absolute; top: 0; left: 0;
+  width: 100%; height: 100%;
+  pointer-events: none;
+  box-shadow: inset 0 0 80px rgba(5,0,15,0.5);
+  transition: box-shadow 0.3s ease;
+}
+
+/* ─── OVERLAY SCREENS ───────────────────────────────────── */
+.overlay {
+  position: absolute; top: 0; left: 0;
+  width: 100%; height: 100%;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 24px;
+  background: rgba(2,4,8,0.92);
+  pointer-events: all;
+}
+.overlay.hidden { display: none; }
+
+.overlay h1 {
+  font-size: 36px; letter-spacing: 8px;
+  color: #8070a0;
+  text-shadow: 0 0 30px #402060, 0 0 60px #20103040;
+  text-transform: uppercase;
+  text-align: center;
+  line-height: 1.4;
+}
+.overlay p {
+  font-size: 12px; letter-spacing: 3px;
+  color: #50485a;
+  text-align: center; line-height: 2;
+  max-width: 400px;
+}
+.overlay .sub {
+  font-size: 10px; letter-spacing: 2px;
+  color: #383040; line-height: 2.2;
+  text-align: center;
+}
+.btn {
+  padding: 10px 32px;
+  border: 1px solid #403050;
+  background: transparent;
+  color: #8070a0;
+  font-family: 'Courier New', monospace;
+  font-size: 13px; letter-spacing: 4px;
+  cursor: pointer;
+  text-transform: uppercase;
+  transition: all 0.2s;
+  pointer-events: all;
+}
+.btn:hover {
+  background: #20102a;
+  border-color: #8070a0;
+  color: #c0b0d8;
+  box-shadow: 0 0 16px #40205060;
+}
+
+#screen-title  .flavor { color: #302840; font-size: 11px; font-style: italic; }
+#screen-mad h1   { color: #600820; text-shadow: 0 0 30px #400010; }
+#screen-dead h1  { color: #404050; }
+
+/* 键位提示 */
+#key-hints {
+  position: absolute; bottom: 16px; left: 50%;
+  transform: translateX(-50%);
+  font-size: 10px; letter-spacing: 2px; color: #7a7090;
+  text-align: center; pointer-events: none;
+  line-height: 2.2;
+  text-shadow: 0 0 8px rgba(80,60,120,0.6);
+}
+</style>
+</head>
+<body>
+
+<canvas id="c"></canvas>
+
+<div id="ui">
+  <!-- 左上 HP + 理智 -->
+  <div id="hud-left">
+    <div class="bar-wrap">
+      <div class="bar-label">体力</div>
+      <div class="bar-track"><div class="bar-fill" id="hp-fill"></div></div>
+      <div class="bar-text" id="hp-text">100 / 100</div>
+    </div>
+    <div class="bar-wrap">
+      <div class="bar-label">理智</div>
+      <div class="bar-track"><div class="bar-fill" id="san-fill"></div></div>
+      <div class="bar-text" id="san-text">100</div>
+    </div>
+  </div>
+
+  <!-- 右上 武器 -->
+  <div id="hud-right">
+    <div id="wep-name">手枪</div>
+    <div id="wep-ammo">12</div>
+    <div id="reload-label">换弹中...</div>
+    <div id="reload-bar-wrap"><div id="reload-bar-fill"></div></div>
+  </div>
+
+  <!-- 中心提示 -->
+  <div id="flash-msg"></div>
+
+  <!-- 暗角 -->
+  <div id="vignette"></div>
+
+  <!-- 文件阅读弹窗 -->
+  <div id="doc-modal">
+    <div class="doc-tag">机密文件 — 研究站 B 区</div>
+    <div class="doc-progress" id="doc-progress"></div>
+    <div class="doc-title" id="doc-title"></div>
+    <div class="doc-body" id="doc-body"></div>
+    <button class="doc-close" id="doc-close">[ 收起文件 · 继续前进 ]</button>
+  </div>
+
+  <!-- 逃生舱门解锁提示 -->
+  <div id="exit-hint">▶ 逃生舱门已解锁 — 前往地图东南角</div>
+
+  <!-- 文件收集进度（右下角） -->
+  <div id="doc-counter" style="position:absolute;bottom:16px;right:16px;font-size:10px;letter-spacing:2px;color:#4a3860;pointer-events:none;display:none">
+    文件 <span id="doc-count">0</span> / 4
+  </div>
+
+  <!-- 键位提示（仅游戏中） -->
+  <div id="key-hints" style="display:none">
+    WASD 移动 &nbsp;·&nbsp; 鼠标 瞄准/射击 &nbsp;·&nbsp; Q/E 换武器 &nbsp;·&nbsp; R 换弹 &nbsp;·&nbsp; ESC 暂停
+  </div>
+</div>
+
+<!-- 标题界面 -->
+<div class="overlay" id="screen-title">
+  <h1>深渊低语</h1>
+  <p class="flavor">"那些宇宙的秘密，一旦被窥见，<br>便再无回头之路。"</p>
+  <p>废弃研究站 · 信号已中断 · 你是最后一个清醒的人</p>
+  <button class="btn" id="btn-start">进入研究站</button>
+  <div class="sub">
+    WASD 移动 &nbsp;·&nbsp; 鼠标 瞄准/射击<br>
+    Q / E 切换武器 &nbsp;·&nbsp; R 换弹 &nbsp;·&nbsp; ESC 暂停
+  </div>
+</div>
+
+<!-- 暂停界面 -->
+<div class="overlay hidden" id="screen-pause">
+  <h1>暂停</h1>
+  <button class="btn" id="btn-resume">继续</button>
+  <button class="btn" id="btn-restart-pause">返回标题</button>
+</div>
+
+<!-- 死亡界面 -->
+<div class="overlay hidden" id="screen-dead">
+  <h1>你死了</h1>
+  <p>黑暗再次归于寂静。</p>
+  <button class="btn" id="btn-restart-dead">再次尝试</button>
+</div>
+
+<!-- 发疯界面 -->
+<div class="overlay hidden" id="screen-mad">
+  <h1>意识崩溃</h1>
+  <p>你的理智已彻底碎裂。<br>你看见了不该被看见的事物。</p>
+  <p style="color:#300010;font-size:10px;margin-top:8px">它们一直都在那里。</p>
+  <button class="btn" id="btn-restart-mad">重新开始</button>
+</div>
+
+<!-- 通关界面 -->
+<div class="overlay hidden" id="screen-win">
+  <h1 style="color:#507050">成功逃脱</h1>
+  <p>你带着四份文件走出了研究站。<br>没有人会相信你说的话。</p>
+  <p style="color:#304030;font-size:10px;margin-top:8px;font-style:italic">
+    "它还在那里。等待着下一个进入的人。"
+  </p>
+  <button class="btn" id="btn-restart-win" style="border-color:#304030;color:#507050">再次进入</button>
+</div>
+
+<script>
+// ═══════════════════════════════════════════════════════════
+// ═══ CONSTANTS & CONFIG ════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+const TILE_SIZE = 32;
+const PLAYER_R  = 10;
+const PLAYER_SPEED = 2.8;
+
+// ═══════════════════════════════════════════════════════════
+// ═══ UTILITY ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+const rnd   = (a, b) => a + Math.random() * (b - a);
+const rndI  = (a, b) => Math.floor(a + Math.random() * (b - a + 1));
+const clamp = (v, a, b) => v < a ? a : v > b ? b : v;
+const dist  = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
+const lerp  = (a, b, t) => a + (b - a) * t;
+// 角度差，处理±π绕回
+const angleDiff = (a, b) => {
+  let d = (a - b + Math.PI * 3) % (Math.PI * 2) - Math.PI;
+  return d;
+};
+
+// ═══════════════════════════════════════════════════════════
+// ═══ MAP DATA & TILE SYSTEM ════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+// 0=地板  1=墙壁
+// 地图：48列 × 34行 = 1536×1088 世界像素（覆盖1920×1080屏幕）
+// 布局：左区(入口)  中区(实验室大厅)  右区(反应堆)
+//       上下走廊连接三区，中央开阔地带
+const MAP = [
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+  [1,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,1],
+  [1,0,0,1,1,1,0,0,0,1,1,0,0,1,1,1,1,1,1,0,0,1,1,0,1,1,0,0,1,1,1,1,1,1,0,0,1,1,1,1,0,0,1,1,0,0,0,1],
+  [1,0,0,1,1,1,0,0,0,0,0,0,0,1,1,1,1,1,1,0,0,1,1,0,0,0,0,0,1,1,1,1,1,1,0,0,0,0,0,0,0,0,1,1,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,1],
+  [1,0,0,1,1,1,0,0,0,1,1,0,0,1,1,1,1,1,1,0,0,1,1,0,1,1,0,0,1,1,1,1,1,1,0,0,1,1,1,1,0,0,1,1,0,0,0,1],
+  [1,0,0,1,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,1],
+  [1,0,0,1,1,1,0,0,0,1,1,0,0,1,1,1,1,1,1,0,0,1,1,0,1,1,0,0,1,1,1,1,1,1,0,0,1,1,1,1,0,0,1,1,0,0,0,1],
+  [1,0,0,1,1,1,0,0,0,0,0,0,0,1,1,1,1,1,1,0,0,1,1,0,0,0,0,0,1,1,1,1,1,1,0,0,0,0,0,0,0,0,1,1,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,1],
+  [1,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,0,0,0,0,0,1,1,0,0,0,0,0,0,0,1],
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1],
+];
+const MAP_ROWS = MAP.length;        // 34
+const MAP_COLS = MAP[0].length;     // 48
+const WORLD_W  = MAP_COLS * TILE_SIZE;  // 1536
+const WORLD_H  = MAP_ROWS * TILE_SIZE;  // 1088
+
+function tileAt(wx, wy) {
+  const col = Math.floor(wx / TILE_SIZE);
+  const row = Math.floor(wy / TILE_SIZE);
+  if (col < 0 || col >= MAP_COLS || row < 0 || row >= MAP_ROWS) return 1;
+  return MAP[row][col];
+}
+function isWalkable(wx, wy) { return tileAt(wx, wy) === 0; }
+
+// ═══════════════════════════════════════════════════════════
+// ═══ CANVAS & CONTEXT ══════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+const canvas = document.getElementById('c');
+const ctx    = canvas.getContext('2d');
+let W, H;
+
+function resize() {
+  W = canvas.width  = window.innerWidth;
+  H = canvas.height = window.innerHeight;
+}
+resize();
+window.addEventListener('resize', resize);
+
+// ═══════════════════════════════════════════════════════════
+// ═══ INPUT STATE ═══════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+const keys  = {};
+const mouse = { x: 0, y: 0, worldX: 0, worldY: 0, down: false };
+
+window.addEventListener('keydown', e => {
+  keys[e.code] = true;
+  if (e.code === 'Escape') onEscape();
+});
+window.addEventListener('keyup',   e => { keys[e.code] = false; });
+canvas.addEventListener('mousemove', e => {
+  const rect = canvas.getBoundingClientRect();
+  const scaleX = W / rect.width;
+  const scaleY = H / rect.height;
+  mouse.x = (e.clientX - rect.left) * scaleX;
+  mouse.y = (e.clientY - rect.top)  * scaleY;
+  mouse.worldX = mouse.x + cam.x;
+  mouse.worldY = mouse.y + cam.y;
+});
+canvas.addEventListener('mousedown', e => { if (e.button === 0) mouse.down = true; });
+canvas.addEventListener('mouseup',   e => { if (e.button === 0) mouse.down = false; });
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+
+// ═══════════════════════════════════════════════════════════
+// ═══ GAME STATE ════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+let gameState = 'title'; // title | playing | paused | dead | mad
+
+const cam = { x: 0, y: 0 };
+let screenShake = 0;
+let now = 0; // current timestamp (updated each frame)
+
+function setGameState(s) {
+  gameState = s;
+  document.getElementById('screen-title').classList.toggle('hidden', s !== 'title');
+  document.getElementById('screen-pause').classList.toggle('hidden', s !== 'paused');
+  document.getElementById('screen-dead') .classList.toggle('hidden', s !== 'dead');
+  document.getElementById('screen-mad')  .classList.toggle('hidden', s !== 'mad');
+  document.getElementById('screen-win')  .classList.toggle('hidden', s !== 'win');
+  const playing = s === 'playing';
+  document.getElementById('key-hints')   .style.display = playing ? 'block' : 'none';
+  document.getElementById('hud-left')    .style.display = playing ? 'flex'  : 'none';
+  document.getElementById('hud-right')   .style.display = playing ? 'flex'  : 'none';
+  document.getElementById('doc-counter') .style.display = playing && docsCollected > 0 ? 'block' : 'none';
+  if (s !== 'playing') {
+    document.getElementById('doc-modal').classList.remove('visible');
+    readingDoc = false;
+  }
+}
+
+function onEscape() {
+  if (gameState === 'playing') setGameState('paused');
+  else if (gameState === 'paused') setGameState('playing');
+}
+
+// ─── Overlay buttons ───────────────────────────────────────
+document.getElementById('btn-start')        .addEventListener('click', startGame);
+document.getElementById('btn-resume')       .addEventListener('click', () => setGameState('playing'));
+document.getElementById('btn-restart-pause').addEventListener('click', () => { resetGame(); setGameState('title'); });
+document.getElementById('btn-restart-dead') .addEventListener('click', () => { resetGame(); startGame(); });
+document.getElementById('btn-restart-mad')  .addEventListener('click', () => { resetGame(); startGame(); });
+document.getElementById('btn-restart-win')  .addEventListener('click', () => { resetGame(); startGame(); });
+
+// ═══════════════════════════════════════════════════════════
+// ═══ AUDIO ═════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+let _audioCtx = null;
+let droneGain = null, droneOsc = null, droneLfo = null;
+
+function getAudio() {
+  if (_audioCtx) return _audioCtx;
+  _audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+  return _audioCtx;
+}
+
+function startAmbientDrone() {
+  const ac = getAudio();
+  if (droneOsc) return;
+
+  // 低频嗡鸣
+  droneOsc = ac.createOscillator();
+  droneOsc.type = 'sawtooth';
+  droneOsc.frequency.value = 48;
+
+  // LFO 慢速调制音量
+  droneLfo = ac.createOscillator();
+  droneLfo.frequency.value = 0.08;
+  const lfoGain = ac.createGain();
+  lfoGain.gain.value = 0.04;
+  droneLfo.connect(lfoGain);
+
+  droneGain = ac.createGain();
+  droneGain.gain.value = 0.06;
+  lfoGain.connect(droneGain.gain);
+
+  // 高通滤除次声
+  const filter = ac.createBiquadFilter();
+  filter.type = 'highpass';
+  filter.frequency.value = 60;
+
+  droneOsc.connect(filter);
+  filter.connect(droneGain);
+  droneGain.connect(ac.destination);
+
+  droneOsc.start();
+  droneLfo.start();
+}
+
+function stopAmbientDrone() {
+  if (!droneOsc) return;
+  try { droneOsc.stop(); droneLfo.stop(); } catch(e) {}
+  droneOsc = null; droneLfo = null; droneGain = null;
+}
+
+function playGunshot(type) {
+  const ac = getAudio();
+  const buf = ac.createBuffer(1, ac.sampleRate * 0.15, ac.sampleRate);
+  const d   = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) {
+    d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 3);
+  }
+  const src = ac.createBufferSource();
+  src.buffer = buf;
+  const g = ac.createGain();
+  g.gain.value = type === 'shotgun' ? 0.55 : type === 'flare' ? 0.4 : 0.28;
+  const f = ac.createBiquadFilter();
+  f.type = 'bandpass';
+  f.frequency.value = type === 'shotgun' ? 300 : 800;
+  f.Q.value = 0.7;
+  src.connect(f); f.connect(g); g.connect(ac.destination);
+  src.start();
+}
+
+function playHit(type) {
+  const ac = getAudio();
+  const buf = ac.createBuffer(1, ac.sampleRate * 0.08, ac.sampleRate);
+  const d   = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) {
+    d[i] = (Math.random() * 2 - 1) * Math.pow(1 - i / d.length, 2);
+  }
+  const src = ac.createBufferSource();
+  src.buffer = buf;
+  const g = ac.createGain();
+  g.gain.value = 0.18;
+  const f = ac.createBiquadFilter();
+  f.type = 'lowpass';
+  f.frequency.value = type === 'watcher' ? 2000 : 400;
+  src.connect(f); f.connect(g); g.connect(ac.destination);
+  src.start();
+}
+
+function playPickup() {
+  const ac = getAudio();
+  const osc = ac.createOscillator();
+  osc.type = 'sine';
+  osc.frequency.setValueAtTime(440, ac.currentTime);
+  osc.frequency.linearRampToValueAtTime(880, ac.currentTime + 0.12);
+  const g = ac.createGain();
+  g.gain.setValueAtTime(0.15, ac.currentTime);
+  g.gain.linearRampToValueAtTime(0, ac.currentTime + 0.2);
+  osc.connect(g); g.connect(ac.destination);
+  osc.start(); osc.stop(ac.currentTime + 0.2);
+}
+
+function updateSanityAudio(sanity) {
+  if (!droneOsc || !droneGain) return;
+  // 理智低 → 嗡鸣变大、音调扰动
+  if (sanity < 10) {
+    droneGain.gain.value = 0.18;
+    droneOsc.detune.value = rnd(-200, 200);
+  } else if (sanity < 40) {
+    droneGain.gain.value = lerp(0.06, 0.14, (40 - sanity) / 40);
+    droneOsc.detune.value = 0;
+  } else {
+    droneGain.gain.value = 0.06;
+    droneOsc.detune.value = 0;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// ═══ WEAPONS DATA ══════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+const WEAPONS = [
+  {
+    id: 'pistol', name: '手枪',
+    ammo: 6, maxAmmo: 6, reserveAmmo: 6,   // 开局只有6发，备弹6发
+    damage: 25, fireRate: 22, reloadTime: 100,
+    spread: 0.05, pellets: 1, speed: 9,
+    effectVsType: { crawler: 1.5, watcher: 0.8, rift: 0, ancient: 0 },
+  },
+  {
+    id: 'shotgun', name: '霰弹枪',
+    ammo: 0, maxAmmo: 6, reserveAmmo: 0,   // 开局无弹药，需要找
+    damage: 18, fireRate: 45, reloadTime: 150,
+    spread: 0.28, pellets: 5, speed: 10,
+    effectVsType: { crawler: 1.2, watcher: 0.6, rift: 0, ancient: 0 },
+  },
+  {
+    id: 'flare', name: '信号弹',
+    ammo: 1, maxAmmo: 3, reserveAmmo: 0,   // 开局只有1发
+    damage: 5, fireRate: 60, reloadTime: 120,
+    spread: 0.02, pellets: 1, speed: 6,
+    effectVsType: { crawler: 0.5, watcher: 0.5, rift: 0, ancient: 1 },
+    isFlare: true,
+  },
+  {
+    id: 'uv', name: 'UV手电',
+    ammo: Infinity, maxAmmo: Infinity, reserveAmmo: Infinity,
+    damage: 0, fireRate: 8, reloadTime: 0,
+    spread: 0, pellets: 0, speed: 0,
+    isUV: true,
+  },
+];
+
+// ═══════════════════════════════════════════════════════════
+// ═══ PLAYER ════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+let player = {};
+
+function initPlayer() {
+  player = {
+    x: TILE_SIZE * 4.5,
+    y: TILE_SIZE * 4.5,
+    r: PLAYER_R,
+    hp: 100, maxHp: 100,
+    sanity: 100,
+    speed: PLAYER_SPEED,
+    wepIdx: 0,
+    reloading: false,
+    reloadTimer: 0,
+    reloadDur: 0,
+    fireCooldown: 0,
+    uvActive: false,
+    uvTimer: 0,
+  };
+}
+
+function movePlayer(fd) {
+  const spd = player.speed * fd;
+  let dx = 0, dy = 0;
+  if (keys['KeyW'] || keys['ArrowUp'])    dy -= spd;
+  if (keys['KeyS'] || keys['ArrowDown'])  dy += spd;
+  if (keys['KeyA'] || keys['ArrowLeft'])  dx -= spd;
+  if (keys['KeyD'] || keys['ArrowRight']) dx += spd;
+
+  // 斜向归一化
+  if (dx !== 0 && dy !== 0) { dx *= 0.7071; dy *= 0.7071; }
+
+  // 轴分离碰撞（贴墙滑动）
+  if (dx !== 0) {
+    const nx = player.x + dx + Math.sign(dx) * PLAYER_R;
+    if (isWalkable(nx, player.y - PLAYER_R + 2) && isWalkable(nx, player.y + PLAYER_R - 2))
+      player.x += dx;
+  }
+  if (dy !== 0) {
+    const ny = player.y + dy + Math.sign(dy) * PLAYER_R;
+    if (isWalkable(player.x - PLAYER_R + 2, ny) && isWalkable(player.x + PLAYER_R - 2, ny))
+      player.y += dy;
+  }
+}
+
+function renderPlayer() {
+  const sx = player.x - cam.x;
+  const sy = player.y - cam.y;
+  const angle = Math.atan2(mouse.worldY - player.y, mouse.worldX - player.x);
+
+  ctx.save();
+  ctx.translate(sx, sy);
+
+  // 身体
+  ctx.fillStyle   = '#7a8a9a';
+  ctx.strokeStyle = '#a0b0c0';
+  ctx.lineWidth   = 1.5;
+  ctx.beginPath();
+  ctx.arc(0, 0, player.r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.stroke();
+
+  // 朝向线（手电筒方向）
+  ctx.strokeStyle = 'rgba(255,240,200,0.6)';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(Math.cos(angle) * player.r, Math.sin(angle) * player.r);
+  ctx.lineTo(Math.cos(angle) * (player.r + 10), Math.sin(angle) * (player.r + 10));
+  ctx.stroke();
+
+  ctx.restore();
+}
+
+// ═══════════════════════════════════════════════════════════
+// ═══ BULLETS & PROJECTILES ═════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+let bullets = [];
+
+function fireBullet() {
+  const w = WEAPONS[player.wepIdx];
+  if (player.reloading) return;
+  if (w.isUV) { doUVAttack(); return; }
+  if (w.ammo <= 0) { tryReload(); return; }
+  if (player.fireCooldown > 0) return;
+
+  const angle = Math.atan2(mouse.worldY - player.y, mouse.worldX - player.x);
+
+  for (let i = 0; i < w.pellets; i++) {
+    const a = angle + (Math.random() - 0.5) * w.spread * 2;
+    bullets.push({
+      x: player.x, y: player.y,
+      vx: Math.cos(a) * w.speed,
+      vy: Math.sin(a) * w.speed,
+      r: w.isFlare ? 5 : 3,
+      damage: w.damage,
+      wepId: w.id,
+      isFlare: !!w.isFlare,
+      life: w.isFlare ? 180 : 80,
+      col: w.isFlare ? '#ff9040' : '#e0d8b0',
+    });
+  }
+  w.ammo--;
+  player.fireCooldown = w.fireRate;
+  playGunshot(w.id);
+  screenShake = Math.max(screenShake, w.id === 'shotgun' ? 4 : 1.5);
+
+  // 自动换弹
+  if (w.ammo <= 0) tryReload();
+}
+
+function tryReload() {
+  const w = WEAPONS[player.wepIdx];
+  if (w.isUV || w.ammo >= w.maxAmmo || w.reserveAmmo <= 0) return;
+  if (player.reloading) return;
+  player.reloading = true;
+  player.reloadDur = w.reloadTime;
+  player.reloadTimer = w.reloadTime;
+  document.getElementById('reload-label').style.display = 'block';
+  document.getElementById('reload-bar-wrap').style.display = 'block';
+}
+
+function doUVAttack() {
+  const w = WEAPONS[player.wepIdx];
+  if (player.fireCooldown > 0) return;
+  player.fireCooldown = w.fireRate;
+  player.uvActive = true;
+  player.uvTimer  = 12;
+  // 麻痹附近注视者
+  for (const e of enemies) {
+    if (e.type === 'watcher' && dist(e, player) < 90) {
+      e.uvParalyzed = true;
+      e.uvParalyzeTimer = 300; // 5秒
+    }
+  }
+}
+
+function updateBullets(fd) {
+  for (let i = bullets.length - 1; i >= 0; i--) {
+    const b = bullets[i];
+    b.x += b.vx * fd;
+    b.y += b.vy * fd;
+    b.life -= fd;
+    // 撞墙
+    if (tileAt(b.x, b.y) === 1) {
+      if (!b.isFlare) {
+        spawnParticles(b.x, b.y, '#706050', 3);
+      } else {
+        // 信号弹撞墙→爆炸
+        spawnFlareBlast(b.x, b.y);
+      }
+      bullets.splice(i, 1);
+      continue;
+    }
+    if (b.life <= 0) {
+      if (b.isFlare) spawnFlareBlast(b.x, b.y);
+      bullets.splice(i, 1);
+    }
+  }
+}
+
+function renderBullets() {
+  for (const b of bullets) {
+    const sx = b.x - cam.x;
+    const sy = b.y - cam.y;
+    ctx.save();
+    if (b.isFlare) {
+      ctx.shadowColor = '#ff8030';
+      ctx.shadowBlur  = 16;
+      ctx.fillStyle   = '#ffb060';
+    } else {
+      ctx.shadowColor = b.col;
+      ctx.shadowBlur  = 6;
+      ctx.fillStyle   = b.col;
+    }
+    ctx.beginPath();
+    ctx.arc(sx, sy, b.r, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+// 信号弹爆炸——大范围照亮+伤害古老存在肢体
+function spawnFlareBlast(wx, wy) {
+  spawnParticles(wx, wy, '#ff8030', 16);
+  flareBlasts.push({
+    x: wx, y: wy,
+    radius: 170,
+    life: 150,
+    maxLife: 150,
+  });
+  screenShake = Math.max(screenShake, 6);
+  // 驱退古老存在肢体
+  if (ancientOne.active) {
+    for (const limb of ancientOne.limbs) {
+      if (dist({x:wx,y:wy}, {x:limb.midX,y:limb.midY}) < 200) {
+        limb.forceRetreat = true;
+      }
+    }
+  }
+}
+
+// 信号弹照明半径（在renderFlashlight中用到）
+let flareBlasts = [];
+
+function updateFlareBlasts(fd) {
+  for (let i = flareBlasts.length - 1; i >= 0; i--) {
+    const fb = flareBlasts[i];
+    fb.life -= fd;
+    if (fb.life <= 0) {
+      flareBlasts.splice(i, 1);
+      continue;
+    }
+    for (const e of enemies) {
+      if (e.type === 'rift') continue;
+      if (dist(fb, e) > fb.radius) continue;
+      if (e.flareBurnCd > 0) continue;
+      // 爆光区会持续灼烧并压制注视者，给撤离创造窗口
+      e.hp -= e.type === 'watcher' ? 4 : 2;
+      e.flareBurnCd = 8;
+      e.flashTimer = 6;
+      if (e.type === 'watcher') {
+        e.uvParalyzed = true;
+        e.uvParalyzeTimer = Math.max(e.uvParalyzeTimer || 0, 45);
+      }
+      if (e.hp <= 0) {
+        spawnParticles(e.x, e.y, '#8b0000', 8);
+      }
+    }
+  }
+  enemies = enemies.filter(e => e.type === 'rift' || e.hp > 0);
+}
+
+// ═══════════════════════════════════════════════════════════
+// ═══ PARTICLES ═════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+let particles = [];
+
+function spawnParticles(wx, wy, col, n = 6) {
+  for (let i = 0; i < n; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const spd   = rnd(1.5, 5);
+    particles.push({
+      x: wx, y: wy,
+      vx: Math.cos(angle) * spd,
+      vy: Math.sin(angle) * spd,
+      life: 1, maxLife: 1,
+      decay: rnd(0.03, 0.07),
+      r: rnd(1.5, 3.5),
+      col,
+    });
+  }
+}
+
+function updateParticles(fd) {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx * fd;
+    p.y += p.vy * fd;
+    p.vx *= 0.9;
+    p.vy *= 0.9;
+    p.life -= p.decay * fd;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+}
+
+function renderParticles() {
+  for (const p of particles) {
+    const sx = p.x - cam.x;
+    const sy = p.y - cam.y;
+    ctx.globalAlpha = clamp(p.life, 0, 1);
+    ctx.fillStyle   = p.col;
+    ctx.beginPath();
+    ctx.arc(sx, sy, p.r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+// ═══════════════════════════════════════════════════════════
+// ═══ ITEMS ═════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+// ─── 研究文件内容 ─────────────────────────────────────────
+const DOCUMENTS = [
+  {
+    title: '日志 #001 — 实验开始',
+    body: `日期：不明。记录设备工作正常。
+
+我们在地下三层发现了异常的声波读数。
+频率约 7.83 Hz，与人脑θ波高度重合。
+
+团队成员开始出现轻微的方向感丧失。
+我认为是通风系统的问题。
+
+——Chen 博士`,
+  },
+  {
+    title: '日志 #007 — 第一次事故',
+    body: `Nakamura 在今天早上被发现蜷缩在储藏室。
+他说他"听见了地板下面有东西在呼吸"。
+
+我们隔离了他。扫描结果显示脑部正常。
+但他的眼睛不再正常地追踪移动物体——
+
+它们总是看向同一个地方。
+地板下面。
+
+——Chen 博士`,
+  },
+  {
+    title: '日志 #019 — 紧急备忘',
+    body: `不要打开B区-7号门。
+
+不要在黑暗中停留超过90秒。
+不要看它的眼睛。
+不要……
+
+（此处记录损坏）
+
+……手电筒会激怒它。
+但黑暗让它移动得更快。
+
+你必须在两者之间找到平衡。`,
+  },
+  {
+    title: '最终报告 — 撤离码',
+    body: `如果你找到了这份文件，说明其他人都没能走出去。
+
+逃生舱位于东南角反应堆控制室。
+撤离码：不需要——门已经坏了，直接推开就行。
+
+最重要的事：
+它无法被杀死。
+它只是……暂时回避光。
+
+用信号弹，然后跑。
+
+祝你好运。我们已经不需要了。
+                                    ——最后一名幸存者`,
+  },
+];
+
+let EXIT_POS = { x: 44.5*32, y: 30.5*32 };
+let currentExit = { dirLabel: '东南角', hintLabel: '东南角' };
+let lastExitChoice = -1;
+
+const EXIT_CHOICES = [
+  { x: 24.5*32, y: 2.5*32,  dirLabel: '北侧', hintLabel: '北侧走廊' },
+  { x: 24.5*32, y: 31.5*32, dirLabel: '南侧', hintLabel: '南侧走廊' },
+  { x: 2.5*32,  y: 17.5*32, dirLabel: '西侧', hintLabel: '西侧通道' },
+  { x: 45.5*32, y: 17.5*32, dirLabel: '东侧', hintLabel: '东侧通道' },
+];
+
+const BASE_ITEM_DEFS = [
+  // 补给品
+  { type:'ammo_pistol',    x:3.5*32,  y:25.5*32, amount:12, col:'#8090a8', label:'手枪弹' },
+  { type:'ammo_pistol',    x:43.5*32, y:10.5*32, amount:12, col:'#8090a8', label:'手枪弹' },
+  { type:'ammo_shotgun',   x:11.5*32, y:14.5*32, amount:6,  col:'#a08060', label:'霰弹' },
+  { type:'ammo_shotgun',   x:36.5*32, y:25.5*32, amount:6,  col:'#a08060', label:'霰弹' },
+  { type:'ammo_flare',     x:23.5*32, y:16.5*32, amount:1,  col:'#c06030', label:'信号弹' },
+  { type:'ammo_flare',     x:43.5*32, y:25.5*32, amount:1,  col:'#c06030', label:'信号弹' },
+  { type:'sanity_lantern', x:6.5*32,  y:26.5*32, amount:25, col:'#c0a040', label:'灯笼' },
+  { type:'sanity_lantern', x:43.5*32, y:16.5*32, amount:25, col:'#c0a040', label:'灯笼' },
+  { type:'sanity_medicine',x:23.5*32, y:3.5*32,  amount:20, col:'#6080a0', label:'镇定剂' },
+  { type:'hp_medkit',      x:3.5*32,  y:30.5*32, amount:30, col:'#90a060', label:'医疗包' },
+  { type:'hp_medkit',      x:43.5*32, y:30.5*32, amount:30, col:'#90a060', label:'医疗包' },
+];
+
+const WALKABLE_CELLS = [];
+const BORDER_WALKABLE_CELLS = [];
+for (let row = 1; row < MAP_ROWS - 1; row++) {
+  for (let col = 1; col < MAP_COLS - 1; col++) {
+    if (MAP[row][col] !== 0) continue;
+    const cell = {
+      x: (col + 0.5) * TILE_SIZE,
+      y: (row + 0.5) * TILE_SIZE,
+      key: `${col},${row}`,
+    };
+    WALKABLE_CELLS.push(cell);
+    if (row <= 3 || row >= MAP_ROWS - 4 || col <= 3 || col >= MAP_COLS - 4) {
+      BORDER_WALKABLE_CELLS.push(cell);
+    }
+  }
+}
+
+let items = [];
+let docsCollected = 0;
+let exitUnlocked  = false;
+let readingDoc    = false; // 阅读文件时暂停游戏逻辑
+let escapeRushActive = false;
+let escapeSpawnCd = 0;
+
+function chooseExitForRun() {
+  let idx = rndI(0, EXIT_CHOICES.length - 1);
+  if (EXIT_CHOICES.length > 1 && idx === lastExitChoice) {
+    idx = (idx + 1 + rndI(0, EXIT_CHOICES.length - 2)) % EXIT_CHOICES.length;
+  }
+  lastExitChoice = idx;
+  const choice = EXIT_CHOICES[idx];
+  EXIT_POS = { x: choice.x, y: choice.y };
+  currentExit = { dirLabel: choice.dirLabel, hintLabel: choice.hintLabel };
+}
+
+function pickRandomDocSpots(count) {
+  const result = [];
+  const usedKeys = new Set();
+  const spawn = { x: 4.5 * TILE_SIZE, y: 4.5 * TILE_SIZE };
+  const minDistanceBetweenDocs = 7 * TILE_SIZE;
+  const minDistanceFromSpawn = 8 * TILE_SIZE;
+
+  for (let i = 0; i < count; i++) {
+    let picked = null;
+    for (let t = 0; t < 1000; t++) {
+      const cell = WALKABLE_CELLS[rndI(0, WALKABLE_CELLS.length - 1)];
+      if (usedKeys.has(cell.key)) continue;
+      if (dist(cell, spawn) < minDistanceFromSpawn) continue;
+      if (dist(cell, EXIT_POS) < 6 * TILE_SIZE) continue;
+
+      let tooClose = false;
+      for (const prev of result) {
+        if (dist(cell, prev) < minDistanceBetweenDocs) { tooClose = true; break; }
+      }
+      if (tooClose) continue;
+
+      picked = cell;
+      break;
+    }
+    if (!picked) {
+      for (const cell of WALKABLE_CELLS) {
+        if (!usedKeys.has(cell.key)) { picked = cell; break; }
+      }
+    }
+    if (!picked) break;
+    usedKeys.add(picked.key);
+    result.push(picked);
+  }
+  return result;
+}
+
+function initItems() {
+  chooseExitForRun();
+
+  const randomizedDocs = pickRandomDocSpots(4).map((spot, docIdx) => ({
+    type:'document', docIdx, x:spot.x, y:spot.y, col:'#c8a060', label:'研究文件',
+  }));
+
+  const itemDefs = [...randomizedDocs, ...BASE_ITEM_DEFS];
+
+  items = itemDefs.map((d, idx) => ({
+    ...d, id: idx, picked: false,
+    bobPhase: Math.random() * Math.PI * 2,
+    rotAngle: Math.random() * Math.PI * 2,
+  }));
+  docsCollected = 0;
+  exitUnlocked  = false;
+  readingDoc    = false;
+  escapeRushActive = false;
+  escapeSpawnCd = 0;
+  document.getElementById('doc-modal').classList.remove('visible');
+  document.getElementById('exit-hint').style.display = 'none';
+  document.getElementById('exit-hint').textContent = `▶ 逃生舱门已解锁 — 前往地图${currentExit.hintLabel}`;
+  document.getElementById('doc-counter').style.display = 'none';
+  document.getElementById('doc-count').textContent = '0';
+}
+
+// 文件弹窗关闭按钮
+document.getElementById('doc-close').addEventListener('click', closeDocModal);
+function closeDocModal() {
+  document.getElementById('doc-modal').classList.remove('visible');
+  readingDoc = false;
+  needResetLastTime = true; // 关闭后重置delta，防止积累
+}
+
+function openDocModal(docIdx) {
+  const doc = getDocumentForRun(docIdx);
+  readingDoc = true;
+  document.getElementById('doc-progress').textContent =
+    `文件 ${docsCollected} / 4 已回收`;
+  document.getElementById('doc-title').textContent = doc.title;
+  document.getElementById('doc-body').textContent  = doc.body;
+  document.getElementById('doc-modal').classList.add('visible');
+}
+
+function getDocumentForRun(docIdx) {
+  const doc = DOCUMENTS[docIdx];
+  if (docIdx !== 3) return doc;
+  return {
+    ...doc,
+    body: doc.body.replace('逃生舱位于东南角反应堆控制室。', `逃生舱位于${currentExit.dirLabel}反应堆控制室。`),
+  };
+}
+
+function updateItems(fd) {
+  for (const it of items) {
+    if (it.picked) continue;
+    it.bobPhase  += 0.04 * fd;
+    it.rotAngle  += (it.type === 'document' ? 0.015 : 0) * fd;
+    if (dist(it, player) < (it.type === 'document' ? 28 : 20)) {
+      applyItem(it);
+      it.picked = true;
+      playPickup();
+      spawnParticles(it.x, it.y, it.col, 8);
+    }
+  }
+  // 逃生出口检测
+  if (exitUnlocked && dist(EXIT_POS, player) < 36) {
+    setGameState('win');
+  }
+}
+
+function applyItem(it) {
+  if (it.type === 'document') {
+    docsCollected++;
+    document.getElementById('doc-count').textContent = docsCollected;
+    document.getElementById('doc-counter').style.display = 'block';
+    openDocModal(it.docIdx);
+    // 第3份文件触发古老存在
+    if (docsCollected === 3) {
+      ancientOne.triggerTimer = 0;
+    }
+    // 全部收集 → 解锁出口
+    if (docsCollected >= 4) {
+      exitUnlocked = true;
+      document.getElementById('exit-hint').style.display = 'block';
+      screenShake = 8;
+      startEscapeRush();
+    }
+    return;
+  }
+  if (it.type === 'ammo_pistol') {
+    const w = WEAPONS.find(w => w.id === 'pistol');
+    w.reserveAmmo = Math.min(w.reserveAmmo + it.amount, 60);
+    showFlash('+' + it.amount + ' 手枪弹', 1200);
+  } else if (it.type === 'ammo_shotgun') {
+    const w = WEAPONS.find(w => w.id === 'shotgun');
+    w.reserveAmmo = Math.min(w.reserveAmmo + it.amount, 30);
+    showFlash('+' + it.amount + ' 霰弹', 1200);
+  } else if (it.type === 'ammo_flare') {
+    const w = WEAPONS.find(w => w.id === 'flare');
+    w.ammo        = Math.min(w.ammo + it.amount, w.maxAmmo);
+    w.reserveAmmo = Math.min(w.reserveAmmo + it.amount, 6);
+    showFlash('+' + it.amount + ' 信号弹', 1200);
+  } else if (it.type === 'sanity_lantern' || it.type === 'sanity_medicine') {
+    player.sanity = Math.min(100, player.sanity + it.amount);
+    showFlash('理智 +' + it.amount, 1500);
+  } else if (it.type === 'hp_medkit') {
+    player.hp = Math.min(player.maxHp, player.hp + it.amount);
+    showFlash('体力 +' + it.amount, 1500);
+  }
+}
+
+function pickRushSpawnCell() {
+  const minDist = 9 * TILE_SIZE;
+  for (let t = 0; t < 80; t++) {
+    const c = BORDER_WALKABLE_CELLS[rndI(0, BORDER_WALKABLE_CELLS.length - 1)];
+    if (dist(c, player) >= minDist) return c;
+  }
+  return WALKABLE_CELLS[rndI(0, WALKABLE_CELLS.length - 1)];
+}
+
+function startEscapeRush() {
+  if (escapeRushActive) return;
+  escapeRushActive = true;
+  escapeSpawnCd = 0;
+  showFlash('舱门已解锁 —— 警报触发，所有生命体正在追踪你', 2200);
+}
+
+function spawnEscapeWave() {
+  const crawlerCount = rndI(2, 3);
+  for (let i = 0; i < crawlerCount; i++) {
+    const c = pickRushSpawnCell();
+    const e = makeCrawler(c.x, c.y);
+    e.speed *= rnd(1.25, 1.65);
+    e.hp = Math.max(e.hp, 75);
+    enemies.push(e);
+  }
+  if (Math.random() < 0.4) {
+    const c = pickRushSpawnCell();
+    const w = makeWatcher(c.x, c.y);
+    w.speed = 0.55;
+    w.fireCd = rnd(60, 120);
+    enemies.push(w);
+  }
+}
+
+function updateEscapeRush(fd) {
+  if (!escapeRushActive || !exitUnlocked) return;
+  escapeSpawnCd -= fd;
+  if (escapeSpawnCd <= 0) {
+    spawnEscapeWave();
+    escapeSpawnCd = rnd(35, 60);
+  }
+}
+
+function renderItems() {
+  for (const it of items) {
+    if (it.picked) continue;
+    const sx = it.x - cam.x;
+    const sy = it.y - cam.y + Math.sin(it.bobPhase) * 3;
+    ctx.save();
+
+    if (it.type === 'document') {
+      // 文件：旋转的卷轴图标，大光晕，非常醒目
+      ctx.translate(sx, sy);
+      ctx.rotate(it.rotAngle);
+
+      // 外层大光晕
+      ctx.shadowColor = '#c8a060';
+      ctx.shadowBlur  = 28;
+      ctx.strokeStyle = '#c8a060';
+      ctx.lineWidth   = 2;
+      ctx.strokeRect(-10, -13, 20, 26);
+
+      // 卷轴填充
+      ctx.fillStyle = 'rgba(30,20,10,0.9)';
+      ctx.fillRect(-10, -13, 20, 26);
+
+      // 内部线条模拟文字
+      ctx.shadowBlur  = 0;
+      ctx.strokeStyle = 'rgba(180,150,80,0.6)';
+      ctx.lineWidth   = 1;
+      for (let i = -7; i <= 7; i += 4) {
+        ctx.beginPath();
+        ctx.moveTo(-7, i); ctx.lineTo(7, i);
+        ctx.stroke();
+      }
+
+      // 顶部卷轴圆柱
+      ctx.fillStyle = '#a07840';
+      ctx.shadowColor = '#c8a060'; ctx.shadowBlur = 10;
+      ctx.fillRect(-11, -15, 22, 4);
+      ctx.fillRect(-11,  11, 22, 4);
+
+      ctx.restore();
+
+      // 标签（不随卷轴旋转）
+      ctx.save();
+      ctx.fillStyle   = '#c8a060';
+      ctx.font        = 'bold 10px Courier New';
+      ctx.textAlign   = 'center';
+      ctx.shadowColor = '#c8a060';
+      ctx.shadowBlur  = 8;
+      ctx.fillText('[ 研究文件 ]', sx, sy + 28);
+      ctx.restore();
+
+    } else {
+      // 普通道具：圆形图标
+      ctx.shadowColor = it.col;
+      ctx.shadowBlur  = 14;
+      ctx.strokeStyle = it.col;
+      ctx.lineWidth   = 1.5;
+      ctx.beginPath();
+      ctx.arc(sx, sy, 7, 0, Math.PI * 2);
+      ctx.stroke();
+      ctx.fillStyle = it.col + '40';
+      ctx.fill();
+      ctx.shadowBlur  = 0;
+      ctx.fillStyle   = it.col;
+      ctx.font        = '9px Courier New';
+      ctx.textAlign   = 'center';
+      ctx.fillText(it.label, sx, sy + 17);
+      ctx.restore();
+    }
+  }
+
+  // 逃生出口（解锁后渲染）
+  if (exitUnlocked) {
+    const ex = EXIT_POS.x - cam.x;
+    const ey = EXIT_POS.y - cam.y;
+    const pulse = 0.6 + 0.4 * Math.sin(now * 0.004);
+    ctx.save();
+    ctx.shadowColor = '#40c040';
+    ctx.shadowBlur  = 30 * pulse;
+    ctx.strokeStyle = `rgba(60,180,60,${pulse})`;
+    ctx.lineWidth   = 3;
+    ctx.strokeRect(ex - 18, ey - 18, 36, 36);
+    ctx.fillStyle = `rgba(20,60,20,${0.4 * pulse})`;
+    ctx.fillRect(ex - 18, ey - 18, 36, 36);
+    ctx.shadowBlur  = 0;
+    ctx.fillStyle   = '#60c060';
+    ctx.font        = 'bold 10px Courier New';
+    ctx.textAlign   = 'center';
+    ctx.fillText('EXIT', ex, ey + 4);
+    ctx.fillText('▼', ex, ey + 18);
+    ctx.restore();
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// ═══ MONSTERS ══════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+let enemies = [];
+let fakeEnemies = [];
+
+const ENEMY_SPAWNS = [
+  // 爬行者——分散在地图各区，远离出生点(4.5,4.5)
+  { type:'crawler', x:5.5*32,  y:20.5*32 },
+  { type:'crawler', x:11.5*32, y:29.5*32 },
+  { type:'crawler', x:35.5*32, y:5.5*32  },
+  { type:'crawler', x:43.5*32, y:21.5*32 },
+  { type:'crawler', x:23.5*32, y:13.5*32 },
+  { type:'crawler', x:36.5*32, y:28.5*32 },
+  // 注视者——中部和右侧，玩家需要绕路
+  { type:'watcher', x:23.5*32, y:26.5*32 },
+  { type:'watcher', x:40.5*32, y:10.5*32 },
+  // 裂缝——埋在走廊要道
+  { type:'rift',    x:10.5*32, y:12.5*32 },
+  { type:'rift',    x:31.5*32, y:19.5*32 },
+  { type:'rift',    x:23.5*32, y:30.5*32 },
+];
+
+function initEnemies() {
+  enemies = [];
+  fakeEnemies = [];
+  for (const s of ENEMY_SPAWNS) {
+    if (s.type === 'crawler')  enemies.push(makeCrawler(s.x, s.y));
+    if (s.type === 'watcher')  enemies.push(makeWatcher(s.x, s.y));
+    if (s.type === 'rift')     enemies.push(makeRift(s.x, s.y));
+  }
+}
+
+// ── 爬行者 ────────────────────────────────────────────────
+function makeCrawler(x, y) {
+  return {
+    type:'crawler', x, y, r:14,
+    hp:60, maxHp:60,
+    speed: rnd(0.8, 1.3),
+    legLen:  Array.from({length:7}, () => rnd(8, 22)),
+    legFreq: Array.from({length:7}, () => rnd(1.0, 2.5)),
+    legOff:  Array.from({length:7}, () => Math.random() * Math.PI * 2),
+    frozen: false, frozenTimer: 0,
+    rushing: false, rushTimer: 0,
+    flashTimer: 0,
+    atkCd: 0,
+    flareBurnCd: 0,
+  };
+}
+
+function updateCrawler(e, fd) {
+  // 手电筒冻结
+  if (isInFlashlightCone(e.x, e.y)) {
+    if (!e.frozen && !e.rushing) {
+      e.frozen = true;
+      e.frozenTimer = 30; // 0.5s
+    }
+  }
+  if (e.frozen) {
+    e.frozenTimer -= fd;
+    if (e.frozenTimer <= 0) {
+      e.frozen   = false;
+      e.rushing  = true;
+      e.rushTimer = 120; // 2s冲刺
+    }
+    return;
+  }
+  if (e.rushing) {
+    e.rushTimer -= fd;
+    if (e.rushTimer <= 0) e.rushing = false;
+  }
+  const rushBoost = escapeRushActive ? 1.18 : 1;
+  const spd = (e.rushing ? e.speed * 2.6 : e.speed) * rushBoost * fd;
+  const dx  = player.x - e.x;
+  const dy  = player.y - e.y;
+  const d   = Math.hypot(dx, dy);
+  if (d > 1) {
+    const nx = e.x + (dx / d) * spd;
+    const ny = e.y + (dy / d) * spd;
+    if (isWalkable(nx, e.y)) e.x = nx;
+    if (isWalkable(e.x, ny)) e.y = ny;
+  }
+  if (e.flashTimer > 0) e.flashTimer -= fd;
+  if (e.atkCd > 0) e.atkCd -= fd;
+  // 接触伤害
+  if (d < e.r + player.r + 2 && e.atkCd <= 0) {
+    player.hp -= 12;
+    screenShake = Math.max(screenShake, 5);
+    e.atkCd = 50;
+    if (player.hp <= 0) { player.hp = 0; setGameState('dead'); }
+  }
+}
+
+function renderCrawler(e) {
+  const sx = e.x - cam.x;
+  const sy = e.y - cam.y;
+  const angle = Math.atan2(player.y - e.y, player.x - e.x);
+  const t = now * 0.001;
+  ctx.save();
+  ctx.translate(sx, sy);
+  ctx.rotate(angle);
+
+  // 7条腿——关节折断感，过长且扭曲
+  for (let i = 0; i < 7; i++) {
+    const spread = Math.PI * 1.4;
+    const legAngle = (i / 6) * spread - spread * 0.5;
+    const wave  = Math.sin(t * e.legFreq[i] + e.legOff[i]) * 6;
+    const wave2 = Math.sin(t * e.legFreq[i] * 1.7 + e.legOff[i] + 1.2) * 3;
+    const len   = e.legLen[i];
+    // 三段折线腿（更像节肢）
+    const j1x = Math.cos(legAngle) * len * 0.4 + wave * 0.2;
+    const j1y = Math.sin(legAngle) * len * 0.4 + wave;
+    const j2x = Math.cos(legAngle) * len * 0.75 + wave2 * 0.5 - wave * 0.1;
+    const j2y = Math.sin(legAngle) * len * 0.75 - wave2 + wave * 0.3;
+    const ex  = Math.cos(legAngle) * len + wave2;
+    const ey  = Math.sin(legAngle) * len + wave * 0.4;
+
+    // 腿节颜色：根部深，末端极细
+    ctx.lineCap  = 'round';
+    ctx.lineJoin = 'round';
+    ctx.strokeStyle = e.frozen ? '#5599aa' : (i % 2 === 0 ? '#3a2e22' : '#2e2418');
+    ctx.lineWidth = 2.5;
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.lineTo(j1x, j1y);
+    ctx.stroke();
+    ctx.lineWidth = 1.8;
+    ctx.beginPath();
+    ctx.moveTo(j1x, j1y);
+    ctx.lineTo(j2x, j2y);
+    ctx.stroke();
+    ctx.lineWidth = 1;
+    ctx.strokeStyle = e.frozen ? '#3377aa' : '#1e160e';
+    ctx.beginPath();
+    ctx.moveTo(j2x, j2y);
+    ctx.lineTo(ex, ey);
+    ctx.stroke();
+  }
+
+  // 身体：扁平拉伸、腐败质感、严重不对称
+  const bodyCol = e.flashTimer > 0 ? '#ffffff'
+                : e.frozen ? '#6699aa'
+                : '#2a2218'; // 暗褐，几乎融入黑暗
+  ctx.fillStyle = bodyCol;
+
+  // 外轮廓发光（近处隐约可见）
+  if (!e.frozen && e.flashTimer <= 0) {
+    ctx.shadowColor = 'rgba(60,40,20,0.4)';
+    ctx.shadowBlur  = 6;
+  }
+
+  ctx.beginPath();
+  // 严重不对称的扁平blob，头部尖锐
+  ctx.moveTo(18, 0);
+  ctx.bezierCurveTo(20, -5,  8, -14, -2, -12);
+  ctx.bezierCurveTo(-14, -10, -18,  -3, -16,  4);
+  ctx.bezierCurveTo(-14,  10,  -6,  14,   4,  10);
+  ctx.bezierCurveTo( 10,   7,  16,   5,  18,   0);
+  ctx.closePath();
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // 脊骨纹：3条暗线横贯身体，强调节肢感
+  ctx.strokeStyle = e.frozen ? '#446688' : '#1a1208';
+  ctx.lineWidth = 1;
+  for (let i = -1; i <= 1; i++) {
+    ctx.beginPath();
+    ctx.moveTo(-14, i * 4 + 1);
+    ctx.bezierCurveTo(-4, i * 3, 8, i * 2, 16, i * 1.5);
+    ctx.stroke();
+  }
+
+  // 多只眼睛（5个，大小不一，排列不对称）
+  const eyePositions = [[12,-3,2.8],[10,4,1.8],[6,-7,1.4],[14,1,1.2],[8,8,1]];
+  for (const [ex, ey, er] of eyePositions) {
+    // 眼白（细血丝感）
+    ctx.fillStyle = e.frozen ? '#336699' : '#c8c0b0';
+    ctx.beginPath(); ctx.arc(ex, ey, er, 0, Math.PI*2); ctx.fill();
+    // 竖瞳
+    ctx.fillStyle = '#050202';
+    ctx.beginPath(); ctx.ellipse(ex, ey, er*0.3, er*0.85, 0, 0, Math.PI*2); ctx.fill();
+  }
+
+  ctx.restore();
+}
+
+// ── 注视者 ────────────────────────────────────────────────
+function makeWatcher(x, y) {
+  return {
+    type:'watcher', x, y, r:16,
+    hp:80, maxHp:80,
+    speed: 0.3,
+    tentacleCount: rndI(4, 6),
+    tentaclePhase: Array.from({length:6}, () => Math.random() * Math.PI * 2),
+    uvParalyzed: false, uvParalyzeTimer: 0,
+    fireCd: 180, // 3s
+    sanityDrainCd: 0,
+    driftAngle: Math.random() * Math.PI * 2,
+    driftTimer: 0,
+    flashTimer: 0,
+    atkCd: 0,
+    flareBurnCd: 0,
+  };
+}
+
+function updateWatcher(e, fd) {
+  if (e.uvParalyzed) {
+    e.uvParalyzeTimer -= fd;
+    if (e.uvParalyzeTimer <= 0) e.uvParalyzed = false;
+    return;
+  }
+
+  if (escapeRushActive) {
+    // 撤离阶段：注视者也会直接追人
+    const dx = player.x - e.x;
+    const dy = player.y - e.y;
+    const d = Math.hypot(dx, dy);
+    if (d > 1) {
+      const chaseSpd = e.speed * 1.7 * fd;
+      const nx = e.x + (dx / d) * chaseSpd;
+      const ny = e.y + (dy / d) * chaseSpd;
+      if (isWalkable(nx, e.y)) e.x = nx;
+      if (isWalkable(e.x, ny)) e.y = ny;
+    }
+  } else {
+    // 缓慢漂移（随机方向）
+    e.driftTimer -= fd;
+    if (e.driftTimer <= 0) {
+      e.driftAngle = Math.random() * Math.PI * 2;
+      e.driftTimer = rnd(60, 150);
+    }
+    const spd = e.speed * fd;
+    const nx = e.x + Math.cos(e.driftAngle) * spd;
+    const ny = e.y + Math.sin(e.driftAngle) * spd;
+    if (isWalkable(nx, e.y)) e.x = nx;
+    if (isWalkable(e.x, ny)) e.y = ny;
+  }
+
+  // 在光锥内扣理智
+  const inCone = isInFlashlightCone(e.x, e.y);
+  const d      = dist(e, player);
+  if (inCone && d < 320) {
+    player.sanity = Math.max(0, player.sanity - 0.07 * fd);
+  }
+  // 不在光锥 → 发射黏液弹
+  if (!inCone && d < 400) {
+    e.fireCd -= fd;
+    if (e.fireCd <= 0) {
+      fireWatcherBlob(e);
+      e.fireCd = 180;
+    }
+  }
+  if (e.flashTimer > 0) e.flashTimer -= fd;
+}
+
+function fireWatcherBlob(e) {
+  const angle = Math.atan2(player.y - e.y, player.x - e.x);
+  bullets.push({
+    x: e.x, y: e.y,
+    vx: Math.cos(angle) * 2.5,
+    vy: Math.sin(angle) * 2.5,
+    r: 6, damage: 18, wepId:'blob',
+    isEnemy: true, isBlob: true,
+    isFlare: false,
+    life: 240, col: '#3a4a20',
+  });
+}
+
+function renderWatcher(e) {
+  const sx = e.x - cam.x;
+  const sy = e.y - cam.y;
+  const t  = now * 0.001;
+  ctx.save();
+  ctx.translate(sx, sy);
+
+  // 触手：更多、更长、更不规则，像撕裂的皮肉
+  for (let i = 0; i < e.tentacleCount; i++) {
+    const base  = (i / e.tentacleCount) * Math.PI * 2 + e.tentaclePhase[i];
+    const sway  = Math.sin(t * 0.9 + i * 1.3) * 0.5;
+    const sway2 = Math.cos(t * 1.4 + i * 0.7) * 0.3;
+    const len   = e.r * 1.8 + i * 4; // 长度各异
+    const ex    = Math.cos(base + sway) * len;
+    const ey    = Math.sin(base + sway) * len;
+    // 两段控制点，S形扭曲
+    const cp1x  = Math.cos(base + 0.8) * len * 0.4;
+    const cp1y  = Math.sin(base + 0.8) * len * 0.4;
+    const cp2x  = Math.cos(base + sway2 - 0.5) * len * 0.75;
+    const cp2y  = Math.sin(base + sway2 - 0.5) * len * 0.75;
+
+    ctx.strokeStyle = e.uvParalyzed
+      ? `rgba(40,100,180,${0.4 + i*0.05})`
+      : `rgba(15,10,8,${0.7 + i*0.03})`; // 极深的暗色，几乎黑色
+    ctx.lineWidth = 4 - i * 0.3;
+    ctx.lineCap = 'round';
+    ctx.beginPath();
+    ctx.moveTo(0, 0);
+    ctx.bezierCurveTo(cp1x, cp1y, cp2x, cp2y, ex, ey);
+    ctx.stroke();
+    // 触手末端细刺
+    ctx.lineWidth = 0.8;
+    ctx.strokeStyle = e.uvParalyzed ? 'rgba(80,160,220,0.5)' : 'rgba(40,25,15,0.6)';
+    ctx.beginPath();
+    ctx.moveTo(ex, ey);
+    ctx.lineTo(ex + Math.cos(base+sway) * 8, ey + Math.sin(base+sway) * 8);
+    ctx.stroke();
+  }
+
+  // 巩膜（眼白）——不再洁白，而是充血的暗红黄色
+  const scleraCol = e.flashTimer > 0 ? '#ffffff'
+                  : e.uvParalyzed ? '#102040'
+                  : '#d4c89a'; // 病态黄白
+  ctx.fillStyle = scleraCol;
+  ctx.shadowColor = e.uvParalyzed ? '#1040a0' : 'rgba(160,100,20,0.5)';
+  ctx.shadowBlur  = 14;
+  ctx.beginPath();
+  ctx.arc(0, 0, e.r, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.shadowBlur = 0;
+
+  // 充血血管纹路
+  if (!e.uvParalyzed) {
+    ctx.strokeStyle = 'rgba(140,40,40,0.35)';
+    ctx.lineWidth = 0.8;
+    for (let i = 0; i < 6; i++) {
+      const va = (i / 6) * Math.PI * 2 + t * 0.02;
+      ctx.beginPath();
+      ctx.moveTo(Math.cos(va)*3, Math.sin(va)*3);
+      ctx.quadraticCurveTo(
+        Math.cos(va+0.4)*e.r*0.6, Math.sin(va+0.4)*e.r*0.6,
+        Math.cos(va+0.2)*e.r*0.9, Math.sin(va+0.2)*e.r*0.9
+      );
+      ctx.stroke();
+    }
+  }
+
+  // 虹膜——竖缝状，爬行动物式
+  const irisR = e.r * 0.52;
+  ctx.fillStyle = e.uvParalyzed ? '#0a1a30' : '#3a2800'; // 暗金棕
+  ctx.beginPath();
+  ctx.arc(0, 0, irisR, 0, Math.PI * 2);
+  ctx.fill();
+
+  // 竖瞳（椭圆），追踪玩家
+  const pa  = Math.atan2(player.y - e.y, player.x - e.x);
+  const po  = irisR * 0.25;
+  const ppx = Math.cos(pa) * po;
+  const ppy = Math.sin(pa) * po;
+
+  // 瞳孔朝向旋转
+  ctx.save();
+  ctx.translate(ppx, ppy);
+  ctx.rotate(pa + Math.PI / 2);
+  ctx.fillStyle = '#030100';
+  ctx.beginPath();
+  ctx.ellipse(0, 0, irisR * 0.22, irisR * 0.52, 0, 0, Math.PI * 2);
+  ctx.fill();
+  ctx.restore();
+
+  // 眼球表面光泽（湿润感）
+  ctx.fillStyle = 'rgba(255,250,230,0.18)';
+  ctx.beginPath();
+  ctx.ellipse(-irisR*0.25, -irisR*0.3, irisR*0.25, irisR*0.15, -0.5, 0, Math.PI*2);
+  ctx.fill();
+
+  ctx.restore();
+}
+
+// ── 裂缝 ──────────────────────────────────────────────────
+function makeRift(x, y) {
+  // 预生成裂缝顶点（细长不规则多边形）
+  const verts = [];
+  const n = rndI(9, 13);
+  const len = rnd(30, 50);
+  const wid = rnd(6, 12);
+  for (let i = 0; i < n; i++) {
+    const t = i / (n - 1);
+    const bx = (t - 0.5) * len * 2 + (Math.random() - 0.5) * wid;
+    const by = (i % 2 === 0 ? 1 : -1) * wid * 0.5 + (Math.random() - 0.5) * 4;
+    verts.push({ bx, by });
+  }
+  return {
+    type:'rift', x, y, r:40,
+    hp:999, maxHp:999, // 不可杀
+    verts,
+    grabbing: false, grabTimer: 0, grabCd: 0,
+    tentacles: [],
+  };
+}
+
+function updateRift(e, fd) {
+  if (e.grabCd > 0) { e.grabCd -= fd; return; }
+  const d = dist(e, player);
+  if (d < 42 && !e.grabbing) {
+    e.grabbing  = true;
+    e.grabTimer = 40;
+    e.tentacles = Array.from({length:4}, () => ({
+      angle: Math.random() * Math.PI * 2,
+      len: 0, maxLen: rnd(35, 60),
+    }));
+  }
+  if (e.grabbing) {
+    e.grabTimer -= fd;
+    for (const t of e.tentacles) t.len = Math.min(t.maxLen, t.len + 2 * fd);
+    if (e.grabTimer <= 0) {
+      e.grabbing = false;
+      e.grabCd   = 300;
+      e.tentacles = [];
+      // 伤害
+      if (dist(e, player) < 55) {
+        player.hp     = Math.max(0, player.hp - 25);
+        player.sanity = Math.max(0, player.sanity - 20);
+        screenShake   = Math.max(screenShake, 8);
+        if (player.hp <= 0) setGameState('dead');
+        if (player.sanity <= 0) setGameState('mad');
+      }
+    }
+  }
+}
+
+function renderRift(e) {
+  const sx = e.x - cam.x;
+  const sy = e.y - cam.y;
+  ctx.save();
+  ctx.translate(sx, sy);
+
+  // 裂缝光晕（始终有微弱紫光，不依赖距离——让玩家能隐约察觉）
+  ctx.shadowColor = 'rgba(80,20,120,0.6)';
+  ctx.shadowBlur  = 18 + Math.sin(now * 0.002) * 6;
+
+  // 裂缝主体——微微发紫的极深色，比地板深一点点
+  ctx.fillStyle = '#080410';
+  ctx.strokeStyle = 'rgba(100,40,160,0.45)';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath();
+  for (let i = 0; i < e.verts.length; i++) {
+    const qx = e.verts[i].bx + (Math.random() - 0.5) * 2.5;
+    const qy = e.verts[i].by + (Math.random() - 0.5) * 2.5;
+    i === 0 ? ctx.moveTo(qx, qy) : ctx.lineTo(qx, qy);
+  }
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+  ctx.shadowBlur = 0;
+
+  // 裂缝内部：几条更细的次级裂纹
+  ctx.strokeStyle = 'rgba(120,50,200,0.25)';
+  ctx.lineWidth = 0.8;
+  for (let i = 0; i < 3; i++) {
+    const v0 = e.verts[i * 3 % e.verts.length];
+    const v1 = e.verts[(i * 3 + 2) % e.verts.length];
+    ctx.beginPath();
+    ctx.moveTo(v0.bx * 0.6, v0.by * 0.6);
+    ctx.lineTo(v1.bx * 0.6, v1.by * 0.6);
+    ctx.stroke();
+  }
+
+  // 触手抓取动画——粗、黑、多关节
+  if (e.grabbing) {
+    for (const t of e.tentacles) {
+      const segments = 4;
+      let ox = 0, oy = 0;
+      for (let s = 0; s < segments; s++) {
+        const segLen = (t.len / segments);
+        const wobble = Math.sin(now * 0.005 + s * 1.2 + t.angle) * 4;
+        const nx = ox + Math.cos(t.angle + wobble * 0.1) * segLen;
+        const ny = oy + Math.sin(t.angle + wobble * 0.1) * segLen + wobble;
+        ctx.strokeStyle = `rgba(${10+s*5},${3+s*2},${20+s*8},${0.9 - s*0.1})`;
+        ctx.lineWidth = 7 - s * 1.2;
+        ctx.lineCap = 'round';
+        ctx.beginPath();
+        ctx.moveTo(ox, oy);
+        ctx.lineTo(nx, ny);
+        ctx.stroke();
+        // 关节结节
+        ctx.fillStyle = '#0a0318';
+        ctx.beginPath();
+        ctx.arc(nx, ny, 3 - s*0.5, 0, Math.PI*2);
+        ctx.fill();
+        ox = nx; oy = ny;
+      }
+    }
+  }
+
+  ctx.restore();
+}
+
+// ── 古老存在 ──────────────────────────────────────────────
+const ancientOne = {
+  active: false,
+  triggerTimer: 600, // 10s游戏时间后触发
+  limbs: [],
+  limbCd: 0,
+  limbIdCounter: 0,
+};
+
+function initAncientOne() {
+  ancientOne.active = false;
+  ancientOne.triggerTimer = 600;
+  ancientOne.limbs = [];
+  ancientOne.limbCd = 0;
+  ancientOne.limbIdCounter = 0;
+}
+
+function updateAncientOne(fd) {
+  if (!ancientOne.active) {
+    ancientOne.triggerTimer -= fd;
+    if (ancientOne.triggerTimer <= 0 || WEAPONS.find(w=>w.id==='flare').reserveAmmo <= 0 && WEAPONS.find(w=>w.id==='flare').ammo <= 0) {
+      ancientOne.active = true;
+      screenShake = Math.max(screenShake, 10);
+      showFlash('它来了——', 2500);
+      if (droneOsc) {
+        droneOsc.frequency.setValueAtTime(48, _audioCtx.currentTime);
+        droneOsc.frequency.linearRampToValueAtTime(32, _audioCtx.currentTime + 1.5);
+        droneGain.gain.setValueAtTime(0.06, _audioCtx.currentTime);
+        droneGain.gain.linearRampToValueAtTime(0.22, _audioCtx.currentTime + 1);
+      }
+    }
+    return;
+  }
+
+  // 生成新肢体
+  ancientOne.limbCd -= fd;
+  if (ancientOne.limbCd <= 0 && ancientOne.limbs.length < 3) {
+    spawnAncientLimb();
+    ancientOne.limbCd = rnd(120, 240);
+  }
+
+  // 更新各肢体
+  for (let i = ancientOne.limbs.length - 1; i >= 0; i--) {
+    const limb = ancientOne.limbs[i];
+    limb.progress += (1 / limb.entryDur) * fd;
+
+    if (limb.forceRetreat && limb.phase === 'hold') {
+      limb.phase = 'retreat';
+      limb.progress = 0;
+    }
+
+    if (limb.phase === 'enter') {
+      if (limb.progress >= 1) { limb.phase = 'hold'; limb.progress = 0; }
+    } else if (limb.phase === 'hold') {
+      // 停留时伤害——肢体终点在屏幕坐标，转换为世界坐标比较
+      const mx = lerp(limb.startX, limb.endX, 0.5) + cam.x;
+      const my = lerp(limb.startY, limb.endY, 0.5) + cam.y;
+      limb.midX = mx - cam.x; limb.midY = my - cam.y;
+      if (limb.atkCd > 0) limb.atkCd -= fd;
+      if (dist({x:mx, y:my}, player) < 80 && limb.atkCd <= 0) {
+        player.hp     = Math.max(0, player.hp - 35);
+        player.sanity = Math.max(0, player.sanity - 25);
+        screenShake   = Math.max(screenShake, 10);
+        limb.atkCd    = 60;
+        if (player.hp <= 0) setGameState('dead');
+        if (player.sanity <= 0) setGameState('mad');
+      }
+      if (limb.progress >= limb.holdDur) { limb.phase = 'retreat'; limb.progress = 0; }
+    } else if (limb.phase === 'retreat') {
+      if (limb.progress >= 1) { ancientOne.limbs.splice(i, 1); }
+    }
+  }
+}
+
+function spawnAncientLimb() {
+  const edge = rndI(0, 3); // 0上 1下 2左 3右
+  let sx, sy, ex, ey;
+  if (edge === 0) { sx = rnd(100, W-100); sy = -60; ex = rnd(100, W-100); ey = rnd(100, H*0.4); }
+  else if (edge === 1) { sx = rnd(100, W-100); sy = H+60; ex = rnd(100,W-100); ey = rnd(H*0.6,H-100); }
+  else if (edge === 2) { sx = -60; sy = rnd(100, H-100); ex = rnd(100, W*0.4); ey = rnd(100,H-100); }
+  else { sx = W+60; sy = rnd(100, H-100); ex = rnd(W*0.6, W-100); ey = rnd(100,H-100); }
+
+  const type = Math.random() < 0.5 ? 'tentacle' : 'claw';
+  ancientOne.limbs.push({
+    id: ancientOne.limbIdCounter++,
+    type, phase: 'enter',
+    startX: sx, startY: sy,
+    endX: ex, endY: ey,
+    midX: (sx+ex)*0.5, midY: (sy+ey)*0.5,
+    progress: 0,
+    entryDur: rnd(60, 100),
+    holdDur: rnd(0.8, 1.6),
+    forceRetreat: false,
+    atkCd: 0,
+  });
+}
+
+function renderAncientOne() {
+  if (!ancientOne.active) return;
+  for (const limb of ancientOne.limbs) {
+    renderAncientLimb(limb);
+  }
+}
+
+function renderAncientLimb(limb) {
+  const t  = limb.phase === 'retreat' ? 1 - limb.progress
+           : limb.phase === 'hold'    ? 1
+           : limb.progress;
+
+  const lx = lerp(limb.startX, limb.endX, easeInOut(t));
+  const ly = lerp(limb.startY, limb.endY, easeInOut(t));
+
+  ctx.save();
+  if (limb.type === 'tentacle') {
+    const swayX = Math.sin(now * 0.0008 + limb.id) * 50;
+    const swayY = Math.cos(now * 0.001  + limb.id) * 40;
+    const cpx   = lerp(limb.startX, limb.endX, 0.5) + swayX;
+    const cpy   = lerp(limb.startY, limb.endY, 0.5) + swayY;
+
+    // 外层紫色发光——让触手在黑暗中可见
+    ctx.shadowColor = 'rgba(120,40,180,0.8)';
+    ctx.shadowBlur  = 24;
+    ctx.strokeStyle = '#2a0840'; // 深紫，不是纯黑
+    ctx.lineWidth   = 38 + Math.sin(now * 0.002 + limb.id) * 6;
+    ctx.lineCap     = 'round';
+    ctx.beginPath();
+    ctx.moveTo(limb.startX, limb.startY);
+    ctx.quadraticCurveTo(cpx, cpy, lx, ly);
+    ctx.stroke();
+
+    // 内层更亮的紫色高光边缘
+    ctx.shadowColor = 'rgba(160,60,220,0.5)';
+    ctx.shadowBlur  = 8;
+    ctx.strokeStyle = '#3d1060';
+    ctx.lineWidth   = 22;
+    ctx.beginPath();
+    ctx.moveTo(limb.startX, limb.startY);
+    ctx.quadraticCurveTo(cpx, cpy, lx, ly);
+    ctx.stroke();
+    ctx.shadowBlur = 0;
+
+    // 吸盘
+    for (let i = 0; i < 7; i++) {
+      const fi  = i / 7;
+      const sx2 = lerp(limb.startX, lx, fi);
+      const sy2 = lerp(limb.startY, ly, fi);
+      ctx.fillStyle = '#1a0428';
+      ctx.shadowColor = 'rgba(100,20,160,0.6)';
+      ctx.shadowBlur = 6;
+      ctx.beginPath();
+      ctx.arc(sx2, sy2, 7 + i * 0.5, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.shadowBlur = 0;
+
+  } else {
+    // 爪子——深紫发光
+    ctx.shadowColor = 'rgba(100,20,160,0.9)';
+    ctx.shadowBlur  = 30;
+    ctx.fillStyle   = '#1a0530';
+    ctx.beginPath();
+    ctx.arc(lx, ly, 60, 0, Math.PI * 2);
+    ctx.fill();
+
+    // 爪指——粗黑带紫边
+    const dirs = [
+      [0, -90, 20, -160],
+      [70, -60, 130, -100],
+      [-70, -60, -130, -100],
+    ];
+    ctx.lineCap = 'round';
+    for (const [c1x, c1y, ex2, ey2] of dirs) {
+      ctx.strokeStyle = '#2a0845';
+      ctx.lineWidth = 20;
+      ctx.shadowColor = 'rgba(120,30,200,0.5)';
+      ctx.shadowBlur  = 12;
+      ctx.beginPath();
+      ctx.moveTo(lx, ly);
+      ctx.bezierCurveTo(lx+c1x*0.5, ly+c1y*0.5, lx+c1x, ly+c1y, lx+ex2, ly+ey2);
+      ctx.stroke();
+      // 爪尖
+      ctx.strokeStyle = '#3d1060';
+      ctx.lineWidth = 8;
+      ctx.beginPath();
+      ctx.moveTo(lx+c1x, ly+c1y);
+      ctx.lineTo(lx+ex2+Math.sign(ex2)*15, ly+ey2+Math.sign(ey2)*15);
+      ctx.stroke();
+    }
+    ctx.shadowBlur = 0;
+
+    // 掌心腐烂纹理
+    ctx.strokeStyle = 'rgba(60,10,100,0.5)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i < 5; i++) {
+      const a = (i / 5) * Math.PI * 2;
+      ctx.beginPath();
+      ctx.arc(lx + Math.cos(a)*20, ly + Math.sin(a)*20, 8, 0, Math.PI*2);
+      ctx.stroke();
+    }
+  }
+  ctx.restore();
+}
+
+function easeInOut(t) {
+  return t < 0.5 ? 2*t*t : -1+(4-2*t)*t;
+}
+
+// ── 通用怪物更新/渲染 ─────────────────────────────────────
+function updateMonsters(fd) {
+  // 敌人子弹检测玩家
+  for (let i = bullets.length - 1; i >= 0; i--) {
+    const b = bullets[i];
+    if (!b.isEnemy) continue;
+    if (dist(b, player) < player.r + b.r) {
+      player.hp = Math.max(0, player.hp - b.damage);
+      screenShake = Math.max(screenShake, 3);
+      bullets.splice(i, 1);
+      if (player.hp <= 0) setGameState('dead');
+      continue;
+    }
+  }
+
+  for (let i = enemies.length - 1; i >= 0; i--) {
+    const e = enemies[i];
+    if (e.flareBurnCd > 0) e.flareBurnCd -= fd;
+    if (e.type === 'crawler') updateCrawler(e, fd);
+    if (e.type === 'watcher') updateWatcher(e, fd);
+    if (e.type === 'rift')    updateRift(e, fd);
+
+    // 子弹命中
+    if (e.type !== 'rift') {
+      for (let j = bullets.length - 1; j >= 0; j--) {
+        const b = bullets[j];
+        if (b.isEnemy) continue;
+        if (dist(b, e) < e.r + b.r) {
+          const w = WEAPONS.find(w => w.id === b.wepId);
+          const mult = w ? (w.effectVsType[e.type] || 1) : 1;
+          const dmg  = b.damage * mult;
+          e.hp -= dmg;
+          e.flashTimer = 8;
+          spawnParticles(b.x, b.y, '#8b0000', 5);
+          playHit(e.type);
+          bullets.splice(j, 1);
+          if (e.hp <= 0) {
+            spawnParticles(e.x, e.y, '#8b0000', 12);
+            enemies.splice(i, 1);
+          }
+          break;
+        }
+      }
+    }
+  }
+}
+
+function renderMonsters() {
+  for (const e of enemies) {
+    if (e.type === 'crawler') renderCrawler(e);
+    if (e.type === 'watcher') renderWatcher(e);
+    if (e.type === 'rift')    renderRift(e);
+  }
+  // 注意：renderAncientOne 移到手电筒遮罩之后单独调用
+  renderFakeEnemies();
+}
+
+// ── 幽灵爬行者（理智<40时出现）──────────────────────────
+let fakeSpawnCd = 0;
+function updateFakeEnemies(fd) {
+  fakeSpawnCd -= fd;
+  if (player.sanity < 40 && fakeSpawnCd <= 0) {
+    const prob = (40 - player.sanity) / 40 * 0.006 * fd;
+    if (Math.random() < prob) {
+      const angle = Math.random() * Math.PI * 2;
+      const d = rnd(120, 250);
+      fakeEnemies.push({
+        x: player.x + Math.cos(angle) * d,
+        y: player.y + Math.sin(angle) * d,
+        r: 14, life: rnd(200, 400),
+        alpha: player.sanity < 10 ? 0.5 : 0.28,
+        ...makeCrawler(0,0), type:'fake',
+      });
+      fakeSpawnCd = rnd(60, 180);
+    }
+  }
+  for (let i = fakeEnemies.length - 1; i >= 0; i--) {
+    const e = fakeEnemies[i];
+    e.life--;
+    if (e.life <= 0 || player.sanity >= 40) { fakeEnemies.splice(i, 1); continue; }
+    // 朝玩家缓慢漂移
+    const dx = player.x - e.x, dy = player.y - e.y;
+    const d  = Math.hypot(dx, dy);
+    if (d > 1) { e.x += (dx/d) * 0.6 * fd; e.y += (dy/d) * 0.6 * fd; }
+  }
+}
+
+function renderFakeEnemies() {
+  for (const e of fakeEnemies) {
+    ctx.globalAlpha = e.alpha * Math.min(1, e.life / 30);
+    renderCrawler(e);
+  }
+  ctx.globalAlpha = 1;
+}
+
+// ═══════════════════════════════════════════════════════════
+// ═══ SANITY SYSTEM ═════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+let sanityShakeCd = 0;
+let sanityFilterActive = false;
+
+function updateSanity(fd) {
+  const s = player.sanity;
+  updateSanityAudio(s);
+
+  if (s <= 0) { setGameState('mad'); return; }
+
+  // 70%以下：偶发屏幕抖动
+  if (s < 70) {
+    sanityShakeCd -= fd;
+    if (sanityShakeCd <= 0) {
+      screenShake = Math.max(screenShake, (70 - s) / 70 * 3);
+      sanityShakeCd = rnd(60, 180);
+    }
+    // 暗角脉冲
+    if (Math.random() < 0.003 * fd) {
+      const depth = 80 + (70 - s) * 2;
+      document.getElementById('vignette').style.boxShadow =
+        `inset 0 0 ${depth}px rgba(10,0,20,0.75)`;
+      setTimeout(() => {
+        document.getElementById('vignette').style.boxShadow =
+          'inset 0 0 80px rgba(5,0,15,0.5)';
+      }, 400);
+    }
+  }
+
+  // 10%以下：canvas CSS distortion
+  if (s < 10) {
+    const hue  = Math.sin(now * 0.001) * 25;
+    const blur = 0.5 + (10 - s) / 10 * 2;
+    document.getElementById('c').style.filter = `hue-rotate(${hue}deg) blur(${blur}px)`;
+    sanityFilterActive = true;
+  } else if (sanityFilterActive) {
+    document.getElementById('c').style.filter = 'none';
+    sanityFilterActive = false;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// ═══ WEAPON UPDATE (in game loop) ══════════════════════════
+// ═══════════════════════════════════════════════════════════
+function updateWeapons(fd) {
+  if (player.fireCooldown > 0) player.fireCooldown -= fd;
+  if (player.uvTimer > 0) { player.uvTimer -= fd; if (player.uvTimer <= 0) player.uvActive = false; }
+
+  // 换弹进度
+  if (player.reloading) {
+    player.reloadTimer -= fd;
+    const pct = clamp(1 - player.reloadTimer / player.reloadDur, 0, 1);
+    document.getElementById('reload-bar-fill').style.width = (pct * 100) + '%';
+    if (player.reloadTimer <= 0) {
+      const w = WEAPONS[player.wepIdx];
+      const need  = w.maxAmmo - w.ammo;
+      const avail = Math.min(need, w.reserveAmmo);
+      w.ammo += avail;
+      w.reserveAmmo -= avail;
+      player.reloading = false;
+      document.getElementById('reload-label').style.display = 'none';
+      document.getElementById('reload-bar-wrap').style.display = 'none';
+      document.getElementById('reload-bar-fill').style.width = '0%';
+    }
+  }
+
+  // 射击
+  if (mouse.down && !player.reloading) fireBullet();
+
+  // 武器切换 Q/E
+  if (keys['KeyQ']) { keys['KeyQ'] = false; cycleWeapon(-1); }
+  if (keys['KeyE']) { keys['KeyE'] = false; cycleWeapon(1); }
+  if (keys['Digit1']) { keys['Digit1']=false; setWeapon(0); }
+  if (keys['Digit2']) { keys['Digit2']=false; setWeapon(1); }
+  if (keys['Digit3']) { keys['Digit3']=false; setWeapon(2); }
+  if (keys['Digit4']) { keys['Digit4']=false; setWeapon(3); }
+
+  // 换弹键
+  if (keys['KeyR'] && !player.reloading) { keys['KeyR'] = false; tryReload(); }
+}
+
+function cycleWeapon(dir) {
+  setWeapon((player.wepIdx + dir + WEAPONS.length) % WEAPONS.length);
+}
+function setWeapon(idx) {
+  if (player.reloading) return;
+  player.wepIdx = idx;
+}
+
+
+// ═══════════════════════════════════════════════════════════
+// ═══ FLASHLIGHT SYSTEM ═════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+const FLASHLIGHT_LEN  = 300;
+const FLASHLIGHT_HALF = Math.PI / 5; // 36°半角 = 72°总锥角
+
+// 离屏 canvas 专门用来绘制遮罩层（destination-out 只在这里操作，不碰主 canvas）
+const maskCanvas = document.createElement('canvas');
+const maskCtx    = maskCanvas.getContext('2d');
+
+function resizeMask() {
+  maskCanvas.width  = canvas.width;
+  maskCanvas.height = canvas.height;
+}
+resizeMask();
+// resize 时同步
+window.addEventListener('resize', resizeMask);
+
+// 沿射线每隔一格采样，判断中间是否有墙壁
+function hasWallBetween(x1, y1, x2, y2) {
+  const dx = x2 - x1, dy = y2 - y1;
+  const steps = Math.ceil(Math.hypot(dx, dy) / (TILE_SIZE * 0.5));
+  for (let i = 1; i < steps; i++) {
+    const t  = i / steps;
+    const wx = x1 + dx * t;
+    const wy = y1 + dy * t;
+    if (tileAt(wx, wy) === 1) return true;
+  }
+  return false;
+}
+
+function isInFlashlightCone(wx, wy) {
+  const px = player.x, py = player.y;
+  const d  = Math.hypot(wx - px, wy - py);
+  if (d > FLASHLIGHT_LEN) return false;
+  const flashAngle = Math.atan2(mouse.worldY - py, mouse.worldX - px);
+  const toAngle    = Math.atan2(wy - py, wx - px);
+  if (Math.abs(angleDiff(toAngle, flashAngle)) >= FLASHLIGHT_HALF) return false;
+  // 墙壁遮挡检测
+  if (hasWallBetween(px, py, wx, wy)) return false;
+  return true;
+}
+
+function renderFlashlight() {
+  const px = player.x - cam.x;
+  const py = player.y - cam.y;
+  const angle = Math.atan2(mouse.worldY - player.y, mouse.worldX - player.x);
+
+  // ── 在离屏 canvas 上绘制遮罩 ──────────────────────────
+  maskCtx.clearRect(0, 0, maskCanvas.width, maskCanvas.height);
+
+  // 1. 先铺全黑
+  maskCtx.fillStyle = 'rgba(0,0,0,0.92)';
+  maskCtx.fillRect(0, 0, maskCanvas.width, maskCanvas.height);
+
+  // 2. destination-out：把光锥区域抠透明（不考虑墙，先整体挖）
+  maskCtx.globalCompositeOperation = 'destination-out';
+
+  maskCtx.beginPath();
+  maskCtx.moveTo(px, py);
+  maskCtx.arc(px, py, FLASHLIGHT_LEN, angle - FLASHLIGHT_HALF, angle + FLASHLIGHT_HALF);
+  maskCtx.closePath();
+  const grad = maskCtx.createRadialGradient(px, py, 0, px, py, FLASHLIGHT_LEN);
+  grad.addColorStop(0,    'rgba(0,0,0,1.0)');
+  grad.addColorStop(0.5,  'rgba(0,0,0,0.95)');
+  grad.addColorStop(0.82, 'rgba(0,0,0,0.5)');
+  grad.addColorStop(1.0,  'rgba(0,0,0,0.0)');
+  maskCtx.fillStyle = grad;
+  maskCtx.fill();
+
+  // 玩家周身小环境光
+  maskCtx.beginPath();
+  maskCtx.arc(px, py, 55, 0, Math.PI * 2);
+  const amb = maskCtx.createRadialGradient(px, py, 0, px, py, 55);
+  amb.addColorStop(0, 'rgba(0,0,0,0.7)');
+  amb.addColorStop(1, 'rgba(0,0,0,0.0)');
+  maskCtx.fillStyle = amb;
+  maskCtx.fill();
+
+  // 信号弹：额外照亮一片区域，形成短暂安全窗口
+  for (const fb of flareBlasts) {
+    const sx = fb.x - cam.x;
+    const sy = fb.y - cam.y;
+    const alpha = clamp(fb.life / fb.maxLife, 0, 1);
+    const g = maskCtx.createRadialGradient(sx, sy, 0, sx, sy, fb.radius);
+    g.addColorStop(0, `rgba(0,0,0,${0.95 * alpha})`);
+    g.addColorStop(0.45, `rgba(0,0,0,${0.7 * alpha})`);
+    g.addColorStop(1, 'rgba(0,0,0,0)');
+    maskCtx.beginPath();
+    maskCtx.arc(sx, sy, fb.radius, 0, Math.PI * 2);
+    maskCtx.fillStyle = g;
+    maskCtx.fill();
+  }
+
+  // 3. source-over：把墙tile区域重新填黑（遮挡穿墙光线）
+  maskCtx.globalCompositeOperation = 'source-over';
+  maskCtx.fillStyle = 'rgba(0,0,0,1)';
+
+  // 只检查光锥内可见范围内的tile
+  const ts   = TILE_SIZE;
+  const col0 = Math.floor((player.x - FLASHLIGHT_LEN) / ts);
+  const col1 = Math.ceil( (player.x + FLASHLIGHT_LEN) / ts);
+  const row0 = Math.floor((player.y - FLASHLIGHT_LEN) / ts);
+  const row1 = Math.ceil( (player.y + FLASHLIGHT_LEN) / ts);
+
+  for (let row = row0; row <= row1; row++) {
+    for (let col = col0; col <= col1; col++) {
+      if (tileAt(col * ts + ts * 0.5, row * ts + ts * 0.5) !== 1) continue;
+      // 这个tile是墙——检查它的四个角是否至少有一个在光锥内且无遮挡
+      // 简化：只要该tile中心在光锥扇形内就填黑（会略微保守，效果已足够）
+      const tcx = col * ts + ts * 0.5 - player.x;
+      const tcy = row * ts + ts * 0.5 - player.y;
+      const td  = Math.hypot(tcx, tcy);
+      if (td > FLASHLIGHT_LEN + ts) continue;
+      // 在屏幕坐标填黑该tile
+      const sx = col * ts - cam.x;
+      const sy = row * ts - cam.y;
+      maskCtx.fillRect(sx - 1, sy - 1, ts + 2, ts + 2);
+    }
+  }
+
+  // ── 把遮罩层合并到主 canvas ───────────────────────────
+  ctx.drawImage(maskCanvas, 0, 0);
+}
+
+// ═══════════════════════════════════════════════════════════
+// ═══ MAP RENDER ════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+function renderMap() {
+  const ts = TILE_SIZE;
+  const col0 = Math.floor(cam.x / ts);
+  const row0 = Math.floor(cam.y / ts);
+  const col1 = Math.ceil((cam.x + W) / ts);
+  const row1 = Math.ceil((cam.y + H) / ts);
+
+  for (let row = row0; row <= row1; row++) {
+    for (let col = col0; col <= col1; col++) {
+      if (row < 0 || row >= MAP_ROWS || col < 0 || col >= MAP_COLS) continue;
+      const tile = MAP[row][col];
+      const sx = col * ts - cam.x;
+      const sy = row * ts - cam.y;
+
+      if (tile === 0) {
+        // 地板
+        ctx.fillStyle = '#0c1018';
+        ctx.fillRect(sx, sy, ts, ts);
+        // 非常微弱的网格线
+        ctx.strokeStyle = 'rgba(255,255,255,0.025)';
+        ctx.lineWidth = 0.5;
+        ctx.strokeRect(sx, sy, ts, ts);
+      } else {
+        // 墙壁
+        ctx.fillStyle = '#181e28';
+        ctx.fillRect(sx, sy, ts, ts);
+        // 上边高光给立体感
+        ctx.fillStyle = '#1f2838';
+        ctx.fillRect(sx, sy, ts, 3);
+        // 左边高光
+        ctx.fillStyle = '#1a2030';
+        ctx.fillRect(sx, sy, 2, ts);
+        // 右/下暗边
+        ctx.fillStyle = '#0e1420';
+        ctx.fillRect(sx + ts - 2, sy, 2, ts);
+        ctx.fillRect(sx, sy + ts - 2, ts, 2);
+      }
+    }
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// ═══ HUD UPDATE ════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+function updateHUD(fd) {
+  // HP
+  const hpPct = clamp(player.hp / player.maxHp * 100, 0, 100);
+  document.getElementById('hp-fill').style.width = hpPct + '%';
+  const hpCol = hpPct < 30 ? '#e94560' : hpPct < 60 ? '#c07030' : '#c03040';
+  document.getElementById('hp-fill').style.background = hpCol;
+  document.getElementById('hp-text').textContent = Math.ceil(player.hp) + ' / ' + player.maxHp;
+
+  // 理智
+  const sanPct = clamp(player.sanity, 0, 100);
+  document.getElementById('san-fill').style.width = sanPct + '%';
+  const sanCol = sanPct < 20 ? '#601020'
+               : sanPct < 40 ? '#806020'
+               : sanPct < 70 ? '#6a7040'
+               : '#7b9e87';
+  document.getElementById('san-fill').style.background = sanCol;
+  // 理智<40时数字闪烁（显示假值）
+  let displaySan = Math.floor(sanPct);
+  if (sanPct < 40 && Math.random() < 0.015) {
+    displaySan = Math.floor(rnd(0, 100));
+  }
+  document.getElementById('san-text').textContent = displaySan;
+
+  // 武器 HUD
+  const w = WEAPONS[player.wepIdx];
+  document.getElementById('wep-name').textContent = w.name;
+  const ammoStr = w.ammo === Infinity ? '∞'
+                : w.id === 'uv' ? '∞'
+                : w.ammo + ' / ' + w.reserveAmmo;
+  const ammoEl = document.getElementById('wep-ammo');
+  ammoEl.textContent = ammoStr;
+  ammoEl.className = (w.ammo !== Infinity && w.ammo <= 2) ? 'low' : '';
+}
+
+// ═══════════════════════════════════════════════════════════
+// ═══ FLASH MESSAGE ═════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+let flashTimer = 0;
+function showFlash(msg, dur = 2000) {
+  const el = document.getElementById('flash-msg');
+  el.textContent = msg;
+  el.style.opacity = '1';
+  flashTimer = dur;
+}
+function tickFlash(dt) {
+  if (flashTimer <= 0) return;
+  flashTimer -= dt;
+  if (flashTimer <= 0) {
+    document.getElementById('flash-msg').style.opacity = '0';
+    flashTimer = 0;
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
+// ═══ RESET / INIT ══════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+function resetGame() {
+  screenShake = 0;
+  flashTimer  = 0;
+  fakeSpawnCd = 0;
+  sanityShakeCd = 0;
+  sanityFilterActive = false;
+  graceTimer = 300; // 5秒缓冲（300帧@60fps）
+  bullets = [];
+  flareBlasts = [];
+  particles = [];
+  fakeEnemies = [];
+  escapeRushActive = false;
+  escapeSpawnCd = 0;
+  // 重置武器弹药
+  WEAPONS[0].ammo = 6;  WEAPONS[0].reserveAmmo = 6;
+  WEAPONS[1].ammo = 0;  WEAPONS[1].reserveAmmo = 0;
+  WEAPONS[2].ammo = 1;  WEAPONS[2].reserveAmmo = 0;
+  document.getElementById('flash-msg').style.opacity = '0';
+  document.getElementById('c').style.filter = 'none';
+  document.getElementById('vignette').style.boxShadow = 'inset 0 0 80px rgba(5,0,15,0.5)';
+  document.getElementById('reload-label').style.display = 'none';
+  document.getElementById('reload-bar-wrap').style.display = 'none';
+  stopAmbientDrone();
+}
+
+// 开场缓冲计时器（>0时怪物冻结、不造成伤害）
+let graceTimer = 0;
+
+function startGame() {
+  resetGame();
+  initPlayer();
+  initItems();
+  initEnemies();
+  initAncientOne();
+  setGameState('playing');
+  startAmbientDrone();
+  // 开场提示序列
+  showFlash('研究站 B 区\n信号中断 — 你是最后一个清醒的人', 2800);
+}
+
+// ═══════════════════════════════════════════════════════════
+// ═══ GAME LOOP ═════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+let lastTime = 0;
+let needResetLastTime = true; // 每次从非playing切回playing时，强制跳过第一帧delta
+
+function loop(timestamp) {
+  requestAnimationFrame(loop);
+  now = timestamp;
+
+  if (gameState === 'title' || gameState === 'dead' || gameState === 'mad' || gameState === 'win') {
+    renderTitleBg(timestamp);
+    needResetLastTime = true;
+    return;
+  }
+  if (gameState === 'paused') {
+    needResetLastTime = true; // 暂停期间也标记
+    return;
+  }
+
+  // ── 帧率无关（第一帧强制用0 delta，避免瞬移）──────────
+  if (needResetLastTime) {
+    lastTime = timestamp;
+    needResetLastTime = false;
+    return; // 跳过第一帧的update，下一帧再正常算
+  }
+  const rawDelta = Math.min(timestamp - lastTime, 50);
+  lastTime       = timestamp;
+  const fd       = rawDelta / (1000 / 60);
+
+  // ── 阅读文件时暂停所有逻辑，仅保持画面 ───────────────
+  if (readingDoc) {
+    needResetLastTime = true; // 关弹窗后重置delta
+    ctx.save();
+    ctx.fillStyle = '#060a0f';
+    ctx.fillRect(0, 0, W, H);
+    renderMap(); renderItems(); renderBullets();
+    renderMonsters(); renderPlayer(); renderParticles();
+    renderFlashlight();
+    renderAncientOne(); // 在遮罩之后，不被黑暗遮住
+    ctx.restore();
+    return;
+  }
+
+  // ── UPDATE ────────────────────────────────────────────
+  // grace 期间怪物冻结，玩家可以自由移动探索
+  if (graceTimer > 0) graceTimer -= fd;
+
+  movePlayer(fd);
+  updateWeapons(fd);
+  updateBullets(fd);
+  updateFlareBlasts(fd);
+  if (graceTimer <= 0) {        // grace结束后才激活所有威胁
+    updateEscapeRush(fd);
+    updateMonsters(fd);
+    updateSanity(fd);
+    updateAncientOne(fd);
+    updateFakeEnemies(fd);
+  }
+  updateItems(fd);
+  updateParticles(fd);
+  tickFlash(rawDelta);
+
+  // ── 摄像机（跟随玩家，clamp到地图边界）──────────────
+  // 当地图比屏幕小时，居中显示而不是 clamp 到负值
+  cam.x = WORLD_W > W ? clamp(player.x - W / 2, 0, WORLD_W - W) : -(W - WORLD_W) / 2;
+  cam.y = WORLD_H > H ? clamp(player.y - H / 2, 0, WORLD_H - H) : -(H - WORLD_H) / 2;
+
+  // ── RENDER ───────────────────────────────────────────
+  ctx.save();
+
+  // 屏幕震动
+  if (screenShake > 0.5) {
+    ctx.translate(rnd(-screenShake, screenShake), rnd(-screenShake, screenShake));
+    screenShake *= 0.85;
+  } else {
+    screenShake = 0;
+  }
+
+  // 清屏
+  ctx.fillStyle = '#060a0f';
+  ctx.fillRect(0, 0, W, H);
+
+  // 世界元素（手电筒之前渲染）
+  renderMap();
+  renderItems();
+  renderBullets();
+  renderMonsters();
+  renderPlayer();
+  renderParticles();
+
+  // 手电筒遮罩（必须最后渲染）
+  renderFlashlight();
+
+  // 古老存在：在手电筒遮罩之后渲染，穿透黑暗直接显示在屏幕上
+  renderAncientOne();
+
+  // grace 期间：手电筒之上叠一层渐消黑幕 + 倒计时文字
+  if (graceTimer > 0) {
+    const fadeAlpha = clamp(graceTimer / 60, 0, 1); // 最后1秒淡出
+    // 黑幕（开场时全黑，随时间渐渐消散）
+    const blackAlpha = clamp((graceTimer - 60) / 180, 0, 0.85);
+    if (blackAlpha > 0) {
+      ctx.fillStyle = `rgba(0,0,0,${blackAlpha})`;
+      ctx.fillRect(0, 0, W, H);
+    }
+    // 倒计时文字（grace最后3秒显示）
+    const secLeft = Math.ceil(graceTimer / 60);
+    if (secLeft <= 3 && graceTimer > 0) {
+      const pulse = 0.6 + 0.4 * Math.sin(now * 0.008);
+      ctx.globalAlpha = fadeAlpha * pulse;
+      ctx.fillStyle   = '#806080';
+      ctx.font        = 'bold 13px Courier New';
+      ctx.textAlign   = 'center';
+      ctx.letterSpacing = '4px';
+      ctx.fillText('WARNING — 生命体探测到', W / 2, H / 2 - 16);
+      ctx.font      = 'bold 11px Courier New';
+      ctx.fillStyle = '#504060';
+      ctx.fillText('保持距离 · 关好手电筒 · 不要出声', W / 2, H / 2 + 12);
+      ctx.globalAlpha = 1;
+    }
+  }
+
+  ctx.restore();
+
+  // DOM HUD（不在canvas上）
+  updateHUD(fd);
+}
+
+// ─── 标题背景动画（缓慢飘动的粒子/雾气）──────────────────
+let titleParticles = [];
+for (let i = 0; i < 60; i++) {
+  titleParticles.push({
+    x: Math.random(), y: Math.random(),
+    size: rnd(1, 4),
+    speed: rnd(0.00005, 0.00015),
+    alpha: rnd(0.05, 0.25),
+    drift: rnd(-0.00005, 0.00005),
+  });
+}
+function renderTitleBg(t) {
+  ctx.fillStyle = '#020408';
+  ctx.fillRect(0, 0, W, H);
+  for (const p of titleParticles) {
+    p.y -= p.speed;
+    p.x += p.drift;
+    if (p.y < 0) { p.y = 1; p.x = Math.random(); }
+    ctx.globalAlpha = p.alpha * (0.5 + 0.5 * Math.sin(t * 0.001 + p.x * 10));
+    ctx.fillStyle = '#6050a0';
+    ctx.beginPath();
+    ctx.arc(p.x * W, p.y * H, p.size, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  ctx.globalAlpha = 1;
+}
+
+// ─── 初始状态 ─────────────────────────────────────────────
+setGameState('title');
+requestAnimationFrame(loop);
+</script>
+</body>
+</html>

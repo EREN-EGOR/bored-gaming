@@ -1,0 +1,573 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>空格跳跃</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #0d0d1a;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    height: 100vh;
+    font-family: 'Segoe UI', Arial, sans-serif;
+    color: #fff;
+    overflow: hidden;
+    user-select: none;
+  }
+
+  h1 {
+    font-size: 22px;
+    letter-spacing: 6px;
+    color: #a78bfa;
+    margin-bottom: 8px;
+    text-shadow: 0 0 20px #a78bfa88;
+  }
+
+  #hud {
+    display: flex;
+    gap: 50px;
+    margin-bottom: 10px;
+    font-size: 15px;
+    color: #c4b5fd;
+  }
+  #hud span { color: #fde68a; font-weight: bold; font-size: 18px; }
+
+  canvas {
+    border: 2px solid #4c1d95;
+    border-radius: 8px;
+    box-shadow: 0 0 40px #7c3aed55, 0 0 80px #7c3aed22;
+    background: #0a0a18;
+  }
+
+  #hint {
+    margin-top: 12px;
+    font-size: 13px;
+    color: #7c6fb0;
+    letter-spacing: 2px;
+  }
+
+  #combo-display {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    pointer-events: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 60px;
+    font-weight: bold;
+    color: #fde68a;
+    text-shadow: 0 0 30px #fde68a;
+    opacity: 0;
+    transition: opacity 0.3s;
+    z-index: 10;
+  }
+</style>
+</head>
+<body>
+
+<h1>◈ 空格跳跃 ◈</h1>
+<div id="hud">
+  得分 <span id="score">0</span>
+  &nbsp;&nbsp;最高 <span id="best">0</span>
+  &nbsp;&nbsp;连击 <span id="combo">x1</span>
+</div>
+<canvas id="c" width="480" height="240"></canvas>
+<div id="hint">按 空格键 开始 / 跳跃</div>
+<div id="combo-display" id="combo-display"></div>
+
+<script>
+const canvas = document.getElementById('c');
+const ctx = canvas.getContext('2d');
+const W = canvas.width, H = canvas.height;
+
+// ─── 常量 ──────────────────────────────────────────────
+const GROUND_Y = H - 40;
+const PLAYER_X = 80;
+const GRAVITY = 0.55;
+const JUMP_V = -11;
+const DOUBLE_JUMP_V = -10;
+const BASE_SPEED = 3.2;
+const MAX_SPEED = 6.8;
+
+// ─── 状态 ──────────────────────────────────────────────
+let state = 'idle'; // idle | playing | dead
+let score = 0, best = 0, combo = 1, frameCount = 0;
+let speed = BASE_SPEED;
+const NOMINAL_FRAME_MS = 1000 / 60;
+let lastTimestamp = 0;
+
+// ─── 玩家 ──────────────────────────────────────────────
+let player = {};
+function resetPlayer() {
+  player = {
+    x: PLAYER_X, y: GROUND_Y - 28,
+    vy: 0,
+    w: 24, h: 28,
+    onGround: true,
+    jumpsLeft: 2,     // 支持二段跳
+    trail: [],
+    squish: 1,        // 落地挤压效果
+    color: '#a78bfa',
+    glow: 0,
+  };
+}
+
+// ─── 障碍物 ────────────────────────────────────────────
+let obstacles = [];
+let lastObstacleX = W;
+
+function spawnObstacle() {
+  const types = [
+    // 矮墙
+    { w: 18, h: 30, y: GROUND_Y - 30, color: '#ef4444' },
+    // 高墙
+    { w: 18, h: 50, y: GROUND_Y - 50, color: '#f97316' },
+    // 浮空块（需跳跃穿过下方）
+    { w: 60, h: 14, y: GROUND_Y - 90, color: '#06b6d4', floating: true },
+    // 双障碍
+    { w: 18, h: 35, y: GROUND_Y - 35, color: '#ec4899', extra: { w: 18, h: 20, y: GROUND_Y - 80 } },
+  ];
+  // 根据分数决定类型池
+  let pool = score < 5 ? [types[0]] :
+             score < 15 ? [types[0], types[1]] :
+             score < 30 ? [types[0], types[1], types[2]] : types;
+
+  const t = pool[Math.floor(Math.random() * pool.length)];
+  const obs = {
+    x: W + 20,
+    y: t.y,
+    w: t.w,
+    h: t.h,
+    color: t.color,
+    floating: !!t.floating,
+    passed: false,
+  };
+  obstacles.push(obs);
+  if (t.extra) {
+    obstacles.push({
+      x: W + 20,
+      y: t.extra.y || GROUND_Y - t.extra.h,
+      w: t.extra.w,
+      h: t.extra.h,
+      color: t.color,
+      floating: false,
+      passed: false,
+      linked: true,
+    });
+  }
+}
+
+// ─── 背景星星 ──────────────────────────────────────────
+const stars = Array.from({ length: 60 }, () => ({
+  x: Math.random() * W,
+  y: Math.random() * (GROUND_Y - 20),
+  r: Math.random() * 1.5 + 0.3,
+  speed: Math.random() * 0.5 + 0.1,
+  alpha: Math.random() * 0.7 + 0.3,
+}));
+
+// ─── 粒子 ──────────────────────────────────────────────
+let particles = [];
+function spawnParticles(x, y, color, n = 8) {
+  for (let i = 0; i < n; i++) {
+    particles.push({
+      x, y,
+      vx: (Math.random() - 0.5) * 4,
+      vy: Math.random() * -4 - 1,
+      life: 1,
+      color,
+      r: Math.random() * 4 + 2,
+    });
+  }
+}
+
+// ─── 地面装饰线 ────────────────────────────────────────
+let groundLines = Array.from({ length: 12 }, (_, i) => ({
+  x: i * (W / 11),
+  speed: 1,
+}));
+
+// ─── 输入 ──────────────────────────────────────────────
+let justPressed = false;
+document.addEventListener('keydown', e => {
+  if (e.code === 'Space' || e.key === ' ') {
+    e.preventDefault();
+    handleInput();
+  }
+});
+canvas.addEventListener('click', handleInput);
+canvas.addEventListener('touchstart', e => { e.preventDefault(); handleInput(); }, { passive: false });
+
+function handleInput() {
+  if (state === 'idle' || state === 'dead') {
+    startGame();
+  } else if (state === 'playing') {
+    jump();
+  }
+}
+
+function jump() {
+  if (player.jumpsLeft > 0) {
+    if (player.jumpsLeft === 2) {
+      player.vy = JUMP_V;
+      spawnParticles(player.x + player.w / 2, player.y + player.h, '#a78bfa', 6);
+    } else {
+      // 二段跳，特效更亮
+      player.vy = DOUBLE_JUMP_V;
+      player.glow = 15;
+      spawnParticles(player.x + player.w / 2, player.y + player.h / 2, '#fde68a', 10);
+    }
+    player.jumpsLeft--;
+    player.onGround = false;
+    player.squish = 0.75;
+  }
+}
+
+// ─── 游戏启动 ──────────────────────────────────────────
+function startGame() {
+  state = 'playing';
+  score = 0; combo = 1; frameCount = 0;
+  speed = BASE_SPEED;
+  lastTimestamp = 0;
+  obstacles = [];
+  particles = [];
+  lastObstacleX = W;
+  resetPlayer();
+  updateHUD();
+  document.getElementById('hint').textContent = '空格 / 点击 跳跃 · 支持二段跳';
+}
+
+// ─── 碰撞检测 ──────────────────────────────────────────
+function rectsOverlap(a, b, margin = 3) {
+  return a.x + margin < b.x + b.w &&
+         a.x + a.w - margin > b.x &&
+         a.y + margin < b.y + b.h &&
+         a.y + a.h - margin > b.y;
+}
+
+// ─── HUD 更新 ──────────────────────────────────────────
+function updateHUD() {
+  document.getElementById('score').textContent = score;
+  document.getElementById('best').textContent = best;
+  document.getElementById('combo').textContent = 'x' + combo;
+}
+
+// ─── 连击提示 ──────────────────────────────────────────
+let comboPop = null;
+function showComboPop(text) {
+  const el = document.getElementById('combo-display');
+  el.textContent = text;
+  el.style.opacity = '1';
+  clearTimeout(comboPop);
+  comboPop = setTimeout(() => { el.style.opacity = '0'; }, 600);
+}
+
+// ─── 主更新 ────────────────────────────────────────────
+function update(dt = 1) {
+  if (state !== 'playing') return;
+  frameCount += dt;
+
+  // 速度随分数提升
+  // 速度提升更平滑，给玩家更多反应时间
+  speed = Math.min(MAX_SPEED, BASE_SPEED + score * 0.035);
+
+  // ── 玩家物理 ──
+  player.vy += GRAVITY * dt;
+  player.y += player.vy * dt;
+
+  // 落地
+  if (player.y >= GROUND_Y - player.h) {
+    player.y = GROUND_Y - player.h;
+    player.vy = 0;
+    player.onGround = true;
+    player.jumpsLeft = 2;
+    if (player.squish < 1) {
+      player.squish = 0.8;
+      spawnParticles(player.x + player.w / 2, player.y + player.h, '#a78bfa', 3);
+    }
+  }
+
+  // 挤压恢复
+  player.squish += (1 - player.squish) * (0.2 * dt);
+  player.glow = Math.max(0, player.glow - dt);
+
+  // 拖尾
+  player.trail.push({ x: player.x + player.w / 2, y: player.y + player.h / 2 });
+  if (player.trail.length > 8) player.trail.shift();
+
+  // ── 障碍物 ──
+  // 生成间距随速度调整
+  const minGap = Math.round(220 - speed * 6);
+  const maxGap = Math.round(350 - speed * 4);
+  const lastX = obstacles.length ? obstacles[obstacles.length - 1].x : 0;
+  const gap = W - lastX;
+  const spawnChance = 1 - Math.pow(1 - 0.013, dt);
+  if (obstacles.length === 0 || gap > maxGap || (gap > minGap && Math.random() < spawnChance)) {
+    spawnObstacle();
+  }
+
+  for (let i = obstacles.length - 1; i >= 0; i--) {
+    const obs = obstacles[i];
+    obs.x -= speed * dt;
+
+    // 穿越得分
+    if (!obs.passed && !obs.linked && obs.x + obs.w < player.x) {
+      obs.passed = true;
+      score++;
+      combo++;
+      if (combo >= 5 && combo % 5 === 0) showComboPop('🔥 x' + combo + ' 连击！');
+      best = Math.max(best, score);
+      updateHUD();
+      spawnParticles(player.x + player.w / 2, player.y, '#fde68a', 4);
+    }
+
+    // 碰撞
+    if (rectsOverlap(player, obs)) {
+      die();
+      return;
+    }
+
+    if (obs.x + obs.w < 0) obstacles.splice(i, 1);
+  }
+
+  // ── 粒子 ──
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p.x += p.vx * dt;
+    p.y += p.vy * dt;
+    p.vy += 0.15 * dt;
+    p.life -= 0.04 * dt;
+    if (p.life <= 0) particles.splice(i, 1);
+  }
+
+  // ── 星星滚动 ──
+  stars.forEach(s => {
+    s.x -= s.speed * (speed / BASE_SPEED) * dt;
+    if (s.x < 0) s.x = W;
+  });
+
+  // ── 地面线 ──
+  groundLines.forEach(l => {
+    l.x -= speed * dt;
+    if (l.x < 0) l.x += W;
+  });
+}
+
+// ─── 死亡 ──────────────────────────────────────────────
+function die() {
+  state = 'dead';
+  combo = 1;
+  spawnParticles(player.x + player.w / 2, player.y + player.h / 2, '#ef4444', 20);
+  document.getElementById('hint').textContent = '按 空格键 重新开始';
+  updateHUD();
+}
+
+// ─── 绘制 ──────────────────────────────────────────────
+function draw() {
+  ctx.clearRect(0, 0, W, H);
+
+  // 背景渐变
+  const bg = ctx.createLinearGradient(0, 0, 0, H);
+  bg.addColorStop(0, '#080818');
+  bg.addColorStop(1, '#0f0f25');
+  ctx.fillStyle = bg;
+  ctx.fillRect(0, 0, W, H);
+
+  // 星星
+  stars.forEach(s => {
+    ctx.globalAlpha = s.alpha * (0.7 + 0.3 * Math.sin(frameCount * 0.03 + s.x));
+    ctx.fillStyle = '#fff';
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+    ctx.fill();
+  });
+  ctx.globalAlpha = 1;
+
+  // 地面
+  ctx.fillStyle = '#1e1b4b';
+  ctx.fillRect(0, GROUND_Y, W, H - GROUND_Y);
+  ctx.strokeStyle = '#4c1d95';
+  ctx.lineWidth = 1.5;
+  ctx.beginPath(); ctx.moveTo(0, GROUND_Y); ctx.lineTo(W, GROUND_Y); ctx.stroke();
+
+  // 地面装饰线（虚线感）
+  ctx.strokeStyle = '#2d2060';
+  ctx.lineWidth = 1;
+  groundLines.forEach(l => {
+    ctx.beginPath();
+    ctx.moveTo(l.x, GROUND_Y + 8);
+    ctx.lineTo(l.x + 20, GROUND_Y + 8);
+    ctx.stroke();
+  });
+
+  // 障碍物
+  obstacles.forEach(obs => {
+    // 发光效果
+    ctx.shadowColor = obs.color;
+    ctx.shadowBlur = 10;
+    ctx.fillStyle = obs.color;
+    ctx.fillRect(obs.x, obs.y, obs.w, obs.h);
+    // 高光
+    ctx.shadowBlur = 0;
+    ctx.fillStyle = 'rgba(255,255,255,0.15)';
+    ctx.fillRect(obs.x + 2, obs.y + 2, 4, obs.h - 4);
+    // 浮空块加横线
+    if (obs.floating) {
+      ctx.fillStyle = 'rgba(255,255,255,0.3)';
+      ctx.fillRect(obs.x, obs.y + obs.h / 2 - 1, obs.w, 2);
+    }
+  });
+  ctx.shadowBlur = 0;
+
+  // 粒子
+  particles.forEach(p => {
+    ctx.globalAlpha = p.life;
+    ctx.fillStyle = p.color;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, p.r * p.life, 0, Math.PI * 2);
+    ctx.fill();
+  });
+  ctx.globalAlpha = 1;
+
+  // 玩家拖尾
+  player.trail.forEach((t, i) => {
+    const alpha = (i / player.trail.length) * 0.3;
+    ctx.globalAlpha = alpha;
+    ctx.fillStyle = '#a78bfa';
+    const s = (i / player.trail.length) * player.w * 0.5;
+    ctx.fillRect(t.x - s / 2, t.y - s / 2, s, s);
+  });
+  ctx.globalAlpha = 1;
+
+  // 玩家（带二段跳发光 + 挤压动画）
+  const pw = player.w * (2 - player.squish);
+  const ph = player.h * player.squish;
+  const px = player.x - (pw - player.w) / 2;
+  const py = player.y + (player.h - ph);
+
+  if (player.glow > 0) {
+    ctx.shadowColor = '#fde68a';
+    ctx.shadowBlur = player.glow * 3;
+  } else {
+    ctx.shadowColor = '#a78bfa';
+    ctx.shadowBlur = 12;
+  }
+
+  // 玩家身体（圆角矩形）
+  ctx.fillStyle = player.glow > 0 ? '#fde68a' : '#a78bfa';
+  roundRect(ctx, px, py, pw, ph, 5);
+  ctx.fill();
+
+  // 眼睛
+  ctx.shadowBlur = 0;
+  ctx.fillStyle = '#0a0a18';
+  const eyeY = py + ph * 0.28;
+  ctx.beginPath(); ctx.arc(px + pw * 0.62, eyeY, 3, 0, Math.PI * 2); ctx.fill();
+  // 眨眼（每120帧）
+  if (frameCount % 120 < 5) {
+    ctx.fillStyle = '#a78bfa';
+    ctx.fillRect(px + pw * 0.62 - 3, eyeY - 1, 6, 2);
+  }
+
+  ctx.globalAlpha = 1;
+  ctx.shadowBlur = 0;
+
+  // 死亡叠层
+  if (state === 'dead') {
+    ctx.fillStyle = 'rgba(10,5,20,0.6)';
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.fillStyle = '#ef4444';
+    ctx.shadowColor = '#ef4444';
+    ctx.shadowBlur = 20;
+    ctx.font = 'bold 32px Segoe UI';
+    ctx.textAlign = 'center';
+    ctx.fillText('× GAME OVER ×', W / 2, H / 2 - 20);
+    ctx.shadowBlur = 0;
+
+    ctx.fillStyle = '#fde68a';
+    ctx.font = '16px Segoe UI';
+    ctx.fillText('得分  ' + score + '   最高  ' + best, W / 2, H / 2 + 14);
+
+    ctx.fillStyle = '#a78bfa88';
+    ctx.font = '13px Segoe UI';
+    ctx.fillText('按空格键 / 点击重新开始', W / 2, H / 2 + 42);
+    ctx.textAlign = 'left';
+  }
+
+  // 开始叠层
+  if (state === 'idle') {
+    ctx.fillStyle = 'rgba(10,5,20,0.5)';
+    ctx.fillRect(0, 0, W, H);
+
+    ctx.fillStyle = '#a78bfa';
+    ctx.shadowColor = '#a78bfa';
+    ctx.shadowBlur = 25;
+    ctx.font = 'bold 30px Segoe UI';
+    ctx.textAlign = 'center';
+    ctx.fillText('◈  空格跳跃  ◈', W / 2, H / 2 - 18);
+    ctx.shadowBlur = 0;
+
+    ctx.fillStyle = '#c4b5fd';
+    ctx.font = '14px Segoe UI';
+    ctx.fillText('按 空格键 / 点击 开始', W / 2, H / 2 + 14);
+    ctx.fillStyle = '#7c6fb0';
+    ctx.font = '12px Segoe UI';
+    ctx.fillText('支持二段跳 · 躲开障碍物 · 刷高分', W / 2, H / 2 + 36);
+    ctx.textAlign = 'left';
+  }
+
+  // 速度进度条（右上角）
+  if (state === 'playing') {
+    const barW = 60, barH = 5;
+    const bx = W - barW - 8, by = 8;
+    const ratio = (speed - BASE_SPEED) / (MAX_SPEED - BASE_SPEED);
+    ctx.fillStyle = '#1e1b4b';
+    ctx.fillRect(bx, by, barW, barH);
+    ctx.fillStyle = `hsl(${270 - ratio * 130}, 80%, 65%)`;
+    ctx.fillRect(bx, by, barW * ratio, barH);
+    ctx.fillStyle = '#7c6fb088';
+    ctx.font = '9px Segoe UI';
+    ctx.fillText('SPEED', bx, by - 2);
+  }
+}
+
+// 圆角矩形辅助
+function roundRect(ctx, x, y, w, h, r) {
+  ctx.beginPath();
+  ctx.moveTo(x + r, y);
+  ctx.lineTo(x + w - r, y);
+  ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+  ctx.lineTo(x + w, y + h - r);
+  ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+  ctx.lineTo(x + r, y + h);
+  ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+  ctx.lineTo(x, y + r);
+  ctx.quadraticCurveTo(x, y, x + r, y);
+  ctx.closePath();
+}
+
+// ─── 游戏循环 ──────────────────────────────────────────
+function loop(timestamp) {
+  let dt = 1;
+  if (lastTimestamp) {
+    const deltaMs = timestamp - lastTimestamp;
+    // 把时间步长规范到 60FPS，避免高刷新率“加速”游戏
+    dt = Math.max(0.5, Math.min(2, deltaMs / NOMINAL_FRAME_MS));
+  }
+  lastTimestamp = timestamp;
+  update(dt);
+  draw();
+  requestAnimationFrame(loop);
+}
+
+// 初始化
+resetPlayer();
+loop();
+</script>
+</body>
+</html>
