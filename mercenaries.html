@@ -231,7 +231,7 @@ var CHARS = {
     name:'ROSE', type:'霉菌 / 念动型',
     color:0x2d2436, headColor:0xe0c0a2, hp:118, speed:5.9,
     weapons:[
-      {name:'MOLD SWARM',kind:'moldsmg',damage:6,rate:.115,range:25,ammo:120,auto:true,staggerBonus:.72},
+      {name:'MOLD SWARM',kind:'moldsmg',damage:6,rate:.115,range:25,ammo:120,auto:true,staggerBonus:1.0},
       {name:'MOLD WHIP',kind:'whip',damage:14,rate:.58,range:6.2,ammo:-1,auto:true,arc:.82,staggerBonus:.86,slow:2.0,slowMul:.64}
     ],
     skill:{name:'MOLD PHASE',cd:24,dur:7,desc:'进入霉菌形态，暂时无敌并大幅提升攻击速度'},
@@ -287,7 +287,7 @@ var FIN_CFG = {
   },
   rose:{
     wu:.24,st:.28,re:.34,
-    aoe:{radius:4.1,falloff:.72,knock:3.3},
+    aoe:{radius:4.8,falloff:.78,knock:5.0},
     cam:{back:1.78,side:1.16,rise:.44,orbit:.42,look:8.8,fovIn:63,fovHit:51}
   }
 };
@@ -413,6 +413,9 @@ var MAP_WALK_RAMPS=[];
 var MAP_WINDOWS=[];
 var playerLayer='ground';
 var playerAction=null;
+var PLAYER_COLLIDER_R=.31;
+var PLAYER_COLLIDER_R_TIGHT=.25;
+var ENEMY_COLLIDER_R=.4;
 // 层高度与模型顶面保持一致，避免人物“站进模型里”
 var ROOF_Y=4.64;
 var TOWER_Y=7.34;
@@ -459,6 +462,29 @@ function moveWithMapCollision(pos,delta,radius,layer){
   p.x+=delta.x;resolveMapCollision(p,radius,layer);
   p.z+=delta.z;resolveMapCollision(p,radius,layer);
   return p;
+}
+
+function movePlayerWithSqueeze(pos,delta,layer){
+  var stepLen=delta.length();
+  if(stepLen<1e-6)return pos.clone();
+  var normal=moveWithMapCollision(pos,delta,PLAYER_COLLIDER_R,layer);
+  var movedNormal=normal.distanceTo(pos);
+  if(movedNormal>=stepLen*.34)return normal;
+
+  // 细缝兜底：移动明显受阻时，临时收窄半径尝试通过
+  var tight=moveWithMapCollision(pos,delta,PLAYER_COLLIDER_R_TIGHT,layer);
+  var movedTight=tight.distanceTo(pos);
+  if(movedTight>movedNormal+1e-4)return tight;
+
+  // 轴向补偿，避免斜向挤缝时卡角
+  var xFirst=moveWithMapCollision(pos,new THREE.Vector3(delta.x,0,0),PLAYER_COLLIDER_R_TIGHT,layer);
+  xFirst=moveWithMapCollision(xFirst,new THREE.Vector3(0,0,delta.z),PLAYER_COLLIDER_R_TIGHT,layer);
+  var zFirst=moveWithMapCollision(pos,new THREE.Vector3(0,0,delta.z),PLAYER_COLLIDER_R_TIGHT,layer);
+  zFirst=moveWithMapCollision(zFirst,new THREE.Vector3(delta.x,0,0),PLAYER_COLLIDER_R_TIGHT,layer);
+  var movedXF=xFirst.distanceTo(pos),movedZF=zFirst.distanceTo(pos);
+  if(movedXF>=movedZF&&movedXF>movedNormal)return xFirst;
+  if(movedZF>movedNormal)return zFirst;
+  return normal;
 }
 
 /* ================================================================
@@ -736,7 +762,7 @@ function buildMap(){
   function addBlock(x,y,z,sx,sy,sz,c,solid,layer){
     var m=new THREE.Mesh(new THREE.BoxGeometry(sx,sy,sz),lm(c||0x7a6a50));
     m.position.set(x,y,z);m.castShadow=true;m.receiveShadow=true;scene.add(m);
-    if(solid!==false&&sy>.2)addMapCollider(x,z,sx,sz,.18,layer||'ground');
+    if(solid!==false&&sy>.2)addMapCollider(x,z,sx,sz,.1,layer||'ground');
     return m;
   }
   function addHouse(x,z,w,d,h,tint){
@@ -1353,7 +1379,11 @@ function fireHitscan(origin,dir,wp,stats){
     if((wp.kind==='pistol'||wp.kind==='smg'||wp.kind==='moldsmg')&&z==='head')dmg*=.58; // 体术启动器，弱化直接爆头斩杀
     if((wp.kind==='pistol'||wp.kind==='smg'||wp.kind==='moldsmg')&&z==='body')dmg*=.9;
     if(wp.kind==='bow'&&wp.bowCharge&&wp.bowCharge>=2.3&&z==='head'&&en.tk==='chainsaw')dmg=9999;
-    hitEnemy(en,dmg,h.point,z,(wp.staggerBonus||1));
+    var staggerMul=(wp.staggerBonus||1);
+    if(currentChar==='rose'&&wp.kind==='moldsmg'&&z==='leg'){
+      staggerMul*=1.28;
+    }
+    hitEnemy(en,dmg,h.point,z,staggerMul);
     if(wp.kind==='bow'&&wp.bowCharge&&wp.bowCharge<1.25&&en.state==='chase'&&en.hp>0){
       // 轻蓄力箭作为体术/处决启动器
       doStagger(en,z==='leg'?'leg':'head');
@@ -1384,6 +1414,7 @@ function fireGrenade(origin,dir,wp,stats){
     mesh:mesh,
     vel:vel,
     life:1.15,
+    layer:playerLayer||'ground',
     damage:stats.damage,
     radius:(wp.blast||3.0)*(skillActive&&skillActive.id==='hunk'?1.2:1)
   });
@@ -1409,6 +1440,7 @@ function fireRocket(origin,dir,wp,stats){
     mesh:mesh,
     vel:dir.clone().multiplyScalar(24),
     life:1.3,
+    layer:playerLayer||'ground',
     damage:stats.damage,
     radius:(wp.blast||4.6)*(skillActive&&skillActive.id==='jill'?1.15:1)
   });
@@ -1417,10 +1449,11 @@ function fireRocket(origin,dir,wp,stats){
 function explodeGrenade(point,damage,radius){
   enemies.slice().forEach(function(en){
     if(en.state==='dying')return;
-    var d=en.mesh.position.distanceTo(point);
+    var center=getEnemyHitCenter(en);
+    var d=center.distanceTo(point);
     if(d>radius)return;
     var fall=1-d/Math.max(radius,.001);
-    hitEnemy(en,damage*Math.max(.35,fall),en.mesh.position.clone().setY(.9),'body',1.2);
+    hitEnemy(en,damage*Math.max(.35,fall),center.clone(),'body',1.2);
     var push=en.mesh.position.clone().sub(point);push.y=0;
     if(push.lengthSq()<1e-4)push.set(Math.random()-.5,0,Math.random()-.5);
     push.normalize();en.mesh.position.addScaledVector(push,1.4*fall);
@@ -2122,6 +2155,10 @@ function applyFinisherImpact(fa){
   if(!fa||!fa.cfg)return;
   var c=CHARS[fa.charId],aoe=fa.cfg.aoe||{radius:2.6,falloff:.5,knock:2.2};
   var center=(fa.enemy&&fa.enemy.mesh)?fa.enemy.mesh.position.clone():player.position.clone();
+  if(fa.charId==='rose'&&player){
+    var pf=getPlayerPlanarForward();
+    center=player.position.clone().addScaledVector(pf,1.25);
+  }
   enemies.slice().forEach(function(en){
     if(en.state==='dying')return;
     var d=en.mesh.position.distanceTo(center);
@@ -2142,11 +2179,26 @@ function applyFinisherImpact(fa){
     if(en.hp<=0){killEnemy(en);return;}
 
     en.state='stagger';
-    en.staggerTimer=Math.max(en.staggerTimer||0,1.45);
+    en.staggerTimer=Math.max(en.staggerTimer||0,(fa.charId==='rose'?1.85:1.45));
     var push=en.mesh.position.clone().sub(center);push.y=0;
     if(push.lengthSq()<1e-4)push.set(Math.random()-.5,0,Math.random()-.5);
     push.normalize();
-    en.mesh.position.addScaledVector(push,aoe.knock);
+    var pushDist=aoe.knock;
+    if(fa.charId==='rose'){
+      var edgeR=clamp01(1-d/Math.max(aoe.radius,.01));
+      pushDist=Math.max(3.2,aoe.knock*Math.max(.58,edgeR));
+      if(en!==fa.enemy)pushDist*=1.15;
+    }
+    var layer=en.layer||'ground';
+    var pushDelta=push.clone().multiplyScalar(pushDist);
+    var next=moveWithMapCollision(en.mesh.position,pushDelta,ENEMY_COLLIDER_R,layer);
+    var moved=next.distanceTo(en.mesh.position);
+    if(fa.charId==='rose'&&moved<pushDist*.32){
+      // 墙角兜底：主方向被挡时，加一点横向滑推，保证“震退”可见
+      var side=new THREE.Vector3(push.z,0,-push.x).multiplyScalar((Math.random()<.5?-1:1)*pushDist*.55);
+      next=moveWithMapCollision(en.mesh.position,pushDelta.add(side),ENEMY_COLLIDER_R,layer);
+    }
+    en.mesh.position.copy(next);
     fxHit(en.mesh.position.clone().setY(.9),0xffcc66,7);
   });
 }
@@ -3415,7 +3467,7 @@ function getAdaGrappleWallPoint(maxDist){
     }
     if(!hit)continue;
     var target=new THREE.Vector3(sx-dir.x*.95,player.position.y,sz-dir.z*.95);
-    var safe=moveWithMapCollision(player.position,new THREE.Vector3().subVectors(target,player.position),.42,playerLayer);
+    var safe=movePlayerWithSqueeze(player.position,new THREE.Vector3().subVectors(target,player.position),playerLayer);
     if(safe.distanceTo(player.position)>1.15)return safe;
     break;
   }
@@ -3429,7 +3481,7 @@ function doAdaShiftSkill(){
     // 没有墙体命中时，保底做短位移
     var sinY=Math.sin(camYaw),cosY=Math.cos(camYaw);
     var dir=new THREE.Vector3(-sinY,0,-cosY);
-    best=moveWithMapCollision(start,dir.multiplyScalar(3.8),.42,playerLayer);
+    best=movePlayerWithSqueeze(start,dir.multiplyScalar(3.8),playerLayer);
   }
   player.position.copy(best);
   player.position.x=Math.max(-32,Math.min(32,player.position.x));
@@ -3540,9 +3592,63 @@ function tickCrosshair(dt){
   }
 }
 
+function getEnemyHitRadius(en){
+  var s=(en&&en.data&&en.data.scale)||1;
+  return (en&&en.tk==='chainsaw'?0.95:0.78)*s;
+}
+
+function getEnemyHitCenter(en){
+  var s=(en&&en.data&&en.data.scale)||1;
+  var h=en&&en.tk==='chainsaw'?1.08:0.92;
+  return en.mesh.position.clone().setY(h*s);
+}
+
+function sweepHitEnemy(from,to,en,inflate){
+  if(!en||en.state==='dying'||!en.mesh)return null;
+  var seg=to.clone().sub(from);
+  var lenSq=seg.lengthSq();
+  var center=getEnemyHitCenter(en);
+  var t=0;
+  if(lenSq>1e-6){
+    var toCenter=center.clone().sub(from);
+    t=THREE.MathUtils.clamp(toCenter.dot(seg)/lenSq,0,1);
+  }
+  var point=from.clone().addScaledVector(seg,t);
+  var r=getEnemyHitRadius(en)+(inflate||0);
+  if(point.distanceToSquared(center)<=r*r){
+    return point;
+  }
+  return null;
+}
+
+function isProjectileBlockedAt(pos,projRadius,layer){
+  if(pos.y<=.12)return true;
+  var useLayer=layer||'ground';
+  for(var i=0;i<MAP_COLLIDERS.length;i++){
+    var c=MAP_COLLIDERS[i];
+    if(c.layer!=='all'&&c.layer!==useLayer)continue;
+    if(pos.x>=c.minX-projRadius&&pos.x<=c.maxX+projRadius&&
+       pos.z>=c.minZ-projRadius&&pos.z<=c.maxZ+projRadius){
+      return true;
+    }
+  }
+  return false;
+}
+
+function sweepHitMap(from,to,projRadius,layer){
+  var steps=Math.max(2,Math.ceil(from.distanceTo(to)/0.33));
+  for(var i=1;i<=steps;i++){
+    var t=i/steps;
+    var p=from.clone().lerp(to,t);
+    if(isProjectileBlockedAt(p,projRadius,layer))return p;
+  }
+  return null;
+}
+
 function tickProjectiles(dt){
   for(var i=projectiles.length-1;i>=0;i--){
     var p=projectiles[i];
+    var prevPos=p.mesh.position.clone();
     p.life-=dt;
     if(p.kind!=='rpg'){
       p.vel.y-=15*dt;
@@ -3553,14 +3659,21 @@ function tickProjectiles(dt){
       p.vel.multiplyScalar(.45);
       p.vel.y=Math.abs(p.vel.y)*.38;
     }
-    var hitEnemyNow=false;
+    var hitEnemyNow=false,hitPoint=null;
     for(var j=0;j<enemies.length;j++){
       var en=enemies[j];
       if(en.state==='dying')continue;
-      if(en.mesh.position.distanceTo(p.mesh.position)<.8){hitEnemyNow=true;break;}
+      var pHit=sweepHitEnemy(prevPos,p.mesh.position,en,p.kind==='rpg'?.12:0);
+      if(pHit){
+        hitEnemyNow=true;
+        hitPoint=pHit;
+        break;
+      }
     }
-    if(p.life<=0||hitEnemyNow||(p.kind!=='rpg'&&p.vel.lengthSq()<1.2)){
-      explodeGrenade(p.mesh.position.clone(),p.damage,p.radius);
+    var mapHit=sweepHitMap(prevPos,p.mesh.position,p.kind==='rpg'?.16:.11,p.layer||'ground');
+    if(p.life<=0||hitEnemyNow||mapHit||(p.kind!=='rpg'&&p.vel.lengthSq()<1.2)){
+      var boomPos=hitPoint||mapHit||p.mesh.position.clone();
+      explodeGrenade(boomPos,p.damage,p.radius);
       scene.remove(p.mesh);
       projectiles.splice(i,1);
     }
@@ -3857,7 +3970,7 @@ function tickPlayer(dt){
   if(moving)wish.normalize();
   var ac=moving?1-Math.pow(.01,dt*10):1-Math.pow(.04,dt*10);
   pVel.lerp(wish.multiplyScalar(speed),ac);
-  var nextP=moveWithMapCollision(player.position,pVel.clone().multiplyScalar(dt),.42,playerLayer);
+  var nextP=movePlayerWithSqueeze(player.position,pVel.clone().multiplyScalar(dt),playerLayer);
   player.position.copy(nextP);
   player.position.x=Math.max(-32,Math.min(32,player.position.x));
   player.position.z=Math.max(-32,Math.min(32,player.position.z));
@@ -3916,6 +4029,67 @@ function applyEnemyWalkRamp(en){
   return s;
 }
 
+function getPlayerPlanarForward(){
+  var f=new THREE.Vector3(0,0,-1);
+  if(camera)camera.getWorldDirection(f);
+  f.y=0;
+  if(f.lengthSq()<1e-6)f.set(-Math.sin(camYaw),0,-Math.cos(camYaw));
+  return f.normalize();
+}
+
+function getFinisherSafeRadius(){
+  if(!isFinishing)return 0;
+  if(!finAnim)return 3.6;
+  var base=finAnim.isExecution?3.95:3.55;
+  var byChar={
+    wesker:4.2,
+    jill:4.0,
+    chris:4.15,
+    rose:4.1,
+    ada:3.95,
+    krauser:3.9,
+    leon:3.8,
+    hunk:3.85
+  };
+  if(byChar[finAnim.charId]!=null)base=Math.max(base,byChar[finAnim.charId]);
+  return base;
+}
+
+function rotateDirY(dir,ang){
+  var c=Math.cos(ang),s=Math.sin(ang);
+  return new THREE.Vector3(dir.x*c-dir.z*s,0,dir.x*s+dir.z*c);
+}
+
+function pickSteerDir(startPos,desiredDir,stepLen,targetPos,layer,radius){
+  var base=desiredDir.clone();
+  base.y=0;
+  if(base.lengthSq()<1e-6)base.set(0,0,1);
+  base.normalize();
+  var bestDir=base.clone(),bestScore=-1e9,bestMove=0;
+  var angs=[0,.38,-.38,.72,-.72,1.08,-1.08,1.45,-1.45,Math.PI];
+  for(var i=0;i<angs.length;i++){
+    var cand=rotateDirY(base,angs[i]).normalize();
+    var step=cand.clone().multiplyScalar(stepLen);
+    var next=moveWithMapCollision(startPos,step,radius,layer);
+    var moved=next.distanceTo(startPos);
+    if(moved<stepLen*.22)continue;
+    var toward=0;
+    if(targetPos){
+      var before=startPos.distanceTo(targetPos);
+      var after=next.distanceTo(targetPos);
+      toward=(before-after);
+    }
+    var lateral=Math.abs(angs[i])>0.2?0.02:0;
+    var score=moved*1.85+toward*2.2+lateral;
+    if(score>bestScore){
+      bestScore=score;
+      bestDir=cand;
+      bestMove=moved;
+    }
+  }
+  return {dir:bestDir,score:bestScore,moved:bestMove};
+}
+
 function refreshEnemyCombatRoles(){
   if(!player)return;
   var pp=player.position;
@@ -3926,9 +4100,10 @@ function refreshEnemyCombatRoles(){
   active.sort(function(a,b){
     return a.mesh.position.distanceTo(pp)-b.mesh.position.distanceTo(pp);
   });
-  var pushSlots=Math.max(1,Math.min(3,Math.floor(active.length*.34)));
-  var flankSlots=Math.max(1,Math.min(4,Math.floor(active.length*.32)));
+  var rushSlots=Math.max(1,Math.min(2,Math.floor(active.length*.3)));
+  var flankSlots=Math.max(1,Math.min(4,Math.floor(active.length*.4)));
   var strikeSlots=Math.max(1,Math.min(2,Math.floor(active.length*.22)));
+  var pForward=getPlayerPlanarForward();
   aiStrikeRefresh=0;
   active.forEach(function(en,idx){
     en.roleTimer=Math.max(.6,.85+Math.random()*.95);
@@ -3936,19 +4111,24 @@ function refreshEnemyCombatRoles(){
     if(en.stuckTimer>1.1){
       en.aiMode='reposition';
       en.aiSide*=-1;
-    }else if(idx<pushSlots){
-      en.aiMode='push';
-    }else if(idx<pushSlots+flankSlots){
-      en.aiMode='flank';
+    }else if(idx<rushSlots){
+      en.aiMode='rush';
+    }else if(idx<rushSlots+flankSlots){
+      en.aiMode='flank_back';
       if(Math.random()<.35)en.aiSide*=-1;
     }else{
-      en.aiMode='observe';
+      en.aiMode='bait';
+      var toEn=en.mesh.position.clone().sub(pp);toEn.y=0;
+      if(toEn.lengthSq()>1e-6){
+        var rightSign=Math.sign(toEn.x*pForward.z-toEn.z*pForward.x);
+        if(rightSign!==0)en.aiSide=rightSign;
+      }
       if(Math.random()<.24)en.aiSide*=-1;
     }
   });
-  // 攻击位轮换：只放行最少量前排，观察位延迟进攻
+  // 攻击位轮换：冲锋位优先出手，绕后位次之，牵制位几乎不主动拍击
   active.slice(0,Math.max(strikeSlots,1)).forEach(function(en){
-    if(en.aiMode!=='observe')en.canStrike=true;
+    if(en.aiMode!=='bait')en.canStrike=true;
   });
 }
 
@@ -3965,14 +4145,14 @@ function tickEnemies(dt){
       return en.state==='chase'&&en.hp>0&&en.state!=='dying';
     });
     chasers.sort(function(a,b){
-      var ad=a.mesh.position.distanceTo(pp)+(a.aiMode==='observe'?1.4:0)+(a.aiMode==='flank'?.5:0);
-      var bd=b.mesh.position.distanceTo(pp)+(b.aiMode==='observe'?1.4:0)+(b.aiMode==='flank'?.5:0);
+      var ad=a.mesh.position.distanceTo(pp)+(a.aiMode==='bait'?1.8:0)+(a.aiMode==='flank_back'?.55:0);
+      var bd=b.mesh.position.distanceTo(pp)+(b.aiMode==='bait'?1.8:0)+(b.aiMode==='flank_back'?.55:0);
       return ad-bd;
     });
     chasers.forEach(function(en){en.canStrike=false;});
     var allow=Math.max(1,Math.min(2,Math.floor(chasers.length*.2)));
     for(var ai=0;ai<chasers.length&&allow>0;ai++){
-      if(chasers[ai].aiMode==='observe')continue;
+      if(chasers[ai].aiMode==='bait')continue;
       chasers[ai].canStrike=true;
       allow--;
     }
@@ -4048,7 +4228,9 @@ function tickEnemies(dt){
     var toP=new THREE.Vector3().subVectors(pp,en.mesh.position),dist=toP.length();
     toP.y=0;dist=toP.length();
     var dirTo=toP.lengthSq()>1e-6?toP.clone().normalize():new THREE.Vector3();
-    var finisherSafeR=isFinishing?3.35:0;
+    var pForward=getPlayerPlanarForward();
+    var pRight=new THREE.Vector3(pForward.z,0,-pForward.x);
+    var finisherSafeR=getFinisherSafeRadius();
     if(!en.lastPos)en.lastPos=en.mesh.position.clone();
     var moved=en.lastPos.distanceTo(en.mesh.position);
     if(moved<.015&&dist>2.2)en.stuckTimer+=dt;
@@ -4082,52 +4264,76 @@ function tickEnemies(dt){
         speedMul=1.05;
       }
     }
-    if(!guideRamp&&en.aiMode==='flank'){
-      var flankR=Math.max(en.data.atkRange+1.8,3.1);
-      var right=new THREE.Vector3(dirTo.z,0,-dirTo.x).multiplyScalar(en.aiSide||1);
-      var flankTarget=pp.clone().addScaledVector(right,flankR).addScaledVector(dirTo,-1.9);
+    if(!guideRamp&&en.aiMode==='flank_back'){
+      var flankR=Math.max(en.data.atkRange+2.1,3.4);
+      var rearOffset=Math.max(en.data.atkRange+1.5,2.6);
+      var flankTarget=pp.clone()
+        .addScaledVector(pForward,-rearOffset)
+        .addScaledVector(pRight,(en.aiSide||1)*flankR*.7);
       moveDir=new THREE.Vector3().subVectors(flankTarget,en.mesh.position);
       if(moveDir.lengthSq()>1e-6)moveDir.normalize();
-      speedMul=.96;
-    }else if(!guideRamp&&en.aiMode==='observe'){
-      var holdDist=en.data.atkRange+4.8;
-      if(dist<holdDist){
-        // 持续横移施压，避免所有敌人同线冲脸
-        moveDir=new THREE.Vector3(dirTo.z,0,-dirTo.x).multiplyScalar(en.aiSide||1);
-        speedMul=.58;
+      speedMul=1.04;
+      if(dist<en.data.atkRange+1.3){
+        moveDir.addScaledVector(dirTo,-.7);
+      }
+    }else if(!guideRamp&&en.aiMode==='bait'){
+      var holdDist=en.data.atkRange+4.6;
+      var baitAnchor=pp.clone()
+        .addScaledVector(pForward,Math.max(holdDist-1.4,2.7))
+        .addScaledVector(pRight,(en.aiSide||1)*1.4);
+      if(dist<holdDist*.9){
+        // 牵制位以横移和前方拉扯为主，尽量吸引玩家视线
+        moveDir=new THREE.Vector3().subVectors(baitAnchor,en.mesh.position);
+        moveDir.addScaledVector(pRight,en.aiSide||1);
+        speedMul=.66;
       }else{
-        moveDir=dirTo.clone();
-        speedMul=.74;
+        moveDir=new THREE.Vector3().subVectors(baitAnchor,en.mesh.position);
+        speedMul=.78;
       }
     }else if(!guideRamp&&en.aiMode==='reposition'){
       moveDir=new THREE.Vector3(dirTo.z,0,-dirTo.x).multiplyScalar(en.aiSide||1);
       moveDir.addScaledVector(dirTo,-.7);
       speedMul=.86;
     }else if(!guideRamp){
-      speedMul=1.1;
+      // rush：冲锋位会更积极直切，并带轻微蛇形，避免木讷直线
+      var weave=Math.sin((performance.now()*0.001)*3.7+(en.mesh.id%7))*0.22;
+      moveDir.addScaledVector(new THREE.Vector3(dirTo.z,0,-dirTo.x),(en.aiSide||1)*weave);
+      speedMul=(en.aiMode==='rush')?1.18:1.06;
     }
     if(isFinishing){
       en.canStrike=false;
       if(dist<finisherSafeR){
         moveDir=dirTo.clone().multiplyScalar(-1);
-        speedMul=1.35;
-      }else if(dist<finisherSafeR+1.1){
-        moveDir=new THREE.Vector3(dirTo.z,0,-dirTo.x).multiplyScalar(en.aiSide||1);
-        speedMul=.78;
+        speedMul=1.25;
+      }else{
+        // 到达安全圈后原地待命，避免沿墙拱动造成“空气墙”观感
+        moveDir.set(0,0,0);
+        speedMul=0;
       }
     }
     if(!en.canStrike&&dist<en.data.atkRange*1.35){
-      // 非攻击位会后撤重整，避免全员扑脸
-      moveDir.addScaledVector(dirTo,-1.15);
-      speedMul*=.88;
+      // 非攻击位会重整：绕后位轻退，牵制位明显后撤
+      var retreat=en.aiMode==='flank_back'?.52:1.15;
+      moveDir.addScaledVector(dirTo,-retreat);
+      speedMul*=en.aiMode==='flank_back'?.95:.88;
     }
     if(sep.lengthSq()>1e-6){
       moveDir.addScaledVector(sep.normalize(),.9);
     }
     if(moveDir.lengthSq()>1e-6)moveDir.normalize();
-    if(dist>en.data.atkRange*.9||en.aiMode!=='observe'){
-      var step=moveDir.multiplyScalar(en.data.speed*speedMul*dt);
-      var enNext=moveWithMapCollision(en.mesh.position,step,.42,enLayer);
+    var holdAtSafeRing=isFinishing&&enLayer===playerLayer&&dist>=finisherSafeR&&dist<=finisherSafeR+.9;
+    if((dist>en.data.atkRange*.9||en.aiMode!=='bait')&&!holdAtSafeRing){
+      var stepLen=en.data.speed*speedMul*dt;
+      var steer=pickSteerDir(en.mesh.position,moveDir,stepLen,pp,enLayer,ENEMY_COLLIDER_R);
+      var step=steer.dir.multiplyScalar(stepLen);
+      var enNext=moveWithMapCollision(en.mesh.position,step,ENEMY_COLLIDER_R,enLayer);
+      var advance=enNext.distanceTo(en.mesh.position);
+      if(advance<stepLen*.2){
+        en.aiSide*=-1;
+        if(en.aiMode==='rush'||en.aiMode==='bait')en.aiMode='flank_back';
+        else en.aiMode='reposition';
+        en.roleTimer=Math.min(en.roleTimer||1,.25);
+      }
       en.mesh.position.copy(enNext);
       var ramped=applyEnemyWalkRamp(en);
       en.mesh.position.y=ramped?(en.mesh.position.y):(baseY);
