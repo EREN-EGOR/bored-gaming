@@ -1,0 +1,2309 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Circuit Breaker</title>
+  <style>
+    /* ── 基础重置 ── */
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      background: #080c14;
+      color: #c8d8f0;
+      font-family: 'Courier New', monospace;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh;
+      overflow: hidden;
+    }
+
+    /* ── 标题 ── */
+    #title {
+      font-size: 22px;
+      font-weight: bold;
+      letter-spacing: 6px;
+      color: #00e5ff;
+      text-shadow: 0 0 10px #00e5ff, 0 0 30px #00e5ff44;
+      margin-bottom: 18px;
+      text-transform: uppercase;
+    }
+
+    /* ── 主布局 ── */
+    #app {
+      display: flex;
+      gap: 24px;
+      align-items: flex-start;
+    }
+
+    /* ── 棋盘容器 ── */
+    #board-wrap {
+      position: relative;
+    }
+
+    #board {
+      display: grid;
+      grid-template-columns: repeat(10, 56px);
+      grid-template-rows:    repeat(10, 56px);
+      gap: 2px;
+      background: #0a1525;
+      border: 1px solid #1a3a5c;
+      box-shadow: 0 0 30px #00e5ff22, inset 0 0 40px #000a;
+      padding: 2px;
+    }
+
+    /* ── 单个格子 ── */
+    .cell {
+      width: 56px;
+      height: 56px;
+      background: #0d1f35;
+      border: 1px solid #1a3a5c;
+      position: relative;
+      cursor: pointer;
+      transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+    }
+
+    /* 格子角落装饰 */
+    .cell::before,
+    .cell::after {
+      content: '';
+      position: absolute;
+      width: 5px;
+      height: 5px;
+      border-color: #1e4a6e;
+      border-style: solid;
+      opacity: 0.6;
+    }
+    .cell::before {
+      top: 2px; left: 2px;
+      border-width: 1px 0 0 1px;
+    }
+    .cell::after {
+      bottom: 2px; right: 2px;
+      border-width: 0 1px 1px 0;
+    }
+
+    /* 悬停效果 */
+    .cell:hover {
+      background: #112640;
+      border-color: #00e5ff88;
+      box-shadow: inset 0 0 12px #00e5ff22;
+    }
+    .cell:hover::before,
+    .cell:hover::after {
+      border-color: #00e5ff;
+      opacity: 1;
+    }
+
+    /* 坐标标签 */
+    #board-wrap .col-labels,
+    #board-wrap .row-labels {
+      display: flex;
+      position: absolute;
+    }
+    #board-wrap .col-labels {
+      top: -18px;
+      left: 4px;
+      gap: 2px;
+    }
+    #board-wrap .row-labels {
+      left: -18px;
+      top: 4px;
+      flex-direction: column;
+      gap: 2px;
+    }
+    .coord-label {
+      width: 56px;
+      height: 56px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 10px;
+      color: #1e4a6e;
+      letter-spacing: 1px;
+    }
+    #board-wrap .row-labels .coord-label {
+      width: 16px;
+    }
+
+    /* ── 右侧面板 ── */
+    #side-panel {
+      width: 200px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      max-height: calc(10 * 56px + 9 * 2px + 8px);
+      overflow: visible;
+    }
+
+    .panel-box {
+      border: 1px solid #1a3a5c;
+      background: #0a1525;
+      padding: 12px;
+      box-shadow: 0 0 12px #00e5ff11;
+    }
+
+    .panel-title {
+      font-size: 10px;
+      letter-spacing: 3px;
+      color: #00e5ff;
+      text-transform: uppercase;
+      margin-bottom: 10px;
+      border-bottom: 1px solid #1a3a5c;
+      padding-bottom: 6px;
+    }
+
+    /* 能量显示 */
+    #energy-bar-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    #energy-text {
+      font-size: 20px;
+      color: #00e5ff;
+      text-shadow: 0 0 8px #00e5ff;
+      letter-spacing: 2px;
+    }
+    #energy-bar-bg {
+      width: 100%;
+      height: 6px;
+      background: #0d1f35;
+      border: 1px solid #1a3a5c;
+    }
+    #energy-bar-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #0066ff, #00e5ff);
+      box-shadow: 0 0 8px #00e5ff;
+      width: 100%;
+      transition: width 0.3s ease;
+    }
+
+    /* ── 零件卡片 ── */
+    #parts-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      max-height: 260px;
+      overflow-y: auto;
+      overflow-x: hidden;
+      padding-right: 2px;
+      scrollbar-width: thin;
+      scrollbar-color: #1a3a5c #0a1525;
+    }
+    #parts-list::-webkit-scrollbar { width: 4px; }
+    #parts-list::-webkit-scrollbar-track { background: #0a1525; }
+    #parts-list::-webkit-scrollbar-thumb { background: #1a3a5c; border-radius: 2px; }
+    #parts-list::-webkit-scrollbar-thumb:hover { background: #00e5ff44; }
+
+    .part-card {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 8px 10px;
+      border: 1px solid #1a3a5c;
+      background: #0d1f35;
+      cursor: pointer;
+      transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+      position: relative;
+      user-select: none;
+    }
+    .part-card:hover {
+      border-color: #00e5ff66;
+      background: #112640;
+    }
+    .part-card.selected {
+      border-color: #00e5ff;
+      background: #0a2a44;
+      box-shadow: 0 0 10px #00e5ff44;
+    }
+    .part-card.disabled {
+      opacity: 0.35;
+      cursor: not-allowed;
+    }
+
+    .part-icon {
+      font-size: 22px;
+      line-height: 1;
+      width: 28px;
+      text-align: center;
+      flex-shrink: 0;
+    }
+
+    .part-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .part-name {
+      font-size: 11px;
+      letter-spacing: 1px;
+      color: #a0c8e8;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .part-desc {
+      font-size: 9px;
+      color: #2a5a7a;
+      letter-spacing: 0.5px;
+      margin-top: 2px;
+      line-height: 1.4;
+    }
+
+    .part-cost {
+      font-size: 12px;
+      font-weight: bold;
+      color: #00e5ff;
+      text-shadow: 0 0 6px #00e5ff88;
+      flex-shrink: 0;
+    }
+    .part-cost::after {
+      content: 'E';
+      font-size: 9px;
+      color: #1e8aaa;
+      margin-left: 1px;
+    }
+
+    /* ── 格子放置状态 ── */
+    .cell.has-part {
+      cursor: default;
+    }
+    .cell.has-part:hover {
+      border-color: #1a3a5c;
+      box-shadow: none;
+    }
+    .cell.placeable {
+      background: #0d2a1a;
+      border-color: #00ff8844;
+    }
+    .cell.placeable:hover {
+      background: #0d3820;
+      border-color: #00ff88;
+      box-shadow: inset 0 0 12px #00ff8822;
+    }
+
+    /* 格子内零件显示 */
+    .cell-part {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 1px;
+      animation: partPlace 0.2s ease;
+    }
+    @keyframes partPlace {
+      from { transform: scale(0.6); opacity: 0; }
+      to   { transform: scale(1);   opacity: 1; }
+    }
+    .cell-part-icon {
+      font-size: 20px;
+      line-height: 1;
+    }
+    .cell-part-name {
+      font-size: 7px;
+      color: #a0c8e8;
+      letter-spacing: 0.5px;
+      text-align: center;
+    }
+
+    /* 右键移除提示 */
+    .cell.has-part:hover .cell-part {
+      opacity: 0.6;
+    }
+
+    /* ── 选中模式提示 ── */
+    #place-hint {
+      font-size: 10px;
+      color: #00ff88;
+      letter-spacing: 2px;
+      margin-top: 6px;
+      min-height: 14px;
+      text-align: center;
+    }
+
+    /* 零件库占位 */
+    .placeholder-text {
+      font-size: 11px;
+      color: #2a5a7a;
+      line-height: 1.8;
+      letter-spacing: 1px;
+    }
+
+    /* ── 路径格子 ── */
+    .cell.path {
+      background: #0a1e30;
+      border-color: #0d3050;
+      cursor: default;
+    }
+    .cell.path:hover {
+      background: #0a1e30;
+      border-color: #0d3050;
+      box-shadow: none;
+    }
+    /* 路径方向箭头 */
+    .cell.path::before,
+    .cell.path::after { display: none; }
+    .path-arrow {
+      position: absolute;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      color: #1a4060;
+      pointer-events: none;
+      user-select: none;
+    }
+
+    /* 入口/出口标记 */
+    .cell.path-entry { border-color: #00ff8866 !important; }
+    .cell.path-exit  { border-color: #ff446666 !important; }
+
+    /* ── 敌人单位 ── */
+    .enemy {
+      position: absolute;
+      inset: 3px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 2px;
+      z-index: 10;
+      pointer-events: none;
+      transition: top 0.35s ease, left 0.35s ease;
+    }
+    .enemy-icon {
+      font-size: 18px;
+      line-height: 1;
+      filter: drop-shadow(0 0 4px #ff4400);
+    }
+    .enemy-hp-bar {
+      width: 100%;
+      height: 3px;
+      background: #1a0a0a;
+      border: 1px solid #330000;
+    }
+    .enemy-hp-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #ff2200, #ff6600);
+      box-shadow: 0 0 4px #ff4400;
+      transition: width 0.2s ease;
+    }
+    .enemy-hp-text {
+      font-size: 7px;
+      color: #ff8866;
+      letter-spacing: 0.5px;
+    }
+
+    /* 敌人受伤闪烁 */
+    @keyframes enemyHit {
+      0%   { filter: brightness(1) drop-shadow(0 0 4px #ff4400); }
+      40%  { filter: brightness(3) drop-shadow(0 0 8px #ffffff); }
+      100% { filter: brightness(1) drop-shadow(0 0 4px #ff4400); }
+    }
+    .enemy.hit .enemy-icon { animation: enemyHit 0.25s ease; }
+
+    /* 敌人死亡 */
+    @keyframes enemyDie {
+      0%   { transform: scale(1); opacity: 1; }
+      100% { transform: scale(2); opacity: 0; }
+    }
+    .enemy.dying { animation: enemyDie 0.35s ease forwards; }
+
+    /* ── 波次/控制面板 ── */
+    #wave-info {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+    .wave-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-size: 11px;
+      color: #a0c8e8;
+      letter-spacing: 1px;
+    }
+    .wave-val {
+      color: #00e5ff;
+      text-shadow: 0 0 6px #00e5ff88;
+    }
+    #start-btn {
+      margin-top: 8px;
+      width: 100%;
+      padding: 8px;
+      background: #0a2a44;
+      border: 1px solid #00e5ff66;
+      color: #00e5ff;
+      font-family: 'Courier New', monospace;
+      font-size: 11px;
+      letter-spacing: 3px;
+      cursor: pointer;
+      text-transform: uppercase;
+      transition: background 0.15s, box-shadow 0.15s;
+    }
+    #start-btn:hover {
+      background: #0d3a5a;
+      box-shadow: 0 0 12px #00e5ff44;
+    }
+    #start-btn:disabled {
+      opacity: 0.4;
+      cursor: not-allowed;
+    }
+
+    /* ── 波次进行中：零件面板变暗 ── */
+    #side-panel.wave-running #parts-list {
+      opacity: 0.85;
+    }
+    /* ── 攻击特效 ── */
+
+    /* 棋盘覆盖SVG层（用于画激光线） */
+    #attack-layer {
+      position: absolute;
+      top: 4px; left: 4px;
+      width: calc(10 * 56px + 9 * 2px);
+      height: calc(10 * 56px + 9 * 2px);
+      pointer-events: none;
+      z-index: 20;
+    }
+
+    /* 激光线 */
+    .laser-beam {
+      stroke-linecap: round;
+      fill: none;
+      animation: laserFade 0.35s ease forwards;
+    }
+    @keyframes laserFade {
+      0%   { opacity: 1;   stroke-width: 3; }
+      60%  { opacity: 0.8; stroke-width: 2; }
+      100% { opacity: 0;   stroke-width: 1; }
+    }
+
+    /* EMP爆炸圆 */
+    .emp-blast {
+      fill: none;
+      animation: empFade 0.45s ease forwards;
+    }
+    @keyframes empFade {
+      0%   { opacity: 0.9; r: 10; }
+      100% { opacity: 0;   r: 56; }
+    }
+
+    /* 零件攻击时发光 */
+    @keyframes partFire {
+      0%   { box-shadow: inset 0 0 10px var(--part-color, #ff446622); }
+      40%  { box-shadow: inset 0 0 24px var(--part-color, #ff446666), 0 0 16px var(--part-color, #ff446644); }
+      100% { box-shadow: inset 0 0 10px var(--part-color, #ff446622); }
+    }
+    .cell.firing { animation: partFire 0.35s ease; }
+
+    /* ── 模态弹窗 ── */
+    #modal-overlay {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: #000000cc;
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+    #modal-overlay.show { display: flex; }
+
+    #modal {
+      background: #0a1525;
+      border: 1px solid #1a3a5c;
+      box-shadow: 0 0 40px #00e5ff33;
+      padding: 28px 32px;
+      min-width: 340px;
+      max-width: 480px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 18px;
+      animation: modalIn 0.25s ease;
+    }
+    @keyframes modalIn {
+      from { transform: scale(0.85); opacity: 0; }
+      to   { transform: scale(1);    opacity: 1; }
+    }
+
+    #modal-title {
+      font-size: 18px;
+      font-weight: bold;
+      letter-spacing: 4px;
+      text-transform: uppercase;
+    }
+    #modal-title.win  { color: #00e5ff; text-shadow: 0 0 12px #00e5ff; }
+    #modal-title.lose { color: #ff4444; text-shadow: 0 0 12px #ff4444; }
+    #modal-title.reward { color: #ffaa00; text-shadow: 0 0 12px #ffaa00; }
+
+    #modal-body {
+      font-size: 12px;
+      color: #a0c8e8;
+      letter-spacing: 1px;
+      text-align: center;
+      line-height: 1.8;
+    }
+
+    /* 奖励零件选择卡 */
+    #reward-cards {
+      display: flex;
+      gap: 10px;
+      width: 100%;
+    }
+    .reward-card {
+      flex: 1;
+      border: 1px solid #1a3a5c;
+      background: #0d1f35;
+      padding: 12px 8px;
+      cursor: pointer;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
+    }
+    .reward-card:hover {
+      border-color: #ffaa00;
+      background: #1a2a10;
+      box-shadow: 0 0 12px #ffaa0033;
+    }
+    .reward-card-icon { font-size: 28px; }
+    .reward-card-name {
+      font-size: 10px;
+      color: #a0c8e8;
+      letter-spacing: 1px;
+      text-align: center;
+    }
+    .reward-card-desc {
+      font-size: 9px;
+      color: #2a5a7a;
+      letter-spacing: 0.5px;
+      text-align: center;
+      line-height: 1.4;
+    }
+    .reward-card-cost {
+      font-size: 11px;
+      color: #00e5ff;
+      font-weight: bold;
+    }
+    .reward-card-cost::after { content: 'E'; font-size: 9px; color: #1e8aaa; margin-left: 1px; }
+
+    /* 弹窗按钮 */
+    .modal-btn {
+      padding: 10px 24px;
+      border: 1px solid #00e5ff66;
+      background: #0a2a44;
+      color: #00e5ff;
+      font-family: 'Courier New', monospace;
+      font-size: 11px;
+      letter-spacing: 3px;
+      cursor: pointer;
+      text-transform: uppercase;
+      transition: background 0.15s, box-shadow 0.15s;
+    }
+    .modal-btn:hover {
+      background: #0d3a5a;
+      box-shadow: 0 0 12px #00e5ff44;
+    }
+    .modal-btn.danger {
+      border-color: #ff444466;
+      color: #ff4444;
+      background: #2a0a0a;
+    }
+    .modal-btn.danger:hover {
+      background: #3a0a0a;
+      box-shadow: 0 0 12px #ff444433;
+    }
+
+    /* ── 坐标提示 ── */
+    #coord-hint {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%);
+      font-size: 11px;
+      color: #1e4a6e;
+      letter-spacing: 3px;
+    }
+    #coord-hint span {
+      color: #00e5ff88;
+    }
+
+    /* ── 开始界面 ── */
+    #start-screen {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: #080c14;
+      z-index: 500;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 32px;
+    }
+    #start-screen.show { display: flex; }
+
+    #start-title {
+      font-size: 36px;
+      font-weight: bold;
+      letter-spacing: 10px;
+      color: #00e5ff;
+      text-shadow: 0 0 20px #00e5ff, 0 0 60px #00e5ff44;
+      text-transform: uppercase;
+    }
+    #start-subtitle {
+      font-size: 11px;
+      letter-spacing: 4px;
+      color: #1e4a6e;
+      text-transform: uppercase;
+    }
+
+    #save-info-box {
+      border: 1px solid #1a3a5c;
+      background: #0a1525;
+      padding: 16px 24px;
+      min-width: 280px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .save-info-title {
+      font-size: 9px;
+      letter-spacing: 3px;
+      color: #1e4a6e;
+      text-transform: uppercase;
+      border-bottom: 1px solid #1a3a5c;
+      padding-bottom: 6px;
+      margin-bottom: 4px;
+    }
+    .save-info-row {
+      display: flex;
+      justify-content: space-between;
+      font-size: 11px;
+      color: #a0c8e8;
+      letter-spacing: 1px;
+    }
+    .save-info-val { color: #00e5ff; }
+
+    #start-btns {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      align-items: center;
+    }
+
+    /* ── 地图界面 ── */
+    #map-screen {
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+      animation: modalIn 0.3s ease;
+    }
+    #map-screen.show { display: flex; }
+    #app.map-mode { display: none; }
+
+    #map-header {
+      display: flex;
+      gap: 32px;
+      align-items: center;
+    }
+    .map-stat {
+      font-size: 11px;
+      letter-spacing: 2px;
+      color: #a0c8e8;
+    }
+    .map-stat span {
+      color: #00e5ff;
+      text-shadow: 0 0 6px #00e5ff88;
+      font-size: 14px;
+    }
+
+    #map-canvas-wrap {
+      position: relative;
+    }
+    #map-svg {
+      display: block;
+    }
+
+    /* 节点 */
+    .map-node {
+      cursor: pointer;
+      transition: filter 0.15s;
+    }
+    .map-node:hover { filter: brightness(1.4); }
+    .map-node.done  { opacity: 0.35; cursor: default; pointer-events: none; }
+    .map-node.done:hover { filter: none; }
+    .map-node.current { filter: drop-shadow(0 0 6px #00e5ff); }
+    .map-node.locked  { opacity: 0.2; cursor: default; pointer-events: none; }
+
+    .node-circle { transition: fill 0.15s; }
+
+    /* 地图图例 */
+    #map-legend {
+      display: flex;
+      gap: 20px;
+      font-size: 10px;
+      color: #2a5a7a;
+      letter-spacing: 2px;
+    }
+    .legend-item { display: flex; align-items: center; gap: 6px; }
+    .legend-dot {
+      width: 10px; height: 10px;
+      border-radius: 50%;
+      display: inline-block;
+    }
+
+    /* ── 扫描线叠加效果 ── */
+    body::after {
+      content: '';
+      position: fixed;
+      inset: 0;
+      background: repeating-linear-gradient(
+        0deg,
+        transparent,
+        transparent 2px,
+        #00000018 2px,
+        #00000018 4px
+      );
+      pointer-events: none;
+      z-index: 999;
+    }
+  </style>
+</head>
+<body>
+
+  <div id="title">Circuit Breaker</div>
+
+  <div id="app">
+    <!-- 棋盘区 -->
+    <div id="board-wrap">
+      <!-- 列标签 A-J -->
+      <div class="col-labels" id="col-labels"></div>
+      <!-- 行标签 1-10 -->
+      <div class="row-labels" id="row-labels"></div>
+      <!-- 棋盘 -->
+      <div id="board"></div>
+      <!-- 攻击特效SVG层 -->
+      <svg id="attack-layer" xmlns="http://www.w3.org/2000/svg"></svg>
+    </div>
+
+    <!-- 右侧面板 -->
+    <div id="side-panel">
+      <div class="panel-box">
+        <div class="panel-title">Energy</div>
+        <div id="energy-bar-wrap">
+          <div id="energy-text">10 / 10</div>
+          <div id="energy-bar-bg">
+            <div id="energy-bar-fill"></div>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel-box">
+        <div class="panel-title">Parts</div>
+        <div id="parts-list"></div>
+        <div id="place-hint"></div>
+      </div>
+
+      <div class="panel-box">
+        <div class="panel-title">Wave</div>
+        <div id="wave-info">
+          <div class="wave-row"><span>波次</span><span class="wave-val" id="wave-num">1</span></div>
+          <div class="wave-row"><span>敌人</span><span class="wave-val" id="wave-enemies">5</span></div>
+          <div class="wave-row"><span>基地血量</span><span class="wave-val" id="base-hp">20</span></div>
+        </div>
+        <button id="start-btn">▶ 开始波次</button>
+      </div>
+
+      <div class="panel-box">
+        <div class="panel-title">Status</div>
+        <div id="status-text" class="placeholder-text">
+          — 选择零件部署<br>
+          — 右键可移除
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 开始界面 -->
+  <div id="start-screen" class="show">
+    <div id="start-title">Circuit Breaker</div>
+    <div id="start-subtitle">防线构筑 · 零件协同 · 随机肉鸽</div>
+    <div id="save-info-box" style="display:none">
+      <div class="save-info-title">— 存档记录 —</div>
+      <div class="save-info-row"><span>关卡层数</span><span class="save-info-val" id="save-floor">-</span></div>
+      <div class="save-info-row"><span>零件种类</span><span class="save-info-val" id="save-parts">-</span></div>
+      <div class="save-info-row"><span>能量上限</span><span class="save-info-val" id="save-energy">-</span></div>
+    </div>
+    <div id="start-btns">
+      <button class="modal-btn" id="continue-btn" style="display:none">▶ 继续游戏</button>
+      <button class="modal-btn" id="newgame-btn">◆ 新游戏</button>
+    </div>
+  </div>
+
+  <div id="coord-hint">HOVER CELL — <span id="coord-display">--</span></div>
+
+  <!-- 地图界面 -->
+  <div id="map-screen">
+    <div id="map-header">
+      <div class="map-stat">关卡 <span id="map-floor">1</span></div>
+      <div class="map-stat">基地血量 <span id="map-hp">20</span></div>
+      <div class="map-stat">能量上限 <span id="map-energy">10</span></div>
+    </div>
+    <div id="map-canvas-wrap">
+      <svg id="map-svg" width="520" height="420" xmlns="http://www.w3.org/2000/svg"></svg>
+    </div>
+    <div id="map-legend">
+      <div class="legend-item"><span class="legend-dot" style="background:#ff8800"></span>普通战斗</div>
+      <div class="legend-item"><span class="legend-dot" style="background:#ff2255"></span>精英战斗</div>
+      <div class="legend-item"><span class="legend-dot" style="background:#00cc66"></span>休息节点</div>
+      <div class="legend-item"><span class="legend-dot" style="background:#aa44ff"></span>Boss</div>
+    </div>
+  </div>
+
+  <!-- 模态弹窗 -->
+  <div id="modal-overlay">
+    <div id="modal">
+      <div id="modal-title"></div>
+      <div id="modal-body"></div>
+      <div id="reward-cards"></div>
+      <div id="modal-btns" style="display:flex;gap:12px;"></div>
+    </div>
+  </div>
+
+  <script>
+    // ── 常量 ──
+    const COLS = 10;
+    const ROWS = 10;
+    const COL_LABELS = 'ABCDEFGHIJ';
+    const CELL_SIZE = 58; // 56px + 2px gap
+
+    // ── 固定路径定义（蛇形穿越棋盘）──
+    // 每个元素是 [row, col]，从左上入口到右下出口
+    const PATH = [
+      [0,0],[0,1],[0,2],[0,3],[0,4],[0,5],[0,6],[0,7],[0,8],[0,9],
+      [1,9],
+      [2,9],[2,8],[2,7],[2,6],[2,5],[2,4],[2,3],[2,2],[2,1],[2,0],
+      [3,0],
+      [4,0],[4,1],[4,2],[4,3],[4,4],[4,5],[4,6],[4,7],[4,8],[4,9],
+      [5,9],
+      [6,9],[6,8],[6,7],[6,6],[6,5],[6,4],[6,3],[6,2],[6,1],[6,0],
+      [7,0],
+      [8,0],[8,1],[8,2],[8,3],[8,4],[8,5],[8,6],[8,7],[8,8],[8,9],
+      [9,9],
+    ];
+    const PATH_SET = new Set(PATH.map(([r,c]) => `${r},${c}`));
+
+    // 路径方向箭头
+    function getArrow(i) {
+      if (i >= PATH.length - 1) return '★'; // 终点
+      const [r,  c]  = PATH[i];
+      const [nr, nc] = PATH[i+1];
+      if (nc > c) return '→';
+      if (nc < c) return '←';
+      if (nr > r) return '↓';
+      return '↑';
+    }
+
+    // ── 零件定义 ──
+    // tier: 1=第1层起可出, 2=第2层起可出, 3=第3层起可出
+    const PARTS_DEF = [
+      // ── T1 基础零件（第1层起）──
+      { id: 'laser',    tier: 1, name: '激光塔',     icon: '🔫', cost: 3, desc: '射程3格·打最前敌人·伤害3\n📡旁边时射程+2',                   color: '#ff4466' },
+      { id: 'shield',   tier: 1, name: '拦截器',     icon: '🛡️', cost: 2, desc: '放路径旁·经过的敌人停顿1回合\n📡旁边时停顿2回合',            color: '#4488ff' },
+      { id: 'amplifier',tier: 1, name: '增幅器',     icon: '📡', cost: 2, desc: '相邻攻击零件伤害×2\n多个📡不叠加',                            color: '#ffaa00' },
+      { id: 'emp',      tier: 1, name: '电磁脉冲',   icon: '💥', cost: 3, desc: '范围2格全体·伤害2·眩晕1回合\n📡旁边时范围+1',                color: '#aa44ff' },
+      { id: 'freezer',  tier: 1, name: '冷冻装置',   icon: '❄️', cost: 3, desc: '射程3格·伤害1·使敌人减速\n💥旁边时同时眩晕',                color: '#aaeeff' },
+      { id: 'reactor',  tier: 1, name: '反应堆',     icon: '⚡', cost: 4, desc: '每波结束回复5能量\n可与多个反应堆叠加',                        color: '#00e5ff' },
+
+      // ── T2 进阶零件（第2层起）──
+      { id: 'sniper',   tier: 2, name: '狙击炮台',   icon: '🎯', cost: 4, desc: '射程6格·伤害8·优先打最低血量\n🔫旁边时额外打第2目标',       color: '#ff8800' },
+      { id: 'tesla',    tier: 2, name: '特斯拉线圈', icon: '🌩️', cost: 3, desc: '射程2格·弧链弹射3敌·伤害4\n💥旁边时附加眩晕',              color: '#88ddff' },
+      { id: 'mirror',   tier: 2, name: '反射棱镜',   icon: '🔷', cost: 2, desc: '相邻🔫激光反弹打第2目标\n自身不攻击',                        color: '#44ffcc' },
+
+      // ── T3 核心零件（第3层起）──
+      { id: 'overload', tier: 3, name: '过载核心',   icon: '☢️', cost: 5, desc: '每3tick爆发·范围4格·伤害15\n⚡旁边时充能加速',              color: '#ffff00' },
+    ];
+
+    // ── 状态 ──
+    const state = {
+      energy: 10,
+      maxEnergy: 10,
+      baseHp: 20,
+      waveNum: 1,
+      waveRunning: false,
+      selectedPartId: null,
+      inventory: PARTS_DEF.filter(p => p.tier === 1).map(p => ({ ...p, count: 2 })),
+      cells: Array.from({ length: ROWS }, (_, r) =>
+        Array.from({ length: COLS }, (_, c) => ({ row: r, col: c, part: null }))
+      ),
+      enemies: [],      // 活跃敌人列表
+      nextEnemyId: 0,
+      spawnTimer: null,
+      moveTimer: null,
+    };
+
+    // ── DOM引用 ──
+    const boardEl      = document.getElementById('board');
+    const coordDisplay = document.getElementById('coord-display');
+    const placeHint    = document.getElementById('place-hint');
+    const statusText   = document.getElementById('status-text');
+
+    // ── 渲染列标签 ──
+    const colLabelsEl = document.getElementById('col-labels');
+    for (let c = 0; c < COLS; c++) {
+      const el = document.createElement('div');
+      el.className = 'coord-label';
+      el.textContent = COL_LABELS[c];
+      colLabelsEl.appendChild(el);
+    }
+
+    // ── 渲染行标签 ──
+    const rowLabelsEl = document.getElementById('row-labels');
+    for (let r = 0; r < ROWS; r++) {
+      const el = document.createElement('div');
+      el.className = 'coord-label';
+      el.textContent = r + 1;
+      rowLabelsEl.appendChild(el);
+    }
+
+    // ── 渲染棋盘格子 ──
+    for (let r = 0; r < ROWS; r++) {
+      for (let c = 0; c < COLS; c++) {
+        const cell = document.createElement('div');
+        cell.className = 'cell';
+        cell.dataset.row = r;
+        cell.dataset.col = c;
+
+        // 路径格子特殊样式
+        const pathIdx = PATH.findIndex(([pr,pc]) => pr===r && pc===c);
+        if (pathIdx !== -1) {
+          cell.classList.add('path');
+          if (pathIdx === 0)              cell.classList.add('path-entry');
+          if (pathIdx === PATH.length-1)  cell.classList.add('path-exit');
+          const arrow = document.createElement('div');
+          arrow.className = 'path-arrow';
+          arrow.textContent = getArrow(pathIdx);
+          cell.appendChild(arrow);
+        }
+
+        cell.addEventListener('mouseenter', () => {
+          coordDisplay.textContent = `${COL_LABELS[c]}${r + 1}`;
+        });
+        cell.addEventListener('mouseleave', () => {
+          coordDisplay.textContent = '--';
+        });
+        cell.addEventListener('click', () => onCellClick(r, c));
+        cell.addEventListener('contextmenu', e => {
+          e.preventDefault();
+          onCellRightClick(r, c);
+        });
+
+        boardEl.appendChild(cell);
+      }
+    }
+
+    // ── 获取格子DOM ──
+    function getCellEl(r, c) {
+      return boardEl.querySelector(`.cell[data-row="${r}"][data-col="${c}"]`);
+    }
+
+    // ── 渲染能量条 ──
+    function renderEnergy() {
+      const pct = (state.energy / state.maxEnergy) * 100;
+      document.getElementById('energy-text').textContent =
+        `${state.energy} / ${state.maxEnergy}`;
+      const fill = document.getElementById('energy-bar-fill');
+      fill.style.width = pct + '%';
+      // 低于30%变红，低于60%变黄
+      if (pct < 30) {
+        fill.style.background = 'linear-gradient(90deg, #aa0000, #ff2200)';
+        fill.style.boxShadow  = '0 0 8px #ff2200';
+      } else if (pct < 60) {
+        fill.style.background = 'linear-gradient(90deg, #aa6600, #ffaa00)';
+        fill.style.boxShadow  = '0 0 8px #ffaa00';
+      } else {
+        fill.style.background = 'linear-gradient(90deg, #0066ff, #00e5ff)';
+        fill.style.boxShadow  = '0 0 8px #00e5ff';
+      }
+    }
+
+    // ── 渲染波次信息 ──
+    function renderWaveInfo() {
+      const waveTotal = state._waveTotal || 3;
+      document.getElementById('wave-num').textContent     = `${state.waveNum} / ${waveTotal}`;
+      document.getElementById('wave-enemies').textContent = Math.round((4 + state.waveNum) * (state._enemyMult || 1));
+      document.getElementById('base-hp').textContent      = state.baseHp;
+      document.getElementById('start-btn').disabled       = state.waveRunning;
+    }
+
+    // ── 渲染零件库 ──
+    function renderParts() {
+      const list = document.getElementById('parts-list');
+      list.innerHTML = '';
+
+      state.inventory.forEach(part => {
+        const canAfford  = state.energy >= part.cost;
+        const hasStock   = part.count > 0;
+        const isSelected = state.selectedPartId === part.id;
+
+        const card = document.createElement('div');
+        card.className = 'part-card' +
+          (isSelected ? ' selected' : '') +
+          (!canAfford || !hasStock ? ' disabled' : '');
+
+        card.innerHTML = `
+          <div class="part-icon">${part.icon}</div>
+          <div class="part-info">
+            <div class="part-name">${part.name} ×${part.count}</div>
+            <div class="part-desc">${part.desc}</div>
+          </div>
+          <div class="part-cost">${part.cost}</div>
+        `;
+
+        if (canAfford && hasStock) {
+          card.addEventListener('click', () => onPartSelect(part.id));
+        }
+        list.appendChild(card);
+      });
+
+      if (state.selectedPartId) {
+        const p = state.inventory.find(p => p.id === state.selectedPartId);
+        placeHint.textContent = `▶ 点击格子放置 ${p.icon}`;
+      } else {
+        placeHint.textContent = '';
+      }
+    }
+
+    // ── 棋盘高亮可放置格子（路径格子不可放置）──
+    function renderBoardHighlight() {
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          const el = getCellEl(r, c);
+          const cellData = state.cells[r][c];
+          const onPath = PATH_SET.has(`${r},${c}`);
+          el.classList.remove('placeable');
+          if (state.selectedPartId && !cellData.part && !onPath) {
+            el.classList.add('placeable');
+          }
+        }
+      }
+    }
+
+    // ── 选中零件 ──
+    function onPartSelect(partId) {
+      state.selectedPartId = (state.selectedPartId === partId) ? null : partId;
+      renderParts();
+      renderBoardHighlight();
+    }
+
+    // ── 点击格子放置零件 ──
+    function onCellClick(r, c) {
+      if (!state.selectedPartId) return;
+      if (PATH_SET.has(`${r},${c}`)) return;
+      const cellData = state.cells[r][c];
+      if (cellData.part) return;
+
+      const part = state.inventory.find(p => p.id === state.selectedPartId);
+      if (!part || part.count <= 0) return;
+      if (state.energy < part.cost) {
+        updateStatus(`⚡ 能量不足！需要 ${part.cost}E，当前 ${state.energy}E`);
+        return;
+      }
+
+      state.energy -= part.cost;
+      part.count--;
+      cellData.part = { ...part };
+      if (part.count <= 0) state.selectedPartId = null;
+
+      renderEnergy();
+      renderParts();
+      renderBoardHighlight();
+      renderCell(r, c);
+      updateStatus(`已部署 ${part.icon} ${part.name} 到 ${COL_LABELS[c]}${r + 1}`);
+    }
+
+    // ── 右键移除零件 ──
+    function onCellRightClick(r, c) {
+      if (state.waveRunning) { updateStatus('⚠️ 波次进行中，无法移除零件'); return; }
+      const cellData = state.cells[r][c];
+      if (!cellData.part) return;
+      const part = cellData.part;
+      state.energy = Math.min(state.maxEnergy, state.energy + part.cost);
+      const inv = state.inventory.find(p => p.id === part.id);
+      if (inv) inv.count++;
+      cellData.part = null;
+      renderEnergy();
+      renderParts();
+      renderBoardHighlight();
+      renderCell(r, c);
+      updateStatus(`已移除 ${part.icon} ${part.name}，能量返还`);
+    }
+
+    // ── 渲染单个格子内容 ──
+    function renderCell(r, c) {
+      const el = getCellEl(r, c);
+      const cellData = state.cells[r][c];
+
+      el.classList.remove('has-part');
+      const existing = el.querySelector('.cell-part');
+      if (existing) existing.remove();
+
+      if (cellData.part) {
+        el.classList.add('has-part');
+        const inner = document.createElement('div');
+        inner.className = 'cell-part';
+        inner.innerHTML = `
+          <div class="cell-part-icon">${cellData.part.icon}</div>
+          <div class="cell-part-name">${cellData.part.name}</div>
+        `;
+        el.style.borderColor = cellData.part.color + '88';
+        el.style.boxShadow   = `inset 0 0 10px ${cellData.part.color}22`;
+        el.appendChild(inner);
+      } else {
+        if (!PATH_SET.has(`${r},${c}`)) {
+          el.style.borderColor = '';
+          el.style.boxShadow   = '';
+        }
+      }
+    }
+
+    // ── 状态栏更新 ──
+    function updateStatus(msg) {
+      statusText.innerHTML = `— ${msg}`;
+    }
+
+    // ════════════════════════════════
+    // 攻击系统
+    // ════════════════════════════════
+
+    const attackLayerEl = document.getElementById('attack-layer');
+    const CELL_PX = 58; // 56px格子 + 2px间距
+
+    // 格子中心像素坐标（相对SVG层）
+    function cellCenter(r, c) {
+      return {
+        x: c * CELL_PX + 28,
+        y: r * CELL_PX + 28,
+      };
+    }
+
+    // 画激光线（从零件格子到敌人格子）
+    function drawLaser(pr, pc, er, ec, color) {
+      const from = cellCenter(pr, pc);
+      const to   = cellCenter(er, ec);
+      const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+      line.setAttribute('x1', from.x);
+      line.setAttribute('y1', from.y);
+      line.setAttribute('x2', to.x);
+      line.setAttribute('y2', to.y);
+      line.setAttribute('stroke', color);
+      line.setAttribute('stroke-width', '3');
+      line.classList.add('laser-beam');
+      attackLayerEl.appendChild(line);
+      setTimeout(() => line.remove(), 400);
+
+      // 零件格子发光
+      const cellEl = getCellEl(pr, pc);
+      cellEl.style.setProperty('--part-color', color + '44');
+      cellEl.classList.remove('firing');
+      void cellEl.offsetWidth; // 重置动画
+      cellEl.classList.add('firing');
+    }
+
+    // 画EMP爆炸圈
+    function drawEmp(pr, pc, color) {
+      const center = cellCenter(pr, pc);
+      const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      circle.setAttribute('cx', center.x);
+      circle.setAttribute('cy', center.y);
+      circle.setAttribute('r', '10');
+      circle.setAttribute('stroke', color);
+      circle.setAttribute('stroke-width', '2');
+      circle.classList.add('emp-blast');
+      attackLayerEl.appendChild(circle);
+      setTimeout(() => circle.remove(), 500);
+    }
+
+    // 对敌人造成伤害
+    function dealDamage(enemy, dmg) {
+      if (!enemy.el) return;
+      enemy.hp = Math.max(0, enemy.hp - dmg);
+      updateEnemyHpEl(enemy);
+
+      // 受击闪烁
+      enemy.el.classList.remove('hit');
+      void enemy.el.offsetWidth;
+      enemy.el.classList.add('hit');
+      setTimeout(() => enemy.el && enemy.el.classList.remove('hit'), 260);
+
+      if (enemy.hp <= 0) {
+        removeEnemy(enemy);
+      }
+    }
+
+    // 获取零件的攻击力（被增幅器加成）
+    function getPartDamage(r, c, baseDmg) {
+      let dmg = baseDmg;
+      const dirs = [[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[-1,1],[1,-1],[1,1]];
+      for (const [dr, dc] of dirs) {
+        const nr = r + dr, nc = c + dc;
+        if (nr < 0 || nr >= ROWS || nc < 0 || nc >= COLS) continue;
+        if (state.cells[nr][nc].part?.id === 'amplifier') { dmg *= 2; break; }
+      }
+      return dmg;
+    }
+
+    // 检查相邻是否有指定id零件
+    function hasNeighbor(r, c, partId) {
+      const dirs = [[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[-1,1],[1,-1],[1,1]];
+      for (const [dr, dc] of dirs) {
+        const nr = r + dr, nc = c + dc;
+        if (nr < 0 || nr >= ROWS || nc < 0 || nc >= COLS) continue;
+        if (state.cells[nr][nc].part?.id === partId) return true;
+      }
+      return false;
+    }
+
+    // 找到零件射程内的所有敌人（按pathIndex降序=最靠近终点在前）
+    function getEnemiesInRange(partR, partC, range) {
+      return state.enemies
+        .filter(e => {
+          if (!e.el) return false;
+          const [er, ec] = PATH[e.pathIndex];
+          return Math.abs(er - partR) + Math.abs(ec - partC) <= range;
+        })
+        .sort((a, b) => b.pathIndex - a.pathIndex);
+    }
+
+    // 画弧线（特斯拉弹射用）
+    function drawArc(r1, c1, r2, c2, color) {
+      const from = cellCenter(r1, c1);
+      const to   = cellCenter(r2, c2);
+      const mx   = (from.x + to.x) / 2 + (Math.random() - 0.5) * 20;
+      const my   = (from.y + to.y) / 2 + (Math.random() - 0.5) * 20;
+      const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+      path.setAttribute('d', `M${from.x},${from.y} Q${mx},${my} ${to.x},${to.y}`);
+      path.setAttribute('stroke', color);
+      path.setAttribute('stroke-width', '2');
+      path.setAttribute('fill', 'none');
+      path.classList.add('laser-beam');
+      attackLayerEl.appendChild(path);
+      setTimeout(() => path.remove(), 400);
+    }
+
+    // 执行所有零件的攻击
+    function tickAttacks() {
+      for (let r = 0; r < ROWS; r++) {
+        for (let c = 0; c < COLS; c++) {
+          const part = state.cells[r][c].part;
+          if (!part) continue;
+
+          // ── 激光塔 ──
+          if (part.id === 'laser') {
+            const range   = hasNeighbor(r, c, 'amplifier') ? 5 : 3;
+            const targets = getEnemiesInRange(r, c, range);
+            if (targets.length > 0) {
+              const t1 = targets[0];
+              const [er, ec] = PATH[t1.pathIndex];
+              const dmg = getPartDamage(r, c, 3);
+              drawLaser(r, c, er, ec, '#ff4466');
+              dealDamage(t1, dmg);
+              // 协同🔷反射棱镜：打第2目标
+              if (hasNeighbor(r, c, 'mirror') && targets.length > 1) {
+                const t2 = targets[1];
+                const [er2, ec2] = PATH[t2.pathIndex];
+                drawLaser(r, c, er2, ec2, '#44ffcc');
+                dealDamage(t2, dmg);
+              }
+            }
+
+          // ── EMP ──
+          } else if (part.id === 'emp') {
+            const range   = hasNeighbor(r, c, 'amplifier') ? 3 : 2;
+            const targets = getEnemiesInRange(r, c, range);
+            if (targets.length > 0) {
+              drawEmp(r, c, '#aa44ff');
+              const dmg = getPartDamage(r, c, 2);
+              for (const t of targets) {
+                t.stunned = true;
+                dealDamage(t, dmg);
+              }
+            }
+
+          // ── 反应堆 ──
+          } else if (part.id === 'reactor') {
+            // 改为“波次结束结算回能”，tick阶段不生效
+
+          // ── 狙击炮台 ──
+          } else if (part.id === 'sniper') {
+            const targets = getEnemiesInRange(r, c, 6);
+            if (targets.length > 0) {
+              // 优先打最低血量
+              const sorted = [...targets].sort((a, b) => a.hp - b.hp);
+              const t1 = sorted[0];
+              const [er, ec] = PATH[t1.pathIndex];
+              const dmg = getPartDamage(r, c, 8);
+              drawLaser(r, c, er, ec, '#ff8800');
+              dealDamage(t1, dmg);
+              // 协同🔫：额外打第2目标
+              if (hasNeighbor(r, c, 'laser') && sorted.length > 1) {
+                const t2 = sorted[1];
+                const [er2, ec2] = PATH[t2.pathIndex];
+                drawLaser(r, c, er2, ec2, '#ff6600');
+                dealDamage(t2, Math.floor(dmg / 2));
+              }
+            }
+
+          // ── 特斯拉线圈 ──
+          } else if (part.id === 'tesla') {
+            const targets = getEnemiesInRange(r, c, 2);
+            if (targets.length > 0) {
+              const dmg       = getPartDamage(r, c, 4);
+              const withStun  = hasNeighbor(r, c, 'emp');
+              const bounceMax = 3;
+              let prev = { pathIndex: -1 };
+              let [pr2, pc2] = [r, c];
+              for (let i = 0; i < Math.min(bounceMax, targets.length); i++) {
+                const t = targets[i];
+                if (t === prev) continue;
+                const [er, ec] = PATH[t.pathIndex];
+                drawArc(pr2, pc2, er, ec, '#88ddff');
+                dealDamage(t, dmg);
+                if (withStun) t.stunned = true;
+                prev  = t;
+                pr2   = er;
+                pc2   = ec;
+              }
+            }
+
+          // ── 冷冻装置 ──
+          } else if (part.id === 'freezer') {
+            const targets = getEnemiesInRange(r, c, 3);
+            if (targets.length > 0) {
+              const t   = targets[0];
+              const [er, ec] = PATH[t.pathIndex];
+              const dmg = getPartDamage(r, c, 1);
+              drawLaser(r, c, er, ec, '#aaeeff');
+              dealDamage(t, dmg);
+              // 减速：frozen敌人每隔1tick才移动
+              t.frozen = true;
+              // 协同💥眩晕
+              if (hasNeighbor(r, c, 'emp')) t.stunned = true;
+            }
+
+          // ── 过载核心 ──
+          } else if (part.id === 'overload') {
+            // 计数器挂在part上
+            if (part._charge === undefined) part._charge = 0;
+            const chargeMax = hasNeighbor(r, c, 'reactor') ? 2 : 3;
+            part._charge++;
+            if (part._charge >= chargeMax) {
+              part._charge = 0;
+              const targets = getEnemiesInRange(r, c, 4);
+              if (targets.length > 0) {
+                drawEmp(r, c, '#ffff00');
+                const dmg = getPartDamage(r, c, 15);
+                for (const t of targets) dealDamage(t, dmg);
+                updateStatus(`☢️ 过载核心爆发！${targets.length}个敌人受到${dmg}伤害`);
+              }
+            }
+
+          // ── 反射棱镜（自身不攻击，协同效果在laser里处理）──
+          } else if (part.id === 'mirror') {
+            // 双棱镜协同：相邻棱镜时给周围所有攻击零件+1伤害（通过buff标记）
+            // 已在getPartDamage外部处理，此处无需额外逻辑
+          }
+
+          // ── 护盾（在敌人到达终点时处理，此处占位）──
+        }
+      }
+    }
+
+    // ════════════════════════════════
+    // 敌人系统
+    // ════════════════════════════════
+
+    // 创建敌人数据
+    function createEnemy(id) {
+      const maxHp = 10 + state.waveNum * 5;
+      return {
+        id,
+        hp: maxHp,
+        maxHp,
+        pathIndex: 0,
+        el: null,
+        stunned: false,
+        frozen: false,      // 冷冻：每隔1tick才移动
+        _frozenSkip: false, // 冷冻内部状态
+      };
+    }
+
+    // 生成敌人DOM并挂到棋盘
+    function spawnEnemyEl(enemy) {
+      const [r, c] = PATH[0];
+      const cellEl = getCellEl(r, c);
+      const el = document.createElement('div');
+      el.className = 'enemy';
+      el.id = `enemy-${enemy.id}`;
+      el.innerHTML = `
+        <div class="enemy-icon">🤖</div>
+        <div class="enemy-hp-bar">
+          <div class="enemy-hp-fill" style="width:100%"></div>
+        </div>
+        <div class="enemy-hp-text">${enemy.hp}/${enemy.maxHp}</div>
+      `;
+      cellEl.appendChild(el);
+      enemy.el = el;
+    }
+
+    // 更新敌人血量显示
+    function updateEnemyHpEl(enemy) {
+      if (!enemy.el) return;
+      const pct = Math.max(0, enemy.hp / enemy.maxHp * 100);
+      enemy.el.querySelector('.enemy-hp-fill').style.width = pct + '%';
+      enemy.el.querySelector('.enemy-hp-text').textContent =
+        `${enemy.hp}/${enemy.maxHp}`;
+    }
+
+    // 移动敌人到下一格
+    function moveEnemyToIndex(enemy, newIndex) {
+      if (!enemy.el) return;
+      const [r, c] = PATH[newIndex];
+      const newCell = getCellEl(r, c);
+      newCell.appendChild(enemy.el);
+      enemy.pathIndex = newIndex;
+    }
+
+    // 敌人到达终点
+    function enemyReachEnd(enemy) {
+      state.baseHp -= 1;
+      removeEnemy(enemy);
+      renderWaveInfo();
+      updateStatus(`⚠️ 敌人突破防线！基地血量 ${state.baseHp}`);
+      if (state.baseHp <= 0) endWave(false);
+    }
+
+    // 移除敌人
+    function removeEnemy(enemy) {
+      if (enemy.el) {
+        enemy.el.classList.add('dying');
+        setTimeout(() => enemy.el && enemy.el.remove(), 350);
+        enemy.el = null;
+      }
+      const idx = state.enemies.indexOf(enemy);
+      if (idx !== -1) state.enemies.splice(idx, 1);
+    }
+
+    // 每tick：先攻击，再移动
+    function tickEnemies() {
+      // 1. 所有零件攻击
+      tickAttacks();
+
+      // 2. 存活的敌人前进
+      for (const enemy of [...state.enemies]) {
+        // 眩晕：跳过这tick
+        if (enemy.stunned) { enemy.stunned = false; continue; }
+        // 冷冻：每隔1tick才移动
+        if (enemy.frozen) {
+          enemy.frozen = false;
+          if (enemy._frozenSkip) { enemy._frozenSkip = false; continue; }
+          enemy._frozenSkip = true;
+        }
+        const nextIdx = enemy.pathIndex + 1;
+        if (nextIdx >= PATH.length) {
+          enemyReachEnd(enemy);
+        } else {
+          moveEnemyToIndex(enemy, nextIdx);
+          // 拦截器检测：移动到新格子后，看旁边有没有拦截器
+          const [nr, nc] = PATH[nextIdx];
+          const dirs = [[-1,0],[1,0],[0,-1],[0,1],[-1,-1],[-1,1],[1,-1],[1,1]];
+          for (const [dr, dc] of dirs) {
+            const ar = nr + dr, ac = nc + dc;
+            if (ar < 0 || ar >= ROWS || ac < 0 || ac >= COLS) continue;
+            const adj = state.cells[ar][ac].part;
+            if (adj?.id === 'shield') {
+              // 拦截：有📡协同时停2回合，否则1回合
+              const stopTicks = hasNeighbor(ar, ac, 'amplifier') ? 2 : 1;
+              enemy.stunned = true;
+              if (stopTicks === 2) enemy._extraStun = true;
+              break;
+            }
+          }
+        }
+      }
+
+      // 处理双回合眩晕
+      for (const enemy of state.enemies) {
+        if (enemy._extraStun) {
+          enemy._extraStun = false;
+          enemy.stunned = true; // 下一tick也停
+        }
+      }
+
+      // 波次结束判断
+      if (state.waveRunning &&
+          state._spawned >= state._totalToSpawn &&
+          state.enemies.length === 0) {
+        endWave(true);
+      }
+    }
+
+    // ── 开始波次 ──
+    function startWave() {
+      if (state.waveRunning) return;
+      state.waveRunning    = true;
+      // 波次总数：从当前节点类型读取，默认3
+      const waveTotal      = state._waveTotal || 3;
+      state._totalToSpawn  = Math.round((4 + state.waveNum) * (state._enemyMult || 1));
+      state._spawned       = 0;
+      state.selectedPartId = null;
+
+      document.getElementById('start-btn').disabled = true;
+      document.getElementById('side-panel').classList.add('wave-running');
+      renderParts();
+      updateStatus(`波次 ${state.waveNum} / ${waveTotal} 开始！`);
+
+      // 每1.2秒生成一个敌人
+      state.spawnTimer = setInterval(() => {
+        if (state._spawned >= state._totalToSpawn) {
+          clearInterval(state.spawnTimer);
+          return;
+        }
+        const enemy = createEnemy(state.nextEnemyId++);
+        state.enemies.push(enemy);
+        spawnEnemyEl(enemy);
+        state._spawned++;
+      }, 1200);
+
+      // 每0.8秒tick一次（攻击+移动）
+      state.moveTimer = setInterval(() => {
+        tickEnemies();
+      }, 800);
+    }
+
+    // ── 结束波次 ──
+    function endWave(victory) {
+      state.waveRunning = false;
+      clearInterval(state.spawnTimer);
+      clearInterval(state.moveTimer);
+      document.getElementById('side-panel').classList.remove('wave-running');
+
+      if (victory) {
+        // 反应堆结算：每个已部署反应堆在波次结束时回复5能量
+        let reactorCount = 0;
+        for (let r = 0; r < ROWS; r++) {
+          for (let c = 0; c < COLS; c++) {
+            if (state.cells[r][c].part?.id === 'reactor') reactorCount++;
+          }
+        }
+        if (reactorCount > 0) {
+          const before = state.energy;
+          const gain = reactorCount * 5;
+          state.energy = Math.min(state.maxEnergy, state.energy + gain);
+          renderEnergy();
+          const realGain = state.energy - before;
+          if (realGain > 0) {
+            updateStatus(`⚡ 反应堆结算：${reactorCount}个反应堆回复 ${realGain} 能量`);
+          }
+        }
+
+        const waveTotal = state._waveTotal || 3;
+        if (state.waveNum >= waveTotal) {
+          // 节点所有波次打完 → 奖励选零件，选完后回地图
+          const bonus = 3 + map.floor;
+          state.maxEnergy += bonus;
+          state.energy = state.maxEnergy;
+          renderEnergy();
+
+          // 标记节点完成，解锁下一层
+          const node = findNode(map.currentNodeId);
+          if (node) {
+            node.state = 'done';
+            unlockNextNodes(node);
+          }
+
+          // 检查是否通关整张地图（boss被打败）
+          const allDone = isMapComplete();
+
+          showRewardModal(() => {
+            clearBoardParts();
+            renderWaveInfo();
+            if (allDone) {
+              map.floor++;
+              generateMap();
+            }
+            showMapScreen();
+          });
+        } else {
+          // 还有波次 → 先给零件奖励，选完后解锁面板继续
+          state.waveNum++;
+          showRewardModal(() => {
+            document.getElementById('side-panel').classList.remove('wave-running');
+            document.getElementById('start-btn').disabled = false;
+            renderWaveInfo();
+            renderParts();
+            updateStatus(`✅ 获得新零件！部署后开始波次 ${state.waveNum}`);
+          });
+        }
+      } else {
+        showDefeatModal();
+      }
+    }
+
+    // ════════════════════════════════
+    // 弹窗系统
+    // ════════════════════════════════
+
+    const overlay     = document.getElementById('modal-overlay');
+    const modalTitle  = document.getElementById('modal-title');
+    const modalBody   = document.getElementById('modal-body');
+    const rewardCards = document.getElementById('reward-cards');
+    const modalBtns   = document.getElementById('modal-btns');
+
+    function showModal() { overlay.classList.add('show'); }
+    function hideModal() { overlay.classList.remove('show'); }
+
+    // 根据当前地图层数，抽取可出现的零件
+    function randomParts(n) {
+      const pool = PARTS_DEF.filter(p => p.tier <= map.floor);
+      const shuffled = [...pool].sort(() => Math.random() - 0.5);
+      return shuffled.slice(0, Math.min(n, shuffled.length));
+    }
+
+    // 奖励选择弹窗，选完后执行 onDone 回调
+    function showRewardModal(onDone) {
+      modalTitle.className   = 'reward';
+      modalTitle.textContent = '选择零件';
+      modalBody.textContent  = '节点完成！选择一个新零件，或跳过换取3点能量';
+
+      const picks = randomParts(3);
+      rewardCards.innerHTML = '';
+      picks.forEach(part => {
+        const card = document.createElement('div');
+        card.className = 'reward-card';
+        card.innerHTML = `
+          <div class="reward-card-icon">${part.icon}</div>
+          <div class="reward-card-name">${part.name}</div>
+          <div class="reward-card-desc">${part.desc}</div>
+          <div class="reward-card-cost">${part.cost}</div>
+        `;
+        card.addEventListener('click', () => {
+          const inv = state.inventory.find(p => p.id === part.id);
+          if (inv) inv.count++;
+          else state.inventory.push({ ...part, count: 1 });
+          hideModal();
+          renderParts();
+          if (onDone) onDone();
+        });
+        rewardCards.appendChild(card);
+      });
+
+      // 跳过按钮：+3能量上限并回满
+      modalBtns.innerHTML = '';
+      const skipBtn = document.createElement('button');
+      skipBtn.className   = 'modal-btn';
+      skipBtn.textContent = '⚡ 跳过 → +3能量';
+      skipBtn.style.cssText = 'border-color:#ffaa0066;color:#ffaa00;font-size:10px';
+      skipBtn.addEventListener('click', () => {
+        state.energy = Math.min(state.maxEnergy, state.energy + 3);
+        renderEnergy();
+        hideModal();
+        renderParts();
+        updateStatus(`⚡ 跳过零件，获得 +3 能量（当前 ${state.energy}/${state.maxEnergy}）`);
+        if (onDone) onDone();
+      });
+      modalBtns.appendChild(skipBtn);
+      showModal();
+    }
+
+    // 商店弹窗
+    function showShopModal(onDone) {
+      modalTitle.className   = 'reward';
+      modalTitle.textContent = '零件商店';
+
+      // 商店提供5个随机零件，每个有价格（能量消耗）
+      const stock = randomParts(5);
+      // 商店售价 = 零件cost + 1（贵一点）
+      modalBody.textContent = `当前能量：${state.energy} / ${state.maxEnergy}`;
+
+      rewardCards.innerHTML = '';
+      const boughtSet = new Set();
+
+      function renderShopCards() {
+        rewardCards.innerHTML = '';
+        modalBody.textContent = `当前能量：${state.energy} / ${state.maxEnergy}`;
+        stock.forEach((part, i) => {
+          const price    = part.cost + 1;
+          const bought   = boughtSet.has(i);
+          const canAfford = state.energy >= price;
+
+          const card = document.createElement('div');
+          card.className = 'reward-card';
+          card.style.opacity = bought ? '0.3' : '1';
+          card.style.cursor  = bought || !canAfford ? 'not-allowed' : 'pointer';
+          card.innerHTML = `
+            <div class="reward-card-icon">${part.icon}</div>
+            <div class="reward-card-name">${part.name}</div>
+            <div class="reward-card-desc">${part.desc}</div>
+            <div class="reward-card-cost" style="color:${canAfford?'#ffaa00':'#664400'}">${price}</div>
+          `;
+          if (!bought && canAfford) {
+            card.addEventListener('click', () => {
+              state.energy -= price;
+              const inv = state.inventory.find(p => p.id === part.id);
+              if (inv) inv.count++;
+              else state.inventory.push({ ...part, count: 1 });
+              boughtSet.add(i);
+              renderShopCards();
+              renderParts();
+            });
+          }
+          rewardCards.appendChild(card);
+        });
+      }
+
+      renderShopCards();
+
+      modalBtns.innerHTML = '';
+      const leaveBtn = document.createElement('button');
+      leaveBtn.className   = 'modal-btn';
+      leaveBtn.textContent = '离开商店';
+      leaveBtn.addEventListener('click', () => {
+        hideModal();
+        renderEnergy();
+        if (onDone) onDone();
+      });
+      modalBtns.appendChild(leaveBtn);
+      showModal();
+    }
+
+    // 胜利弹窗（通关整张地图）
+    function showVictoryModal() {
+      modalTitle.className   = 'win';
+      modalTitle.textContent = '任务完成';
+      modalBody.innerHTML    = `
+        所有节点已清除！<br>
+        基地血量剩余：<strong style="color:#00e5ff">${state.baseHp}</strong><br>
+        关卡层数：<strong style="color:#00e5ff">${map.floor}</strong>
+      `;
+      rewardCards.innerHTML = '';
+      modalBtns.innerHTML   = '';
+      const btn = document.createElement('button');
+      btn.className   = 'modal-btn';
+      btn.textContent = '再来一局';
+      btn.addEventListener('click', () => { hideModal(); resetGame(); });
+      modalBtns.appendChild(btn);
+      showModal();
+    }
+
+    // 失败弹窗
+    function showDefeatModal() {
+      modalTitle.className   = 'lose';
+      modalTitle.textContent = '基地摧毁';
+      modalBody.innerHTML    = `
+        敌人突破了防线！<br>
+        坚持到关卡 <strong style="color:#ff4444">${map.floor}</strong><br>
+        基地血量归零
+      `;
+      rewardCards.innerHTML = '';
+      modalBtns.innerHTML   = '';
+      const btn = document.createElement('button');
+      btn.className   = 'modal-btn danger';
+      btn.textContent = '重新开始';
+      btn.addEventListener('click', () => { hideModal(); resetGame(); });
+      modalBtns.appendChild(btn);
+      showModal();
+    }
+
+    // 清空棋盘零件（节点结束后）
+    function clearBoardParts() {
+      state.enemies.forEach(e => e.el && e.el.remove());
+      state.enemies = [];
+      for (let r = 0; r < ROWS; r++)
+        for (let c = 0; c < COLS; c++) {
+          state.cells[r][c].part = null;
+          renderCell(r, c);
+        }
+    }
+
+    // 重置整局游戏
+    function resetGame() {
+      clearBoardParts();
+      state.energy         = 10;
+      state.maxEnergy      = 10;
+      state.baseHp         = 20;
+      state.waveNum        = 1;
+      state.waveRunning    = false;
+      state.selectedPartId = null;
+      state.nextEnemyId    = 0;
+      state._spawned       = 0;
+      state._totalToSpawn  = 0;
+      clearInterval(state.spawnTimer);
+      clearInterval(state.moveTimer);
+      state.inventory = PARTS_DEF.filter(p => p.tier === 1).map(p => ({ ...p, count: 2 }));
+      document.getElementById('start-btn').disabled = false;
+      document.getElementById('side-panel').classList.remove('wave-running');
+      renderEnergy();
+      renderParts();
+      renderWaveInfo();
+      generateMap();
+      showMapScreen();
+    }
+
+    // ════════════════════════════════
+    // 地图系统
+    // ════════════════════════════════
+
+    // 节点类型定义
+    const NODE_TYPES = {
+      normal:  { label: '战斗',   icon: '⚔️',  color: '#ff8800', waves: 3, enemyMult: 1.0 },
+      elite:   { label: '精英',   icon: '💀',  color: '#ff2255', waves: 4, enemyMult: 1.5 },
+      rest:    { label: '休息',   icon: '🔋',  color: '#00cc66', waves: 0, enemyMult: 0   },
+      shop:    { label: '商店',   icon: '🛒',  color: '#ffdd00', waves: 0, enemyMult: 0   },
+      boss:    { label: 'BOSS',  icon: '👾',  color: '#aa44ff', waves: 5, enemyMult: 2.0 },
+    };
+
+    // 地图状态
+    const map = {
+      floor: 1,          // 当前第几层（每通关一张地图+1）
+      layers: [],        // 每层节点列表 [{id, type, x, y, connTo:[id...], state:'locked'|'available'|'current'|'done'}]
+      currentNodeId: null,
+    };
+
+    // 生成地图（6层，每层2-3个节点）
+    function generateMap() {
+      map.layers = [];
+      const LAYER_COUNT = 6;
+      const SVG_W = 520, SVG_H = 420;
+      let idCounter = 0;
+
+      for (let l = 0; l < LAYER_COUNT; l++) {
+        const isBoss = l === LAYER_COUNT - 1;
+        const count  = isBoss ? 1 : (Math.random() < 0.4 ? 2 : 3);
+        const nodes  = [];
+
+        for (let i = 0; i < count; i++) {
+          // 类型随机：boss层固定boss，其余按比例
+          let type;
+          if (isBoss) {
+            type = 'boss';
+          } else if (l === 0) {
+            type = 'normal'; // 第一层全是普通
+          } else {
+            const roll = Math.random();
+            if      (roll < 0.50) type = 'normal';
+            else if (roll < 0.72) type = 'elite';
+            else if (roll < 0.88) type = 'rest';
+            else                  type = 'shop';
+          }
+
+          const xSpread = SVG_W * 0.7;
+          const xBase   = (SVG_W - xSpread) / 2;
+          const x = count === 1
+            ? SVG_W / 2
+            : xBase + (xSpread / (count - 1 || 1)) * i + (Math.random() - 0.5) * 20;
+          const y = SVG_H - 40 - (l / (LAYER_COUNT - 1)) * (SVG_H - 80);
+
+          nodes.push({
+            id: idCounter++,
+            type,
+            x: Math.round(x),
+            y: Math.round(y),
+            connTo: [],  // 连接到下一层的节点id
+            state: l === 0 ? 'available' : 'locked',
+          });
+        }
+        map.layers.push(nodes);
+      }
+
+      // 生成层间连接：每个节点至少连到下一层1个节点
+      for (let l = 0; l < LAYER_COUNT - 1; l++) {
+        const cur  = map.layers[l];
+        const next = map.layers[l + 1];
+        // 先保证每个next节点至少被连一次
+        next.forEach((_, ni) => {
+          const src = cur[Math.floor(Math.random() * cur.length)];
+          if (!src.connTo.includes(next[ni].id)) src.connTo.push(next[ni].id);
+        });
+        // 再给每个cur节点补连接（若还没有）
+        cur.forEach(node => {
+          if (node.connTo.length === 0) {
+            const tgt = next[Math.floor(Math.random() * next.length)];
+            node.connTo.push(tgt.id);
+          }
+        });
+      }
+    }
+
+    // 通过id查找节点
+    function findNode(id) {
+      for (const layer of map.layers)
+        for (const node of layer) if (node.id === id) return node;
+      return null;
+    }
+
+    // 查找节点所在层索引
+    function findNodeLayerIndex(nodeId) {
+      for (let i = 0; i < map.layers.length; i++) {
+        if (map.layers[i].some(n => n.id === nodeId)) return i;
+      }
+      return -1;
+    }
+
+    // 锁定同层未选择分支（走过一条路后不能再回头选同层其他路）
+    function lockSiblingBranches(selectedNode) {
+      const layerIdx = findNodeLayerIndex(selectedNode.id);
+      if (layerIdx < 0) return;
+      map.layers[layerIdx].forEach(n => {
+        if (n.id !== selectedNode.id && n.state === 'available') {
+          n.state = 'locked';
+        }
+      });
+    }
+
+    // 渲染地图SVG
+    function renderMap() {
+      const svg = document.getElementById('map-svg');
+      svg.innerHTML = '';
+
+      // 更新地图头部信息
+      document.getElementById('map-floor').textContent  = map.floor;
+      document.getElementById('map-hp').textContent     = state.baseHp;
+      document.getElementById('map-energy').textContent = state.maxEnergy;
+
+      // 画连线
+      map.layers.forEach(layer => {
+        layer.forEach(node => {
+          node.connTo.forEach(toId => {
+            const toNode = findNode(toId);
+            if (!toNode) return;
+            const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+            line.setAttribute('x1', node.x);
+            line.setAttribute('y1', node.y);
+            line.setAttribute('x2', toNode.x);
+            line.setAttribute('y2', toNode.y);
+            line.setAttribute('stroke', node.state === 'done' ? '#1a4060' : '#1a3a5c');
+            line.setAttribute('stroke-width', '2');
+            line.setAttribute('stroke-dasharray', '4 4');
+            svg.appendChild(line);
+          });
+        });
+      });
+
+      // 画节点
+      map.layers.forEach(layer => {
+        layer.forEach(node => {
+          const def  = NODE_TYPES[node.type];
+          const g    = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+          g.setAttribute('transform', `translate(${node.x},${node.y})`);
+
+          const isDone      = node.state === 'done';
+          const isAvailable = node.state === 'available';
+          const isCurrent   = node.state === 'current';
+          const isLocked    = node.state === 'locked';
+
+          g.classList.add('map-node');
+          if (isDone)      g.classList.add('done');
+          if (isCurrent)   g.classList.add('current');
+          if (isLocked)    g.classList.add('locked');
+
+          // 外圈光晕（available时）
+          if (isAvailable) {
+            const glow = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+            glow.setAttribute('r', '22');
+            glow.setAttribute('fill', def.color + '22');
+            glow.setAttribute('stroke', def.color + '55');
+            glow.setAttribute('stroke-width', '1');
+            g.appendChild(glow);
+          }
+
+          // 主圆
+          const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+          circle.setAttribute('r', '18');
+          circle.setAttribute('fill',   isDone ? '#0a1525' : '#0d1f35');
+          circle.setAttribute('stroke', isDone ? '#1a3a5c' : def.color);
+          circle.setAttribute('stroke-width', isCurrent ? '3' : '2');
+          circle.classList.add('node-circle');
+          g.appendChild(circle);
+
+          // 图标
+          const icon = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+          icon.setAttribute('text-anchor', 'middle');
+          icon.setAttribute('dominant-baseline', 'central');
+          icon.setAttribute('y', '-2');
+          icon.setAttribute('font-size', '16');
+          icon.textContent = def.icon;
+          g.appendChild(icon);
+
+          // 类型标签
+          const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+          label.setAttribute('text-anchor', 'middle');
+          label.setAttribute('y', '30');
+          label.setAttribute('font-size', '9');
+          label.setAttribute('fill', isDone ? '#1a3a5c' : def.color);
+          label.setAttribute('font-family', 'Courier New');
+          label.setAttribute('letter-spacing', '1');
+          label.textContent = def.label;
+          g.appendChild(label);
+
+          // 点击进入节点
+          if (isAvailable) {
+            g.addEventListener('click', () => enterNode(node));
+          }
+
+          svg.appendChild(g);
+        });
+      });
+    }
+
+    // 进入节点
+    function enterNode(node) {
+      map.currentNodeId = node.id;
+      node.state = 'current';
+      lockSiblingBranches(node);
+
+      const def = NODE_TYPES[node.type];
+
+      if (node.type === 'rest') {
+        // 休息节点：回复基地血量，直接标记完成
+        const heal = 3 + map.floor;
+        state.baseHp += heal;
+        node.state = 'done';
+        unlockNextNodes(node);
+        saveGame();
+        renderMap();
+        updateStatus(`🔋 休息完毕，基地血量恢复 +${heal}（当前 ${state.baseHp}）`);
+        if (isMapComplete()) { map.floor++; generateMap(); renderMap(); }
+        return;
+      }
+
+      if (node.type === 'shop') {
+        // 商店节点：弹出商店界面，买完标记完成
+        node.state = 'done';
+        unlockNextNodes(node);
+        showShopModal(() => { saveGame(); renderMap(); });
+        return;
+      }
+
+      // 战斗节点：设置波次参数，进入战斗界面
+      state.waveNum       = 1;
+      state.baseHp        = 20;
+      state._waveTotal    = def.waves;
+      state._enemyMult    = def.enemyMult;
+      document.getElementById('start-btn').disabled = false;
+      renderEnergy();
+      renderWaveInfo();
+      renderParts();
+      showBattleScreen();
+    }
+
+    // 节点完成后解锁下一层可达节点
+    function unlockNextNodes(node) {
+      node.connTo.forEach(toId => {
+        const toNode = findNode(toId);
+        if (toNode && toNode.state === 'locked') toNode.state = 'available';
+      });
+    }
+
+    // 检查地图是否全部完成
+    function isMapComplete() {
+      return map.layers.every(layer => layer.every(n => n.state === 'done'));
+    }
+
+    // 界面切换
+    function showMapScreen() {
+      document.getElementById('app').classList.add('map-mode');
+      document.getElementById('map-screen').classList.add('show');
+      document.getElementById('coord-hint').style.display = 'none';
+      renderMap();
+    }
+
+    function showBattleScreen() {
+      document.getElementById('app').classList.remove('map-mode');
+      document.getElementById('map-screen').classList.remove('show');
+      document.getElementById('coord-hint').style.display = '';
+    }
+
+    // 覆盖 endWave 中波次胜利后的逻辑（已在上方处理）
+
+    // ── 按钮事件 ──
+    document.getElementById('start-btn').addEventListener('click', startWave);
+
+    // ════════════════════════════════
+    // 存档系统
+    // ════════════════════════════════
+
+    const SAVE_KEY = 'circuit_breaker_save';
+
+    // 需要保存的数据（排除运行时状态：enemies, timers, DOM引用）
+    function buildSaveData() {
+      return {
+        version: 1,
+        savedAt: new Date().toLocaleString('zh-CN'),
+        // 玩家资源
+        energy:    state.energy,
+        maxEnergy: state.maxEnergy,
+        baseHp:    state.baseHp,
+        waveNum:   state.waveNum,
+        _waveTotal:   state._waveTotal || 3,
+        _enemyMult:   state._enemyMult || 1,
+        // 零件库存（只存id和count）
+        inventory: state.inventory.map(p => ({ id: p.id, count: p.count })),
+        // 地图
+        map: {
+          floor:         map.floor,
+          currentNodeId: map.currentNodeId,
+          layers:        map.layers.map(layer =>
+            layer.map(n => ({
+              id:     n.id,
+              type:   n.type,
+              x:      n.x,
+              y:      n.y,
+              connTo: n.connTo,
+              state:  n.state,
+            }))
+          ),
+        },
+      };
+    }
+
+    // 写入存档
+    function saveGame() {
+      try {
+        localStorage.setItem(SAVE_KEY, JSON.stringify(buildSaveData()));
+      } catch(e) {
+        console.warn('存档失败', e);
+      }
+    }
+
+    // 读取存档
+    function loadSaveData() {
+      try {
+        const raw = localStorage.getItem(SAVE_KEY);
+        if (!raw) return null;
+        const data = JSON.parse(raw);
+        if (data.version !== 1) return null;
+        return data;
+      } catch(e) {
+        return null;
+      }
+    }
+
+    // 删除存档
+    function deleteSave() {
+      localStorage.removeItem(SAVE_KEY);
+    }
+
+    // 用存档数据恢复游戏状态
+    function applySaveData(data) {
+      state.energy      = data.energy;
+      state.maxEnergy   = data.maxEnergy;
+      state.baseHp      = data.baseHp;
+      state.waveNum     = data.waveNum;
+      state._waveTotal  = data._waveTotal;
+      state._enemyMult  = data._enemyMult;
+
+      // 恢复库存：把PARTS_DEF完整信息和存档的count合并
+      state.inventory = PARTS_DEF.map(def => {
+        const saved = data.inventory.find(p => p.id === def.id);
+        return { ...def, count: saved ? saved.count : 0 };
+      });
+      // 存档里有但PARTS_DEF没有的零件（未来扩展兼容）
+      data.inventory.forEach(saved => {
+        if (!state.inventory.find(p => p.id === saved.id)) {
+          const def = PARTS_DEF.find(p => p.id === saved.id);
+          if (def) state.inventory.push({ ...def, count: saved.count });
+        }
+      });
+
+      // 恢复地图
+      map.floor         = data.map.floor;
+      map.currentNodeId = data.map.currentNodeId;
+      map.layers        = data.map.layers;
+    }
+
+    // 在关键时机自动存档
+    // 1. 选完零件奖励后
+    // 2. 进入节点前
+    // 3. 回到地图时
+
+    // 包装关键函数做自动存档（用“赋值重写”避免同名函数声明递归）
+    const _origShowRewardModal = showRewardModal;
+    showRewardModal = function(onDone) {
+      _origShowRewardModal(() => {
+        saveGame();
+        if (onDone) onDone();
+      });
+    };
+
+    const _origShowMapScreen = showMapScreen;
+    showMapScreen = function() {
+      saveGame();
+      _origShowMapScreen();
+    };
+
+    const _origResetGame = resetGame;
+    resetGame = function() {
+      deleteSave();
+      _origResetGame();
+    };
+
+    // ════════════════════════════════
+    // 开始界面
+    // ════════════════════════════════
+
+    function showStartScreen() {
+      document.getElementById('start-screen').classList.add('show');
+    }
+
+    function hideStartScreen() {
+      document.getElementById('start-screen').classList.remove('show');
+    }
+
+    function initStartScreen() {
+      const save = loadSaveData();
+
+      if (save) {
+        // 有存档：显示存档信息和"继续游戏"按钮
+        document.getElementById('save-info-box').style.display = '';
+        document.getElementById('save-floor').textContent  = `第 ${save.map.floor} 层`;
+        document.getElementById('save-parts').textContent  =
+          save.inventory.filter(p => p.count > 0).length + ' 种';
+        document.getElementById('save-energy').textContent = save.maxEnergy + ' E';
+        document.getElementById('continue-btn').style.display = '';
+      }
+
+      document.getElementById('continue-btn').addEventListener('click', () => {
+        const save = loadSaveData();
+        if (!save) return;
+        applySaveData(save);
+        hideStartScreen();
+        renderEnergy();
+        renderParts();
+        renderWaveInfo();
+        showMapScreen();
+      });
+
+      document.getElementById('newgame-btn').addEventListener('click', () => {
+        deleteSave();
+        hideStartScreen();
+        // 全新初始化
+        generateMap();
+        renderEnergy();
+        renderParts();
+        showMapScreen();
+      });
+    }
+
+    // ── 初始化 ──
+    initStartScreen();
+  </script>
+</body>
+</html>
