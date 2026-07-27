@@ -1,0 +1,3426 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Save the Load</title>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=ZCOOL+QingKe+HuangYou&family=Noto+Sans+SC:wght@400;500;700;900&display=swap');
+
+  :root {
+    --bg0: #0c1210;
+    --bg1: #152019;
+    --panel: #1a2820ee;
+    --panel2: #24352cee;
+    --line: #3d5a48;
+    --amber: #e8a84a;
+    --amber2: #ffd089;
+    --teal: #4ec9a0;
+    --teal2: #7ee0bc;
+    --red: #e35d5d;
+    --blue: #6bb0e8;
+    --purple: #b07be8;
+    --text: #e8f0e6;
+    --muted: #8aa396;
+    --card-atk: #3a221c;
+    --card-skl: #1c2a3a;
+    --card-pwr: #2a1c3a;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    font-family: "Noto Sans SC", "Microsoft YaHei", sans-serif;
+    color: var(--text);
+    background:
+      radial-gradient(ellipse at 20% 0%, #1a3a2a55 0%, transparent 45%),
+      radial-gradient(ellipse at 90% 20%, #3a2a1055 0%, transparent 40%),
+      radial-gradient(ellipse at 50% 100%, #1a201855 0%, transparent 50%),
+      linear-gradient(160deg, var(--bg0), var(--bg1) 50%, #0a100e);
+    overflow: hidden;
+    user-select: none;
+  }
+  body::before {
+    content: "";
+    position: fixed; inset: 0;
+    background:
+      repeating-linear-gradient(0deg, transparent, transparent 47px, #ffffff04 48px),
+      repeating-linear-gradient(90deg, transparent, transparent 47px, #ffffff03 48px);
+    pointer-events: none;
+    z-index: 0;
+  }
+
+  #app { position: relative; z-index: 1; height: 100%; }
+
+  .screen {
+    display: none;
+    height: 100%;
+    flex-direction: column;
+  }
+  .screen.active { display: flex; }
+
+  /* ── Title ── */
+  #screen-title {
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    gap: 18px;
+    background:
+      linear-gradient(180deg, transparent 40%, #0008 100%),
+      radial-gradient(ellipse at 50% 70%, #2a4a3555, transparent 60%);
+  }
+  .brand {
+    font-family: "ZCOOL QingKe HuangYou", "Noto Sans SC", sans-serif;
+    font-size: clamp(48px, 8vw, 92px);
+    letter-spacing: 0.08em;
+    color: var(--amber2);
+    text-shadow: 0 4px 0 #8a5a20, 0 0 40px #e8a84a66;
+    animation: brandIn 1s ease both;
+  }
+  .brand span { color: var(--teal2); }
+  @keyframes brandIn {
+    from { opacity: 0; transform: translateY(24px) scale(0.96); }
+    to { opacity: 1; transform: none; }
+  }
+  .tagline {
+    color: var(--muted);
+    font-size: 16px;
+    max-width: 420px;
+    line-height: 1.6;
+    animation: brandIn 1s 0.15s ease both;
+  }
+  .btn {
+    border: 1px solid var(--amber);
+    background: linear-gradient(180deg, #3a2a14, #221808);
+    color: var(--amber2);
+    font-family: inherit;
+    font-size: 16px;
+    font-weight: 700;
+    padding: 12px 36px;
+    border-radius: 6px;
+    cursor: pointer;
+    letter-spacing: 0.12em;
+    transition: transform 0.15s, box-shadow 0.15s, background 0.15s;
+    box-shadow: 0 4px 0 #5a3a10, 0 0 20px #e8a84a22;
+  }
+  .btn:hover { transform: translateY(-2px); box-shadow: 0 6px 0 #5a3a10, 0 0 28px #e8a84a44; }
+  .btn:active { transform: translateY(2px); box-shadow: 0 1px 0 #5a3a10; }
+  .btn.teal {
+    border-color: var(--teal);
+    background: linear-gradient(180deg, #1a3a2e, #0e2018);
+    color: var(--teal2);
+    box-shadow: 0 4px 0 #0e3020, 0 0 20px #4ec9a022;
+  }
+  .btn.ghost {
+    background: transparent;
+    border-color: var(--line);
+    color: var(--muted);
+    box-shadow: none;
+  }
+  .btn:disabled { opacity: 0.4; cursor: not-allowed; transform: none; }
+  .title-actions { display: flex; gap: 14px; margin-top: 12px; animation: brandIn 1s 0.3s ease both; }
+  .ver { position: absolute; bottom: 16px; right: 20px; color: #567; font-size: 12px; }
+
+  /* ── Map ── */
+  #screen-map { padding: 16px 20px; gap: 12px; }
+  .topbar {
+    display: flex; align-items: center; justify-content: space-between;
+    padding: 10px 16px;
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 10px;
+  }
+  .topbar .brand-mini {
+    font-family: "ZCOOL QingKe HuangYou", sans-serif;
+    font-size: 22px;
+    color: var(--amber2);
+  }
+  .topbar .brand-mini span { color: var(--teal2); }
+  .stats { display: flex; gap: 18px; font-size: 14px; color: var(--muted); }
+  .stats b { color: var(--text); font-weight: 700; }
+  .hp-bar-wrap {
+    width: 140px; height: 12px; background: #111; border-radius: 6px;
+    border: 1px solid #444; overflow: hidden; display: inline-block; vertical-align: middle;
+  }
+  .hp-bar { height: 100%; background: linear-gradient(90deg, #c04040, #e07050); transition: width 0.3s; }
+
+  .map-wrap {
+    flex: 1; position: relative; overflow: auto;
+    border: 1px solid var(--line); border-radius: 12px;
+    background: linear-gradient(180deg, #101814, #0c1410);
+  }
+  .map-canvas {
+    position: relative; min-height: 100%; min-width: 100%;
+    padding: 40px 60px;
+  }
+  .map-svg { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+  .node {
+    position: absolute; width: 56px; height: 56px;
+    margin-left: -28px; margin-top: -28px;
+    border-radius: 50%;
+    border: 2px solid var(--line);
+    background: var(--panel2);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; cursor: default;
+    transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+    z-index: 2;
+  }
+  .node.reachable {
+    border-color: var(--amber);
+    box-shadow: 0 0 16px #e8a84a55;
+    cursor: pointer;
+    animation: pulse 1.6s ease infinite;
+  }
+  .node.reachable:hover { transform: scale(1.12); }
+  .node.current { border-color: var(--teal2); box-shadow: 0 0 20px #4ec9a088; }
+  .node.done { opacity: 0.45; filter: grayscale(0.4); }
+  .node .label {
+    position: absolute; top: 60px; left: 50%; transform: translateX(-50%);
+    white-space: nowrap; font-size: 11px; color: var(--muted);
+  }
+  @keyframes pulse {
+    0%, 100% { box-shadow: 0 0 10px #e8a84a44; }
+    50% { box-shadow: 0 0 22px #e8a84a88; }
+  }
+
+  .map-hint { text-align: center; color: var(--muted); font-size: 13px; padding: 4px; }
+
+  /* ── Combat ── */
+  #screen-combat { padding: 12px 16px; gap: 8px; }
+  .combat-top {
+    display: flex; justify-content: space-between; align-items: center;
+    padding: 8px 14px; background: var(--panel); border: 1px solid var(--line); border-radius: 10px;
+  }
+  .energy {
+    width: 54px; height: 54px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #ffe0a0, #c08020 60%, #6a4010);
+    border: 3px solid #ffd089;
+    display: flex; align-items: center; justify-content: center;
+    font-size: 22px; font-weight: 900; color: #2a1808;
+    box-shadow: 0 0 18px #e8a84a66;
+  }
+  .pile-info { display: flex; gap: 16px; font-size: 13px; color: var(--muted); }
+  .pile-info b { color: var(--text); }
+
+  .battlefield {
+    flex: 1; display: grid; grid-template-columns: 1fr 1fr;
+    gap: 16px; min-height: 0; position: relative;
+    border: 1px solid var(--line); border-radius: 12px;
+    background:
+      radial-gradient(ellipse at 25% 55%, #1a302855, transparent 45%),
+      radial-gradient(ellipse at 75% 45%, #30201855, transparent 45%),
+      #101612;
+    padding: 20px;
+    overflow: hidden;
+  }
+  .side-col { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; }
+  .actor {
+    width: 160px; text-align: center; position: relative;
+  }
+  .actor-art {
+    width: 120px; height: 120px; margin: 0 auto 8px;
+    border-radius: 16px;
+    border: 2px solid var(--line);
+    display: flex; align-items: center; justify-content: center;
+    font-size: 52px;
+    background: linear-gradient(160deg, #243028, #152018);
+    box-shadow: 0 10px 30px #0008;
+    transition: transform 0.12s;
+  }
+  .actor.player .actor-art {
+    border-color: var(--teal);
+    background: linear-gradient(160deg, #1e3830, #122820);
+  }
+  .actor.enemy .actor-art {
+    border-color: var(--red);
+    background: linear-gradient(160deg, #38201e, #201214);
+  }
+  .actor.hit .actor-art { animation: shake 0.35s ease; }
+  .actor.block-flash .actor-art { box-shadow: 0 0 24px #6bb0e8aa; }
+  @keyframes shake {
+    0%, 100% { transform: translateX(0); }
+    25% { transform: translateX(-8px); }
+    75% { transform: translateX(8px); }
+  }
+  .actor-name { font-weight: 700; font-size: 15px; margin-bottom: 4px; }
+  .bar-row { display: flex; align-items: center; gap: 6px; justify-content: center; font-size: 12px; }
+  .bar {
+    width: 120px; height: 14px; background: #111; border-radius: 4px;
+    border: 1px solid #444; overflow: hidden; position: relative;
+  }
+  .bar > i { display: block; height: 100%; transition: width 0.25s; }
+  .bar.hp > i { background: linear-gradient(90deg, #a03030, #e06050); }
+  .bar.block-overlay {
+    position: absolute; inset: 0; pointer-events: none;
+  }
+  .block-badge {
+    display: inline-flex; align-items: center; gap: 4px;
+    background: #1a3048; border: 1px solid var(--blue); color: #9cd0ff;
+    padding: 2px 8px; border-radius: 10px; font-size: 12px; font-weight: 700;
+    min-width: 36px; justify-content: center;
+  }
+  .intent {
+    position: absolute; top: -18px; left: 50%; transform: translateX(-50%);
+    background: #1a1410ee; border: 1px solid var(--amber);
+    padding: 4px 10px; border-radius: 12px; font-size: 12px;
+    white-space: nowrap; color: var(--amber2);
+    box-shadow: 0 4px 12px #0008;
+  }
+  .statuses { display: flex; flex-wrap: wrap; gap: 4px; justify-content: center; min-height: 22px; margin-top: 4px; }
+  .status {
+    font-size: 11px; padding: 2px 6px; border-radius: 8px;
+    background: #222; border: 1px solid #555; color: #ccc;
+  }
+  .status.vuln { border-color: #e35d5d; color: #ffaaaa; }
+  .status.weak { border-color: #e8a84a; color: #ffe0a0; }
+  .status.str { border-color: #e35d5d; color: #ff8080; background: #3a1818; }
+  .status.dex { border-color: #6bb0e8; color: #a0d0ff; background: #182838; }
+  .status.poison { border-color: #80e080; color: #a0ffa0; }
+
+  .enemies-row { display: flex; gap: 28px; flex-wrap: wrap; justify-content: center; }
+
+  .log {
+    position: absolute; left: 12px; bottom: 12px;
+    width: 240px; max-height: 100px; overflow: auto;
+    font-size: 11px; color: var(--muted); line-height: 1.45;
+    pointer-events: none;
+  }
+  .log div { opacity: 0.85; }
+
+  .hand-area {
+    display: flex; flex-direction: column; gap: 8px;
+    padding: 8px 0 4px;
+  }
+  .hand {
+    display: flex; justify-content: center; align-items: flex-end;
+    gap: 8px; min-height: 200px; padding: 0 20px;
+    perspective: 800px;
+  }
+  .card {
+    width: 128px; height: 180px;
+    border-radius: 10px;
+    border: 2px solid #666;
+    background: linear-gradient(180deg, #2a2218, #1a1410);
+    padding: 8px;
+    cursor: pointer;
+    position: relative;
+    transition: transform 0.15s, box-shadow 0.15s;
+    display: flex; flex-direction: column;
+    box-shadow: 0 6px 16px #000a;
+    flex-shrink: 0;
+  }
+  .card.attack { border-color: #c07050; background: linear-gradient(180deg, #3a2820, var(--card-atk)); }
+  .card.skill { border-color: #5080c0; background: linear-gradient(180deg, #203040, var(--card-skl)); }
+  .card.power { border-color: #9060c0; background: linear-gradient(180deg, #302040, var(--card-pwr)); }
+  .card.unplayable { opacity: 0.45; cursor: not-allowed; }
+  .card:not(.unplayable):hover {
+    transform: translateY(-18px) scale(1.06);
+    z-index: 5;
+    box-shadow: 0 16px 32px #000c, 0 0 16px #e8a84a44;
+  }
+  .card.selected {
+    transform: translateY(-28px) scale(1.08);
+    box-shadow: 0 0 24px #4ec9a088;
+    border-color: var(--teal2);
+    z-index: 6;
+  }
+  .card .cost {
+    position: absolute; top: -8px; left: -8px;
+    width: 28px; height: 28px; border-radius: 50%;
+    background: radial-gradient(circle at 35% 30%, #ffe0a0, #b07020);
+    border: 2px solid #ffd089;
+    display: flex; align-items: center; justify-content: center;
+    font-weight: 900; font-size: 14px; color: #2a1808;
+  }
+  .card .cname { font-size: 13px; font-weight: 700; text-align: center; margin-top: 6px; line-height: 1.2; }
+  .card .ctype { font-size: 10px; text-align: center; color: var(--muted); margin: 4px 0; }
+  .card .cdesc {
+    font-size: 11px; line-height: 1.35; color: #c8d8c8;
+    flex: 1; display: flex; align-items: center; text-align: center;
+  }
+  .card .rarity {
+    font-size: 9px; text-align: center; color: #789; margin-top: 2px;
+  }
+  .card.upgraded .cname { color: var(--teal2); }
+  .card.rare { box-shadow: 0 0 12px #e8a84a44; }
+  .card.uncommon .cname { color: #8ec8ff; }
+
+  .combat-actions { display: flex; justify-content: center; gap: 12px; padding-bottom: 4px; }
+
+  /* ── Overlay / Modal ── */
+  .overlay {
+    display: none; position: fixed; inset: 0; z-index: 50;
+    background: #000a; align-items: center; justify-content: center;
+    backdrop-filter: blur(3px);
+  }
+  .overlay.show { display: flex; }
+  .modal {
+    background: linear-gradient(160deg, #1e2c24, #152018);
+    border: 1px solid var(--amber);
+    border-radius: 14px;
+    padding: 24px 28px;
+    max-width: 720px; width: 92%;
+    max-height: 85vh; overflow: auto;
+    box-shadow: 0 24px 60px #000c, 0 0 40px #e8a84a22;
+    animation: modalIn 0.25s ease;
+  }
+  @keyframes modalIn {
+    from { opacity: 0; transform: scale(0.94) translateY(12px); }
+    to { opacity: 1; transform: none; }
+  }
+  .modal h2 {
+    font-family: "ZCOOL QingKe HuangYou", sans-serif;
+    font-size: 28px; color: var(--amber2); margin: 0 0 8px; text-align: center;
+  }
+  .modal p { text-align: center; color: var(--muted); margin: 0 0 18px; font-size: 14px; }
+  .reward-row, .shop-row, .card-pick {
+    display: flex; flex-wrap: wrap; gap: 12px; justify-content: center; margin-bottom: 16px;
+  }
+  .modal-actions { display: flex; gap: 10px; justify-content: center; flex-wrap: wrap; }
+
+  .relic-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    padding: 6px 10px; border-radius: 8px;
+    background: #243028; border: 1px solid var(--line);
+    font-size: 12px; cursor: pointer;
+    transition: border-color 0.15s, background 0.15s;
+  }
+  .relic-chip:hover {
+    border-color: var(--amber);
+    background: #2e3c34;
+  }
+  .relic-tip {
+    position: absolute;
+    z-index: 80;
+    max-width: 260px;
+    padding: 10px 12px;
+    border-radius: 10px;
+    border: 1px solid var(--amber);
+    background: #152018f5;
+    color: var(--text);
+    font-size: 12px;
+    line-height: 1.45;
+    box-shadow: 0 12px 28px #000c;
+    pointer-events: none;
+    display: none;
+  }
+  .relic-tip.show { display: block; }
+  .relic-tip b { display: block; color: var(--amber2); margin-bottom: 4px; font-size: 14px; }
+
+  .deck-card-wrap {
+    display: flex; flex-direction: column; align-items: center; gap: 6px;
+    max-width: 140px;
+  }
+  .upgrade-preview {
+    font-size: 11px; line-height: 1.35;
+    color: var(--teal2);
+    background: #1a3028;
+    border: 1px dashed #4ec9a066;
+    border-radius: 8px;
+    padding: 6px 8px;
+    width: 128px;
+    text-align: center;
+  }
+  .upgrade-preview .up-label { color: var(--muted); font-size: 10px; margin-bottom: 2px; }
+  .sold-tag {
+    opacity: 0.4; pointer-events: none; position: relative;
+  }
+  .sold-tag::after {
+    content: '已售';
+    position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+    font-size: 22px; font-weight: 900; color: var(--red);
+    background: #0008; border-radius: 10px;
+  }
+  .card .cdesc .was, .upgrade-preview .was { color: #889; text-decoration: line-through; margin-right: 4px; }
+  .card .cdesc .now, .upgrade-preview .now { color: var(--teal2); }
+  .relics-bar { display: flex; flex-wrap: wrap; gap: 6px; max-width: 360px; justify-content: flex-end; }
+
+  .float-dmg {
+    position: absolute; pointer-events: none; font-weight: 900; font-size: 22px;
+    animation: floatUp 0.8s ease forwards; z-index: 20;
+    text-shadow: 0 2px 4px #000;
+  }
+  .float-dmg.block { color: var(--blue); }
+  .float-dmg.heal { color: var(--teal2); }
+  .float-dmg.dmg { color: #ff8080; }
+  @keyframes floatUp {
+    from { opacity: 1; transform: translateY(0); }
+    to { opacity: 0; transform: translateY(-40px); }
+  }
+
+  .target-hint {
+    position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+    background: #1a2820ee; border: 1px solid var(--teal);
+    padding: 6px 14px; border-radius: 8px; font-size: 13px; color: var(--teal2);
+    display: none; z-index: 10;
+  }
+  .target-hint.show { display: block; }
+
+  #toast {
+    position: fixed; top: 24px; left: 50%; transform: translateX(-50%) translateY(-20px);
+    background: #1a2820f0; border: 1px solid var(--amber); color: var(--amber2);
+    padding: 10px 20px; border-radius: 8px; z-index: 100; opacity: 0;
+    transition: all 0.3s; pointer-events: none; font-size: 14px;
+  }
+  #toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
+
+  .deck-btn {
+    background: #243028; border: 1px solid var(--line); color: var(--muted);
+    padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 12px; font-family: inherit;
+  }
+  .deck-btn:hover { color: var(--text); border-color: var(--amber); }
+
+
+  .char-pick {
+    display: flex; gap: 18px; justify-content: center; flex-wrap: wrap;
+    margin-top: 8px; animation: brandIn 1s 0.25s ease both;
+  }
+  .char-card {
+    width: 220px; text-align: left;
+    border: 1px solid var(--line);
+    border-radius: 12px;
+    padding: 16px;
+    background: linear-gradient(160deg, #1e2c24, #152018);
+    cursor: pointer;
+    transition: transform 0.15s, border-color 0.15s, box-shadow 0.15s;
+  }
+  .char-card:hover {
+    transform: translateY(-4px);
+    border-color: var(--amber);
+    box-shadow: 0 12px 28px #0008, 0 0 18px #e8a84a33;
+  }
+  .char-card.clerk:hover { border-color: #7ec8a0; box-shadow: 0 12px 28px #0008, 0 0 18px #4ec9a044; }
+  .char-card .art { font-size: 42px; margin-bottom: 8px; }
+  .char-card h3 { margin: 0 0 6px; color: var(--amber2); font-size: 18px; }
+  .char-card.clerk h3 { color: var(--teal2); }
+  .char-card p { margin: 0; color: var(--muted); font-size: 12px; line-height: 1.5; }
+  .status.poison { border-color: #80e080; color: #b0ffb0; background: #183018; }
+
+  @media (max-width: 800px) {
+    .card { width: 100px; height: 150px; }
+    .actor-art { width: 90px; height: 90px; font-size: 40px; }
+    .battlefield { grid-template-columns: 1fr; }
+    .brand { font-size: 42px; }
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <!-- TITLE -->
+  <div id="screen-title" class="screen active">
+    <div class="brand">SAVE <span>THE</span> LOAD</div>
+    <div class="tagline">崩坏港区深处，有一批关键数据的货物失联。<br>选一个员工，出牌闯关，把货抢回来。</div>
+    <div class="char-pick">
+      <div class="char-card" id="pick-loader">
+        <div class="art">👷</div>
+        <h3>货手</h3>
+        <p>80 HP · 遗物「热血」战后回 6<br>起手：甩货 / 护板 / 破扣</p>
+      </div>
+      <div class="char-card clerk" id="pick-clerk">
+        <div class="art">👩‍💼</div>
+        <h3>女员工</h3>
+        <p>70 HP · 遗物「蛇形工牌」开局多抽 2<br>起手：点戳 / 夹板 / 抽身 / 灭声</p>
+      </div>
+    </div>
+    <div class="title-actions">
+      <button class="btn" id="btn-load" style="display:none">读取存档</button>
+      <button class="btn ghost" id="btn-howto">玩法说明</button>
+    </div>
+    <div class="ver">v1.3 · SAVE / LOAD · 货手 / 女员工</div>
+  </div>
+
+  <!-- MAP -->
+  <div id="screen-map" class="screen">
+    <div class="topbar">
+      <div class="brand-mini">SAVE <span>THE</span> LOAD</div>
+      <div class="stats">
+        <span>HP <b id="map-hp">80/80</b>
+          <span class="hp-bar-wrap"><span class="hp-bar" id="map-hp-bar" style="width:100%"></span></span>
+        </span>
+        <span>金币 <b id="map-gold">99</b></span>
+        <span>楼层 <b id="map-floor">1</b></span>
+      </div>
+      <div class="relics-bar" id="map-relics"></div>
+      <button class="deck-btn" id="btn-save">存档</button>
+      <button class="deck-btn" id="btn-view-deck">查看牌组</button>
+    </div>
+    <div class="map-hint">打不过就存档 · 标题页可读取 · 升级牌需确认</div>
+    <div class="map-wrap">
+      <div class="map-canvas" id="map-canvas"></div>
+    </div>
+  </div>
+
+  <!-- COMBAT -->
+  <div id="screen-combat" class="screen">
+    <div class="combat-top">
+      <div style="display:flex;align-items:center;gap:12px">
+        <div class="energy" id="energy">3</div>
+        <div>
+          <div style="font-weight:700" id="combat-title">战斗</div>
+          <div class="pile-info">
+            <span>抽牌堆 <b id="draw-count">0</b></span>
+            <span>弃牌堆 <b id="discard-count">0</b></span>
+            <span>回合 <b id="turn-count">1</b></span>
+          </div>
+        </div>
+      </div>
+      <div class="relics-bar" id="combat-relics"></div>
+      <div class="stats">
+        <span>HP <b id="combat-hp">80/80</b></span>
+        <span>金币 <b id="combat-gold">99</b></span>
+      </div>
+    </div>
+
+    <div class="battlefield" id="battlefield">
+      <div class="target-hint" id="target-hint">选择一个敌人作为目标</div>
+      <div class="side-col">
+        <div class="actor player" id="player-actor">
+          <div class="actor-art" id="player-art">👷</div>
+          <div class="actor-name" id="player-name">货手</div>
+          <div class="bar-row">
+            <span class="block-badge" id="player-block">🛡 0</span>
+          </div>
+          <div class="bar-row">
+            <div class="bar hp"><i id="player-hp-bar" style="width:100%"></i></div>
+            <span id="player-hp-text">80/80</span>
+          </div>
+          <div class="statuses" id="player-statuses"></div>
+        </div>
+      </div>
+      <div class="side-col">
+        <div class="enemies-row" id="enemies"></div>
+      </div>
+      <div class="log" id="combat-log"></div>
+    </div>
+
+    <div class="hand-area">
+      <div class="hand" id="hand"></div>
+      <div class="combat-actions">
+        <button class="btn teal" id="btn-end-turn">结束回合</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div id="overlay" class="overlay">
+  <div class="modal" id="modal"></div>
+</div>
+<div id="toast"></div>
+<div id="relic-tip" class="relic-tip"></div>
+
+<script>
+(() => {
+  'use strict';
+
+  // 牌效对齐「力量型近战牌组」常见机制；名称与主题为 Save the Load 原创。
+  const CARDS = {
+    // ── 基础（起手）──
+    haul: {
+      id: 'haul', name: '甩货', type: 'attack', cost: 1, rarity: 'basic', strike: true,
+      desc: '造成 {dmg} 点伤害。', dmg: 6,
+      play(ctx) { ctx.damageEnemy(ctx.target, ctx.cardDmg(6)); }
+    },
+    plate: {
+      id: 'plate', name: '护板', type: 'skill', cost: 1, rarity: 'basic',
+      desc: '获得 {blk} 点格挡。', blk: 5,
+      play(ctx) { ctx.gainBlock(ctx.cardBlk(5)); }
+    },
+    bash: {
+      id: 'bash', name: '破扣', type: 'attack', cost: 2, rarity: 'basic',
+      desc: '造成 {dmg} 点伤害。给予 2 层易伤。', dmg: 8, needsTarget: true,
+      play(ctx) {
+        ctx.damageEnemy(ctx.target, ctx.cardDmg(8));
+        ctx.applyStatus(ctx.target, 'vuln', 2);
+      }
+    },
+
+    // ── 普通 ──
+    anger: {
+      id: 'anger', name: '怒运', type: 'attack', cost: 0, rarity: 'common',
+      desc: '造成 {dmg} 点伤害。将一张此牌的复制放入弃牌堆。', dmg: 6,
+      play(ctx) {
+        ctx.damageEnemy(ctx.target, ctx.cardDmg(6));
+        ctx.state.discard.push(mkCard('anger', ctx.card.upgraded));
+      }
+    },
+    armaments: {
+      id: 'armaments', name: '整备', type: 'skill', cost: 1, rarity: 'common',
+      desc: '获得 {blk} 点格挡。升级手牌中的一张牌。', blk: 5,
+      play(ctx) {
+        ctx.gainBlock(ctx.cardBlk(5));
+        const ups = ctx.state.hand.filter(c => !c.upgraded && UPGRADES[c.baseId]);
+        ctx.chooseFrom(ups, '选择一张牌升级', (c) => { if (c) upgradeCard(c); });
+      }
+    },
+    body_slam: {
+      id: 'body_slam', name: '身撞', type: 'attack', cost: 1, rarity: 'common',
+      desc: '造成等同于你当前格挡的伤害。',
+      play(ctx) { ctx.damageEnemy(ctx.target, ctx.cardDmg(ctx.state.player.block)); }
+    },
+    clash: {
+      id: 'clash', name: '对撞', type: 'attack', cost: 0, rarity: 'common',
+      desc: '造成 {dmg} 点伤害。只有手牌全是攻击牌时才能打出。', dmg: 14,
+      canPlay(ctx) { return ctx.state.hand.every(c => c.type === 'attack' || c.uid === ctx.card.uid); },
+      play(ctx) { ctx.damageEnemy(ctx.target, ctx.cardDmg(14)); }
+    },
+    cleave: {
+      id: 'cleave', name: '扫货', type: 'attack', cost: 1, rarity: 'common', aoe: true,
+      desc: '对所有敌人造成 {dmg} 点伤害。', dmg: 8,
+      play(ctx) { ctx.forEachEnemy(e => ctx.damageEnemy(e, ctx.cardDmg(8))); }
+    },
+    clothesline: {
+      id: 'clothesline', name: '挂锁', type: 'attack', cost: 2, rarity: 'common',
+      desc: '造成 {dmg} 点伤害。给予 2 层虚弱。', dmg: 12,
+      play(ctx) {
+        ctx.damageEnemy(ctx.target, ctx.cardDmg(12));
+        ctx.applyStatus(ctx.target, 'weak', 2);
+      }
+    },
+    flex: {
+      id: 'flex', name: '发力', type: 'skill', cost: 0, rarity: 'common',
+      desc: '获得 2 点力量。回合结束时失去 2 点力量。',
+      play(ctx) {
+        ctx.applyStatus(ctx.state.player, 'str', 2);
+        ctx.state.player.tempStrLose = (ctx.state.player.tempStrLose || 0) + 2;
+      }
+    },
+    havoc: {
+      id: 'havoc', name: '乱拆', type: 'skill', cost: 1, rarity: 'common',
+      desc: '打出抽牌堆顶的牌，并将其消耗。',
+      play(ctx) {
+        if (!ctx.state.draw.length) {
+          if (!ctx.state.discard.length) return;
+          ctx.state.draw = shuffle(ctx.state.discard);
+          ctx.state.discard = [];
+        }
+        const top = ctx.state.draw.pop();
+        ctx.log(`乱拆打出：${top.name}`);
+        ctx.playFree(top, ctx.target, true);
+      }
+    },
+    headbutt: {
+      id: 'headbutt', name: '顶箱', type: 'attack', cost: 1, rarity: 'common',
+      desc: '造成 {dmg} 点伤害。将弃牌堆一张牌放到抽牌堆顶。', dmg: 9,
+      play(ctx) {
+        ctx.damageEnemy(ctx.target, ctx.cardDmg(9));
+        ctx.chooseFrom(ctx.state.discard, '放到抽牌堆顶', (c) => {
+          if (!c) return;
+          const i = ctx.state.discard.findIndex(x => x.uid === c.uid);
+          if (i >= 0) ctx.state.discard.splice(i, 1);
+          ctx.state.draw.push(c);
+        });
+      }
+    },
+    heavy_blade: {
+      id: 'heavy_blade', name: '重铲', type: 'attack', cost: 2, rarity: 'common',
+      desc: '造成 {dmg} 点伤害。力量对此牌生效 3 倍。', dmg: 14, strMult: 3,
+      play(ctx) { ctx.damageEnemy(ctx.target, ctx.cardDmg(14)); }
+    },
+    iron_wave: {
+      id: 'iron_wave', name: '铁浪', type: 'attack', cost: 1, rarity: 'common',
+      desc: '造成 {dmg} 点伤害。获得 {blk} 点格挡。', dmg: 5, blk: 5,
+      play(ctx) {
+        ctx.damageEnemy(ctx.target, ctx.cardDmg(5));
+        ctx.gainBlock(ctx.cardBlk(5));
+      }
+    },
+    perfected: {
+      id: 'perfected', name: '精通甩货', type: 'attack', cost: 2, rarity: 'common', strike: true,
+      desc: '造成 {dmg} 点伤害。你的牌组中每有一张「甩货」，伤害 +2。', dmg: 6,
+      play(ctx) {
+        const strikes = G.deck.filter(c => c.baseId === 'haul').length;
+        ctx.damageEnemy(ctx.target, ctx.cardDmg(6 + strikes * 2));
+      }
+    },
+    pommel: {
+      id: 'pommel', name: '柄击', type: 'attack', cost: 1, rarity: 'common',
+      desc: '造成 {dmg} 点伤害。抽 1 张牌。', dmg: 9,
+      play(ctx) { ctx.damageEnemy(ctx.target, ctx.cardDmg(9)); ctx.draw(1); }
+    },
+    shrug: {
+      id: 'shrug', name: '硬抗', type: 'skill', cost: 1, rarity: 'common',
+      desc: '获得 {blk} 点格挡。抽 1 张牌。', blk: 8,
+      play(ctx) { ctx.gainBlock(ctx.cardBlk(8)); ctx.draw(1); }
+    },
+    boomerang: {
+      id: 'boomerang', name: '回旋扣', type: 'attack', cost: 1, rarity: 'common', aoe: true,
+      desc: '随机对敌人造成 {dmg} 点伤害 3 次。', dmg: 3,
+      play(ctx) {
+        for (let i = 0; i < 3; i++) {
+          const alive = ctx.state.enemies.filter(e => e.hp > 0);
+          if (!alive.length) break;
+          ctx.damageEnemy(alive[Math.floor(Math.random() * alive.length)], ctx.cardDmg(3));
+        }
+      }
+    },
+    thunderclap: {
+      id: 'thunderclap', name: '震仓', type: 'attack', cost: 1, rarity: 'common', aoe: true,
+      desc: '对所有敌人造成 {dmg} 点伤害并给予 1 层易伤。', dmg: 4,
+      play(ctx) {
+        ctx.forEachEnemy(e => {
+          ctx.damageEnemy(e, ctx.cardDmg(4));
+          ctx.applyStatus(e, 'vuln', 1);
+        });
+      }
+    },
+    true_grit: {
+      id: 'true_grit', name: '硬茬', type: 'skill', cost: 1, rarity: 'common',
+      desc: '获得 {blk} 点格挡。消耗一张手牌。', blk: 7,
+      play(ctx) {
+        ctx.gainBlock(ctx.cardBlk(7));
+        const others = ctx.state.hand.filter(c => c.uid !== ctx.card.uid);
+        ctx.chooseFrom(others, '选择一张牌消耗', (c) => { if (c) ctx.exhaustCard(c); });
+      }
+    },
+    twin: {
+      id: 'twin', name: '连甩', type: 'attack', cost: 1, rarity: 'common',
+      desc: '造成 {dmg} 点伤害 2 次。', dmg: 5,
+      play(ctx) {
+        ctx.damageEnemy(ctx.target, ctx.cardDmg(5));
+        ctx.damageEnemy(ctx.target, ctx.cardDmg(5));
+      }
+    },
+    warcry: {
+      id: 'warcry', name: '号令', type: 'skill', cost: 0, rarity: 'common', exhaust: true,
+      desc: '抽 1 张牌。将一张手牌放到抽牌堆顶。消耗。',
+      play(ctx) {
+        ctx.draw(1);
+        ctx.chooseFrom(ctx.state.hand, '放到抽牌堆顶', (c) => {
+          if (!c) return;
+          const i = ctx.state.hand.findIndex(x => x.uid === c.uid);
+          if (i >= 0) ctx.state.hand.splice(i, 1);
+          ctx.state.draw.push(c);
+        });
+      }
+    },
+    wild: {
+      id: 'wild', name: '野甩', type: 'attack', cost: 1, rarity: 'common',
+      desc: '造成 {dmg} 点伤害。将一张「擦伤」洗入抽牌堆。', dmg: 12,
+      play(ctx) {
+        ctx.damageEnemy(ctx.target, ctx.cardDmg(12));
+        ctx.shuffleIntoDraw(mkCard('wound'));
+      }
+    },
+
+    // ── 罕见 ──
+    battle_trance: {
+      id: 'battle_trance', name: '战恍', type: 'skill', cost: 0, rarity: 'uncommon',
+      desc: '抽 3 张牌。本回合不能再抽牌。',
+      play(ctx) { ctx.draw(3); ctx.state.player.noDraw = true; }
+    },
+    bloodletting: {
+      id: 'bloodletting', name: '放血', type: 'skill', cost: 0, rarity: 'uncommon',
+      desc: '失去 3 点生命。获得 2 点能量。',
+      play(ctx) { ctx.loseHp(3); ctx.state.energy += 2; }
+    },
+    burning_pact: {
+      id: 'burning_pact', name: '焚约', type: 'skill', cost: 1, rarity: 'uncommon',
+      desc: '消耗一张手牌。抽 2 张牌。',
+      play(ctx) {
+        const others = ctx.state.hand.filter(c => c.uid !== ctx.card.uid);
+        ctx.chooseFrom(others, '选择一张牌消耗', (c) => {
+          if (c) ctx.exhaustCard(c);
+          ctx.draw(2);
+        });
+      }
+    },
+    carnage: {
+      id: 'carnage', name: '屠宰', type: 'attack', cost: 2, rarity: 'uncommon', ethereal: true,
+      desc: '造成 {dmg} 点伤害。虚无。', dmg: 20,
+      play(ctx) { ctx.damageEnemy(ctx.target, ctx.cardDmg(20)); }
+    },
+    dark_embrace: {
+      id: 'dark_embrace', name: '暗拥', type: 'power', cost: 2, rarity: 'uncommon',
+      desc: '每当有牌被消耗时，抽 1 张牌。',
+      play(ctx) { ctx.state.player.powers.darkEmbrace = (ctx.state.player.powers.darkEmbrace || 0) + 1; }
+    },
+    disarm: {
+      id: 'disarm', name: '缴械', type: 'skill', cost: 1, rarity: 'uncommon', exhaust: true, needsTarget: true,
+      desc: '敌人失去 2 点力量。消耗。',
+      play(ctx) { ctx.applyStatus(ctx.target, 'str', -2); }
+    },
+    dropkick: {
+      id: 'dropkick', name: '飞踢', type: 'attack', cost: 1, rarity: 'uncommon',
+      desc: '造成 {dmg} 点伤害。若目标有易伤，获得 1 点能量并抽 1 张牌。', dmg: 5,
+      play(ctx) {
+        ctx.damageEnemy(ctx.target, ctx.cardDmg(5));
+        if ((ctx.target.statuses.vuln || 0) > 0) {
+          ctx.state.energy += 1;
+          ctx.draw(1);
+        }
+      }
+    },
+    entrench: {
+      id: 'entrench', name: '深沟', type: 'skill', cost: 2, rarity: 'uncommon',
+      desc: '将你的格挡翻倍。',
+      play(ctx) { ctx.gainBlock(ctx.state.player.block); }
+    },
+    feel_no_pain: {
+      id: 'feel_no_pain', name: '无痛', type: 'power', cost: 1, rarity: 'uncommon',
+      desc: '每当有牌被消耗时，获得 3 点格挡。',
+      play(ctx) { ctx.state.player.powers.feelNoPain = (ctx.state.player.powers.feelNoPain || 0) + 3; }
+    },
+    flame_barrier: {
+      id: 'flame_barrier', name: '火障', type: 'skill', cost: 2, rarity: 'uncommon',
+      desc: '获得 {blk} 点格挡。本回合受到攻击时，反弹 4 点伤害。', blk: 12,
+      play(ctx) {
+        ctx.gainBlock(ctx.cardBlk(12));
+        ctx.state.player.flameBarrier = (ctx.state.player.flameBarrier || 0) + 4;
+      }
+    },
+    hemokinesis: {
+      id: 'hemokinesis', name: '血涌', type: 'attack', cost: 1, rarity: 'uncommon',
+      desc: '失去 2 点生命。造成 {dmg} 点伤害。', dmg: 15,
+      play(ctx) { ctx.loseHp(2); ctx.damageEnemy(ctx.target, ctx.cardDmg(15)); }
+    },
+    inflame: {
+      id: 'inflame', name: '燃劲', type: 'power', cost: 1, rarity: 'uncommon',
+      desc: '获得 2 点力量。能力牌打出后本场不再出现。',
+      play(ctx) { ctx.applyStatus(ctx.state.player, 'str', 2); }
+    },
+    intimidate: {
+      id: 'intimidate', name: '威吓', type: 'skill', cost: 0, rarity: 'uncommon', exhaust: true, aoe: true,
+      desc: '给予所有敌人 1 层虚弱。消耗。',
+      play(ctx) { ctx.forEachEnemy(e => ctx.applyStatus(e, 'weak', 1)); }
+    },
+    metallicize: {
+      id: 'metallicize', name: '金属化', type: 'power', cost: 1, rarity: 'uncommon',
+      desc: '在你的回合结束时，获得 3 点格挡。',
+      play(ctx) { ctx.state.player.powers.metallicize = (ctx.state.player.powers.metallicize || 0) + 3; }
+    },
+    power_through: {
+      id: 'power_through', name: '硬闯', type: 'skill', cost: 1, rarity: 'uncommon',
+      desc: '获得 {blk} 点格挡。将 2 张「擦伤」放入手牌。', blk: 15,
+      play(ctx) {
+        ctx.gainBlock(ctx.cardBlk(15));
+        ctx.state.hand.push(mkCard('wound'), mkCard('wound'));
+      }
+    },
+    pummel: {
+      id: 'pummel', name: '连殴', type: 'attack', cost: 1, rarity: 'uncommon', exhaust: true,
+      desc: '造成 {dmg} 点伤害 4 次。消耗。', dmg: 2,
+      play(ctx) {
+        for (let i = 0; i < 4; i++) ctx.damageEnemy(ctx.target, ctx.cardDmg(2));
+      }
+    },
+    rage: {
+      id: 'rage', name: '狂怒', type: 'skill', cost: 0, rarity: 'uncommon',
+      desc: '本回合每当你打出攻击牌，获得 3 点格挡。',
+      play(ctx) { ctx.state.player.rageBlock = (ctx.state.player.rageBlock || 0) + 3; }
+    },
+    rampage: {
+      id: 'rampage', name: '狂砸', type: 'attack', cost: 1, rarity: 'uncommon',
+      desc: '造成 {dmg} 点伤害。本场战斗此牌伤害永久 +5。', dmg: 8,
+      play(ctx) {
+        ctx.damageEnemy(ctx.target, ctx.cardDmg(ctx.card.dmg || 8));
+        ctx.card.dmg = (ctx.card.dmg || 8) + 5;
+        // 同步牌组中同 uid 来源：战斗内复制，升级描述用 dmg 字段
+        const master = G.deck.find(c => c.baseId === 'rampage' && c.upgraded === ctx.card.upgraded);
+        // 只强化当前战斗这张；简化：强化所有狂砸的战斗实例通过 card.dmg
+      }
+    },
+    seeing_red: {
+      id: 'seeing_red', name: '见红', type: 'skill', cost: 1, rarity: 'uncommon', exhaust: true,
+      desc: '获得 2 点能量。消耗。',
+      play(ctx) { ctx.state.energy += 2; }
+    },
+    shockwave: {
+      id: 'shockwave', name: '冲击波', type: 'skill', cost: 2, rarity: 'uncommon', exhaust: true, aoe: true,
+      desc: '给予所有敌人 3 层虚弱和 3 层易伤。消耗。',
+      play(ctx) {
+        ctx.forEachEnemy(e => {
+          ctx.applyStatus(e, 'weak', 3);
+          ctx.applyStatus(e, 'vuln', 3);
+        });
+      }
+    },
+    spot_weakness: {
+      id: 'spot_weakness', name: '看破', type: 'skill', cost: 1, rarity: 'uncommon', needsTarget: true,
+      desc: '若敌人意图攻击，获得 3 点力量。',
+      play(ctx) {
+        if (ctx.target.intent && ctx.target.intent.type === 'attack') {
+          ctx.applyStatus(ctx.state.player, 'str', 3);
+        } else ctx.log('意图不是攻击，没有效果');
+      }
+    },
+    uppercut: {
+      id: 'uppercut', name: '勾拳', type: 'attack', cost: 2, rarity: 'uncommon',
+      desc: '造成 {dmg} 点伤害。给予 1 层虚弱和 1 层易伤。', dmg: 13,
+      play(ctx) {
+        ctx.damageEnemy(ctx.target, ctx.cardDmg(13));
+        ctx.applyStatus(ctx.target, 'weak', 1);
+        ctx.applyStatus(ctx.target, 'vuln', 1);
+      }
+    },
+    whirlwind: {
+      id: 'whirlwind', name: '旋风', type: 'attack', cost: -1, rarity: 'uncommon', aoe: true, xCost: true,
+      desc: '用掉所有能量。对所有敌人造成 {dmg} 点伤害 X 次。', dmg: 5,
+      play(ctx) {
+        const x = ctx.xValue || 0;
+        for (let i = 0; i < x; i++) ctx.forEachEnemy(e => ctx.damageEnemy(e, ctx.cardDmg(5)));
+      }
+    },
+    infernal_blade: {
+      id: 'infernal_blade', name: '炼刃', type: 'skill', cost: 1, rarity: 'uncommon', exhaust: true,
+      desc: '将一张随机攻击牌放入手牌，本回合耗能变为 0。消耗。',
+      play(ctx) {
+        const pool = Object.values(CARDS).filter(c => c.type === 'attack' && c.rarity !== 'basic' && c.rarity !== 'status');
+        const pick = pool[Math.floor(Math.random() * pool.length)];
+        const c = mkCard(pick.id);
+        c.tempCost = 0;
+        ctx.state.hand.push(c);
+        ctx.log(`炼刃获得：${c.name}（本回合 0 费）`);
+      }
+    },
+
+    // ── 稀有 ──
+    barricade: {
+      id: 'barricade', name: '壁垒', type: 'power', cost: 3, rarity: 'rare',
+      desc: '格挡不再在你的回合开始时消失。',
+      play(ctx) { ctx.state.player.powers.barricade = 1; }
+    },
+    berserk: {
+      id: 'berserk', name: '狂战', type: 'power', cost: 0, rarity: 'rare',
+      desc: '获得 2 层易伤。在你的回合开始时获得 1 点能量。',
+      play(ctx) {
+        ctx.applyStatus(ctx.state.player, 'vuln', 2);
+        ctx.state.player.powers.berserk = (ctx.state.player.powers.berserk || 0) + 1;
+      }
+    },
+    bludgeon: {
+      id: 'bludgeon', name: '巨锤', type: 'attack', cost: 3, rarity: 'rare',
+      desc: '造成 {dmg} 点伤害。', dmg: 32,
+      play(ctx) { ctx.damageEnemy(ctx.target, ctx.cardDmg(32)); }
+    },
+    brutality: {
+      id: 'brutality', name: '残暴', type: 'power', cost: 0, rarity: 'rare',
+      desc: '在你的回合开始时，抽 1 张牌并失去 1 点生命。',
+      play(ctx) { ctx.state.player.powers.brutality = (ctx.state.player.powers.brutality || 0) + 1; }
+    },
+    corruption: {
+      id: 'corruption', name: '腐化', type: 'power', cost: 3, rarity: 'rare',
+      desc: '技能牌耗能变为 0。每当你打出技能牌，将其消耗。',
+      play(ctx) { ctx.state.player.powers.corruption = 1; }
+    },
+    demon_form: {
+      id: 'demon_form', name: '魔形', type: 'power', cost: 3, rarity: 'rare',
+      desc: '在你的回合开始时，获得 2 点力量。',
+      play(ctx) { ctx.state.player.powers.demonForm = (ctx.state.player.powers.demonForm || 0) + 2; }
+    },
+    double_tap: {
+      id: 'double_tap', name: '双击', type: 'skill', cost: 1, rarity: 'rare',
+      desc: '本回合你的下一张攻击牌打出两次。',
+      play(ctx) { ctx.state.player.doubleTap = (ctx.state.player.doubleTap || 0) + 1; }
+    },
+    exhume: {
+      id: 'exhume', name: '掘回', type: 'skill', cost: 1, rarity: 'rare', exhaust: true,
+      desc: '将消耗堆中的一张牌放入手牌。消耗。',
+      play(ctx) {
+        ctx.chooseFrom(ctx.state.exhaustPile, '选择一张牌加入手牌', (c) => {
+          if (!c) return;
+          const i = ctx.state.exhaustPile.findIndex(x => x.uid === c.uid);
+          if (i >= 0) ctx.state.exhaustPile.splice(i, 1);
+          ctx.state.hand.push(c);
+        });
+      }
+    },
+    feed: {
+      id: 'feed', name: '吞货', type: 'attack', cost: 1, rarity: 'rare',
+      desc: '造成 {dmg} 点伤害。若击杀，永久获得 3 点最大生命。', dmg: 10,
+      play(ctx) {
+        const before = ctx.target.hp;
+        ctx.damageEnemy(ctx.target, ctx.cardDmg(10));
+        if (before > 0 && ctx.target.hp <= 0) {
+          G.maxHp += 3; G.hp += 3; ctx.log('最大生命 +3！');
+        }
+      }
+    },
+    fiend_fire: {
+      id: 'fiend_fire', name: '魔火', type: 'attack', cost: 2, rarity: 'rare', exhaust: true,
+      desc: '消耗所有手牌。每消耗一张，对敌人造成 {dmg} 点伤害。消耗。', dmg: 7,
+      play(ctx) {
+        const cards = [...ctx.state.hand];
+        cards.forEach(c => ctx.exhaustCard(c));
+        for (let i = 0; i < cards.length; i++) ctx.damageEnemy(ctx.target, ctx.cardDmg(7));
+      }
+    },
+    immolate: {
+      id: 'immolate', name: '焚仓', type: 'attack', cost: 2, rarity: 'rare', aoe: true,
+      desc: '对所有敌人造成 {dmg} 点伤害。将一张「灼伤」放入弃牌堆。', dmg: 21,
+      play(ctx) {
+        ctx.forEachEnemy(e => ctx.damageEnemy(e, ctx.cardDmg(21)));
+        ctx.state.discard.push(mkCard('burn'));
+      }
+    },
+    impervious: {
+      id: 'impervious', name: '不侵', type: 'skill', cost: 2, rarity: 'rare', exhaust: true,
+      desc: '获得 {blk} 点格挡。消耗。', blk: 30,
+      play(ctx) { ctx.gainBlock(ctx.cardBlk(30)); }
+    },
+    juggernaut: {
+      id: 'juggernaut', name: '战车', type: 'power', cost: 2, rarity: 'rare',
+      desc: '每当你获得格挡，对随机敌人造成 5 点伤害。',
+      play(ctx) { ctx.state.player.powers.juggernaut = (ctx.state.player.powers.juggernaut || 0) + 5; }
+    },
+    limit_break: {
+      id: 'limit_break', name: '极限', type: 'skill', cost: 1, rarity: 'rare', exhaust: true,
+      desc: '将你的力量翻倍。消耗。',
+      play(ctx) {
+        const s = ctx.state.player.statuses.str || 0;
+        if (s) ctx.applyStatus(ctx.state.player, 'str', s);
+      }
+    },
+    offering: {
+      id: 'offering', name: '献祭', type: 'skill', cost: 0, rarity: 'rare', exhaust: true,
+      desc: '失去 6 点生命。获得 2 点能量。抽 3 张牌。消耗。',
+      play(ctx) { ctx.loseHp(6); ctx.state.energy += 2; ctx.draw(3); }
+    },
+    reaper: {
+      id: 'reaper', name: '收割', type: 'attack', cost: 2, rarity: 'rare', aoe: true,
+      desc: '对所有敌人造成 {dmg} 点伤害。回复造成的生命伤害。', dmg: 4,
+      play(ctx) {
+        let healed = 0;
+        ctx.forEachEnemy(e => {
+          const before = e.hp;
+          ctx.damageEnemy(e, ctx.cardDmg(4));
+          healed += Math.max(0, before - Math.max(0, e.hp));
+        });
+        if (healed > 0) {
+          G.hp = Math.min(G.maxHp, G.hp + healed);
+          ctx.log(`回复 ${healed} 生命`);
+        }
+      }
+    },
+
+
+    // ── 女员工（静默型）基础 ──
+    poke: {
+      id: 'poke', name: '点戳', type: 'attack', cost: 1, rarity: 'basic', set: 'clerk', strike: true,
+      desc: '造成 {dmg} 点伤害。', dmg: 6,
+      play(ctx) { ctx.damageEnemy(ctx.target, ctx.cardDmg(6)); }
+    },
+    clipguard: {
+      id: 'clipguard', name: '夹板', type: 'skill', cost: 1, rarity: 'basic', set: 'clerk',
+      desc: '获得 {blk} 点格挡。', blk: 5,
+      play(ctx) { ctx.gainBlock(ctx.cardBlk(5)); }
+    },
+    withdraw: {
+      id: 'withdraw', name: '抽身', type: 'skill', cost: 1, rarity: 'basic', set: 'clerk',
+      desc: '获得 {blk} 点格挡。弃 1 张牌。', blk: 8,
+      play(ctx) {
+        ctx.gainBlock(ctx.cardBlk(8));
+        ctx.discardChoose(1);
+      }
+    },
+    mute: {
+      id: 'mute', name: '灭声', type: 'attack', cost: 0, rarity: 'basic', set: 'clerk',
+      desc: '造成 {dmg} 点伤害。给予 1 层虚弱。', dmg: 3,
+      play(ctx) {
+        ctx.damageEnemy(ctx.target, ctx.cardDmg(3));
+        ctx.applyStatus(ctx.target, 'weak', 1);
+      }
+    },
+    shiv: {
+      id: 'shiv', name: '回形针', type: 'attack', cost: 0, rarity: 'token', set: 'token', exhaust: true,
+      desc: '造成 {dmg} 点伤害。消耗。', dmg: 4,
+      play(ctx) { ctx.damageEnemy(ctx.target, ctx.shivDmg()); }
+    },
+    acrobatics: {
+      id: 'acrobatics', name: '翻案', type: 'skill', cost: 1, rarity: 'common', set: 'clerk',
+      desc: '抽 3 张牌。弃 1 张牌。',
+      play(ctx) { ctx.draw(3); ctx.discardChoose(1); }
+    },
+    backflip: {
+      id: 'backflip', name: '倒车', type: 'skill', cost: 1, rarity: 'common', set: 'clerk',
+      desc: '获得 {blk} 点格挡。抽 2 张牌。', blk: 5,
+      play(ctx) { ctx.gainBlock(ctx.cardBlk(5)); ctx.draw(2); }
+    },
+    blade_dance: {
+      id: 'blade_dance', name: '回形针雨', type: 'skill', cost: 1, rarity: 'common', set: 'clerk',
+      desc: '将 3 张「回形针」放入手牌。',
+      play(ctx) { for (let i = 0; i < 3; i++) ctx.addShiv(); }
+    },
+    cloak_dagger: {
+      id: 'cloak_dagger', name: '外套藏针', type: 'skill', cost: 1, rarity: 'common', set: 'clerk',
+      desc: '获得 {blk} 点格挡。将 1 张「回形针」放入手牌。', blk: 6,
+      play(ctx) { ctx.gainBlock(ctx.cardBlk(6)); ctx.addShiv(); }
+    },
+    deadly_poison: {
+      id: 'deadly_poison', name: '投黑料', type: 'skill', cost: 1, rarity: 'common', set: 'clerk', needsTarget: true,
+      desc: '给予 5 层黑料。',
+      play(ctx) { ctx.applyStatus(ctx.target, 'poison', 5); }
+    },
+    dagger_spray: {
+      id: 'dagger_spray', name: '针雨', type: 'attack', cost: 1, rarity: 'common', set: 'clerk', aoe: true,
+      desc: '对所有敌人造成 {dmg} 点伤害 2 次。', dmg: 4,
+      play(ctx) {
+        for (let i = 0; i < 2; i++) ctx.forEachEnemy(e => ctx.damageEnemy(e, ctx.cardDmg(4)));
+      }
+    },
+    dagger_throw: {
+      id: 'dagger_throw', name: '甩钉', type: 'attack', cost: 1, rarity: 'common', set: 'clerk',
+      desc: '造成 {dmg} 点伤害。抽 1 张牌。弃 1 张牌。', dmg: 9,
+      play(ctx) {
+        ctx.damageEnemy(ctx.target, ctx.cardDmg(9));
+        ctx.draw(1);
+        ctx.discardChoose(1);
+      }
+    },
+    deflect: {
+      id: 'deflect', name: '挡函', type: 'skill', cost: 0, rarity: 'common', set: 'clerk',
+      desc: '获得 {blk} 点格挡。', blk: 4,
+      play(ctx) { ctx.gainBlock(ctx.cardBlk(4)); }
+    },
+    dodge_roll: {
+      id: 'dodge_roll', name: '闪躲', type: 'skill', cost: 1, rarity: 'common', set: 'clerk',
+      desc: '获得 {blk} 点格挡。下回合开始时再获得等量格挡。', blk: 4,
+      play(ctx) {
+        const b = ctx.cardBlk(4);
+        ctx.gainBlock(b);
+        ctx.state.player.nextTurnBlock = (ctx.state.player.nextTurnBlock || 0) + b;
+      }
+    },
+    flying_knee: {
+      id: 'flying_knee', name: '飞踹', type: 'attack', cost: 1, rarity: 'common', set: 'clerk',
+      desc: '造成 {dmg} 点伤害。下回合获得 1 点能量。', dmg: 8,
+      play(ctx) {
+        ctx.damageEnemy(ctx.target, ctx.cardDmg(8));
+        ctx.state.player.nextEnergy = (ctx.state.player.nextEnergy || 0) + 1;
+      }
+    },
+    outmaneuver: {
+      id: 'outmaneuver', name: '加塞', type: 'skill', cost: 1, rarity: 'common', set: 'clerk',
+      desc: '下回合获得 2 点能量。',
+      play(ctx) { ctx.state.player.nextEnergy = (ctx.state.player.nextEnergy || 0) + 2; }
+    },
+    piercing_wail: {
+      id: 'piercing_wail', name: '刺耳广播', type: 'skill', cost: 1, rarity: 'common', set: 'clerk', exhaust: true, aoe: true,
+      desc: '所有敌人本回合失去 6 点力量。消耗。',
+      play(ctx) {
+        ctx.forEachEnemy(e => {
+          ctx.applyStatus(e, 'str', -6);
+          e.tempStrLose = (e.tempStrLose || 0) + 6;
+        });
+      }
+    },
+    prepared: {
+      id: 'prepared', name: '预案', type: 'skill', cost: 0, rarity: 'common', set: 'clerk',
+      desc: '抽 1 张牌。弃 1 张牌。',
+      play(ctx) { ctx.draw(1); ctx.discardChoose(1); }
+    },
+    quick_slash: {
+      id: 'quick_slash', name: '速戳', type: 'attack', cost: 1, rarity: 'common', set: 'clerk',
+      desc: '造成 {dmg} 点伤害。抽 1 张牌。', dmg: 8,
+      play(ctx) { ctx.damageEnemy(ctx.target, ctx.cardDmg(8)); ctx.draw(1); }
+    },
+    slice: {
+      id: 'slice', name: '裁纸', type: 'attack', cost: 0, rarity: 'common', set: 'clerk',
+      desc: '造成 {dmg} 点伤害。', dmg: 6,
+      play(ctx) { ctx.damageEnemy(ctx.target, ctx.cardDmg(6)); }
+    },
+    sneaky: {
+      id: 'sneaky', name: '摸鱼戳', type: 'attack', cost: 2, rarity: 'common', set: 'clerk',
+      desc: '造成 {dmg} 点伤害。若本回合弃过牌，获得 2 点能量。', dmg: 12,
+      play(ctx) {
+        ctx.damageEnemy(ctx.target, ctx.cardDmg(12));
+        if (ctx.state.player.discardedThisTurn) ctx.state.energy += 2;
+      }
+    },
+    sucker: {
+      id: 'sucker', name: '冷不丁', type: 'attack', cost: 1, rarity: 'common', set: 'clerk',
+      desc: '造成 {dmg} 点伤害。给予 1 层虚弱。', dmg: 7,
+      play(ctx) {
+        ctx.damageEnemy(ctx.target, ctx.cardDmg(7));
+        ctx.applyStatus(ctx.target, 'weak', 1);
+      }
+    },
+    accuracy: {
+      id: 'accuracy', name: '准头', type: 'power', cost: 1, rarity: 'uncommon', set: 'clerk',
+      desc: '「回形针」额外造成 4 点伤害。',
+      play(ctx) { ctx.state.player.powers.accuracy = (ctx.state.player.powers.accuracy || 0) + 4; }
+    },
+    all_out: {
+      id: 'all_out', name: '甩锅总攻', type: 'attack', cost: 1, rarity: 'uncommon', set: 'clerk', aoe: true,
+      desc: '对所有敌人造成 {dmg} 点伤害。随机弃 1 张牌。', dmg: 10,
+      play(ctx) {
+        ctx.forEachEnemy(e => ctx.damageEnemy(e, ctx.cardDmg(10)));
+        ctx.discardRandom(1);
+      }
+    },
+    blur: {
+      id: 'blur', name: '残影', type: 'skill', cost: 1, rarity: 'uncommon', set: 'clerk',
+      desc: '获得 {blk} 点格挡。你的下一回合开始时格挡不会消失。', blk: 5,
+      play(ctx) {
+        ctx.gainBlock(ctx.cardBlk(5));
+        ctx.state.player.blur = true;
+      }
+    },
+    bouncing: {
+      id: 'bouncing', name: '回弹瓶', type: 'skill', cost: 2, rarity: 'uncommon', set: 'clerk', needsTarget: true,
+      desc: '给予 3 层黑料。将一张此牌的复制放到抽牌堆顶。',
+      play(ctx) {
+        ctx.applyStatus(ctx.target, 'poison', 3);
+        ctx.state.draw.push(mkCard('bouncing', ctx.card.upgraded));
+      }
+    },
+    burst: {
+      id: 'burst', name: '连办', type: 'skill', cost: 1, rarity: 'uncommon', set: 'clerk',
+      desc: '本回合你的下一张技能牌打出两次。',
+      play(ctx) { ctx.state.player.burst = (ctx.state.player.burst || 0) + 1; }
+    },
+    calc_gamble: {
+      id: 'calc_gamble', name: '豪赌报表', type: 'skill', cost: 0, rarity: 'uncommon', set: 'clerk', exhaust: true,
+      desc: '弃掉所有手牌，抽等量的牌。消耗。',
+      play(ctx) {
+        const n = ctx.state.hand.length;
+        [...ctx.state.hand].forEach(c => ctx.discardCard(c));
+        ctx.draw(n);
+      }
+    },
+    catalyst: {
+      id: 'catalyst', name: '发酵', type: 'skill', cost: 1, rarity: 'uncommon', set: 'clerk', exhaust: true, needsTarget: true,
+      desc: '将目标的黑料层数翻倍。消耗。',
+      play(ctx) {
+        const p = ctx.target.statuses.poison || 0;
+        if (p) ctx.applyStatus(ctx.target, 'poison', p);
+      }
+    },
+    concentrate: {
+      id: 'concentrate', name: '凝神', type: 'skill', cost: 0, rarity: 'uncommon', set: 'clerk',
+      desc: '弃 3 张牌。获得 2 点能量。',
+      play(ctx) { ctx.discardChoose(3); ctx.state.energy += 2; }
+    },
+    crippling: {
+      id: 'crippling', name: '致残纪要', type: 'skill', cost: 2, rarity: 'uncommon', set: 'clerk', exhaust: true, aoe: true,
+      desc: '给予所有敌人 4 层黑料和 2 层虚弱。消耗。',
+      play(ctx) {
+        ctx.forEachEnemy(e => {
+          ctx.applyStatus(e, 'poison', 4);
+          ctx.applyStatus(e, 'weak', 2);
+        });
+      }
+    },
+    die_die: {
+      id: 'die_die', name: '裁员裁员', type: 'attack', cost: 1, rarity: 'uncommon', set: 'clerk', exhaust: true, aoe: true,
+      desc: '对所有敌人造成 {dmg} 点伤害。消耗。', dmg: 13,
+      play(ctx) { ctx.forEachEnemy(e => ctx.damageEnemy(e, ctx.cardDmg(13))); }
+    },
+    escape_plan: {
+      id: 'escape_plan', name: '开溜', type: 'skill', cost: 0, rarity: 'uncommon', set: 'clerk',
+      desc: '抽 1 张牌。若抽到技能牌，获得 3 点格挡。',
+      play(ctx) {
+        const before = ctx.state.hand.length;
+        ctx.draw(1);
+        if (ctx.state.hand.length > before) {
+          const c = ctx.state.hand[ctx.state.hand.length - 1];
+          if (c.type === 'skill') ctx.gainBlock(ctx.cardBlk(3));
+        }
+      }
+    },
+    expertise: {
+      id: 'expertise', name: '老练', type: 'skill', cost: 1, rarity: 'uncommon', set: 'clerk',
+      desc: '抽牌直至手牌有 6 张。',
+      play(ctx) {
+        while (ctx.state.hand.length < 6) {
+          const len = ctx.state.hand.length;
+          ctx.draw(1);
+          if (ctx.state.hand.length === len) break;
+        }
+      }
+    },
+    finisher: {
+      id: 'finisher', name: '收尾', type: 'attack', cost: 1, rarity: 'uncommon', set: 'clerk',
+      desc: '本回合每打出过 1 张攻击牌，造成 {dmg} 点伤害。', dmg: 6,
+      play(ctx) {
+        const n = ctx.state.player.attacksThisTurn || 0;
+        for (let i = 0; i < n; i++) ctx.damageEnemy(ctx.target, ctx.cardDmg(6));
+      }
+    },
+    footwork: {
+      id: 'footwork', name: '高跟鞋', type: 'power', cost: 1, rarity: 'uncommon', set: 'clerk',
+      desc: '获得 2 点敏捷。',
+      play(ctx) { ctx.applyStatus(ctx.state.player, 'dex', 2); }
+    },
+    heel_hook: {
+      id: 'heel_hook', name: '绊脚', type: 'attack', cost: 1, rarity: 'uncommon', set: 'clerk',
+      desc: '造成 {dmg} 点伤害。若目标有虚弱，获得 1 点能量并抽 1 张牌。', dmg: 5,
+      play(ctx) {
+        ctx.damageEnemy(ctx.target, ctx.cardDmg(5));
+        if ((ctx.target.statuses.weak || 0) > 0) {
+          ctx.state.energy += 1;
+          ctx.draw(1);
+        }
+      }
+    },
+    infinite_blades: {
+      id: 'infinite_blades', name: '无限回形针', type: 'power', cost: 1, rarity: 'uncommon', set: 'clerk',
+      desc: '在你的回合开始时，将 1 张「回形针」放入手牌。',
+      play(ctx) { ctx.state.player.powers.infiniteBlades = (ctx.state.player.powers.infiniteBlades || 0) + 1; }
+    },
+    leg_sweep: {
+      id: 'leg_sweep', name: '扫腿', type: 'skill', cost: 2, rarity: 'uncommon', set: 'clerk', needsTarget: true,
+      desc: '获得 {blk} 点格挡。给予 2 层虚弱。', blk: 11,
+      play(ctx) {
+        ctx.gainBlock(ctx.cardBlk(11));
+        ctx.applyStatus(ctx.target, 'weak', 2);
+      }
+    },
+    noxious: {
+      id: 'noxious', name: '毒雾空调', type: 'power', cost: 1, rarity: 'uncommon', set: 'clerk',
+      desc: '在你的回合开始时，给予所有敌人 2 层黑料。',
+      play(ctx) { ctx.state.player.powers.noxious = (ctx.state.player.powers.noxious || 0) + 2; }
+    },
+    predator: {
+      id: 'predator', name: '猎聘', type: 'attack', cost: 2, rarity: 'uncommon', set: 'clerk',
+      desc: '造成 {dmg} 点伤害。下回合多抽 2 张牌。', dmg: 15,
+      play(ctx) {
+        ctx.damageEnemy(ctx.target, ctx.cardDmg(15));
+        ctx.state.player.nextDrawBonus = (ctx.state.player.nextDrawBonus || 0) + 2;
+      }
+    },
+    riddle: {
+      id: 'riddle', name: '千孔', type: 'attack', cost: 2, rarity: 'uncommon', set: 'clerk',
+      desc: '造成 {dmg} 点伤害 5 次。', dmg: 3,
+      play(ctx) { for (let i = 0; i < 5; i++) ctx.damageEnemy(ctx.target, ctx.cardDmg(3)); }
+    },
+    setup: {
+      id: 'setup', name: '布局', type: 'skill', cost: 1, rarity: 'uncommon', set: 'clerk', exhaust: true,
+      desc: '将一张手牌放到抽牌堆顶，其耗能变为 0 直到打出。消耗。',
+      play(ctx) {
+        ctx.chooseFrom(ctx.state.hand, '布局：放到抽牌堆顶', (c) => {
+          if (!c) return;
+          const i = ctx.state.hand.findIndex(x => x.uid === c.uid);
+          if (i >= 0) ctx.state.hand.splice(i, 1);
+          c.tempCost = 0;
+          c._setupZero = true;
+          ctx.state.draw.push(c);
+        });
+      }
+    },
+    skewer: {
+      id: 'skewer', name: '串签', type: 'attack', cost: -1, rarity: 'uncommon', set: 'clerk', xCost: true,
+      desc: '用掉所有能量。造成 {dmg} 点伤害 X 次。', dmg: 7,
+      play(ctx) {
+        const x = ctx.xValue || 0;
+        for (let i = 0; i < x; i++) ctx.damageEnemy(ctx.target, ctx.cardDmg(7));
+      }
+    },
+    storm_steel: {
+      id: 'storm_steel', name: '钢雨', type: 'skill', cost: 1, rarity: 'uncommon', set: 'clerk',
+      desc: '消耗所有手牌。每消耗一张，将 1 张「回形针」放入手牌。',
+      play(ctx) {
+        const cards = [...ctx.state.hand];
+        cards.forEach(c => ctx.exhaustCard(c));
+        cards.forEach(() => ctx.addShiv());
+      }
+    },
+    tools_trade: {
+      id: 'tools_trade', name: '办公套装', type: 'power', cost: 1, rarity: 'uncommon', set: 'clerk',
+      desc: '在你的回合开始时，抽 1 张牌并弃 1 张牌。',
+      play(ctx) { ctx.state.player.powers.toolsTrade = (ctx.state.player.powers.toolsTrade || 0) + 1; }
+    },
+    adrenaline_s: {
+      id: 'adrenaline_s', name: '咖啡因', type: 'skill', cost: 0, rarity: 'rare', set: 'clerk', exhaust: true,
+      desc: '获得 1 点能量。抽 2 张牌。消耗。',
+      play(ctx) { ctx.state.energy += 1; ctx.draw(2); }
+    },
+    after_image: {
+      id: 'after_image', name: '残像', type: 'power', cost: 1, rarity: 'rare', set: 'clerk',
+      desc: '每当你打出一张牌，获得 1 点格挡。',
+      play(ctx) { ctx.state.player.powers.afterImage = (ctx.state.player.powers.afterImage || 0) + 1; }
+    },
+    a_thousand: {
+      id: 'a_thousand', name: '千刀企划', type: 'power', cost: 2, rarity: 'rare', set: 'clerk',
+      desc: '每当你打出一张牌，对所有敌人造成 1 点伤害。',
+      play(ctx) { ctx.state.player.powers.thousandCuts = (ctx.state.player.powers.thousandCuts || 0) + 1; }
+    },
+    corpse_explosion: {
+      id: 'corpse_explosion', name: '爆料', type: 'skill', cost: 2, rarity: 'rare', set: 'clerk', needsTarget: true,
+      desc: '给予 6 层黑料。该敌人死亡时，对所有敌人造成其最大生命的伤害。',
+      play(ctx) {
+        ctx.applyStatus(ctx.target, 'poison', 6);
+        ctx.target.corpseExplosion = true;
+      }
+    },
+    envenom: {
+      id: 'envenom', name: '涂毒', type: 'power', cost: 2, rarity: 'rare', set: 'clerk',
+      desc: '每当你的攻击造成生命伤害，给予 1 层黑料。',
+      play(ctx) { ctx.state.player.powers.envenom = (ctx.state.player.powers.envenom || 0) + 1; }
+    },
+    grand_finale: {
+      id: 'grand_finale', name: '压轴', type: 'attack', cost: 0, rarity: 'rare', set: 'clerk',
+      desc: '造成 {dmg} 点伤害。只能在抽牌堆为空时打出。', dmg: 50,
+      canPlay(ctx) { return ctx.state.draw.length === 0; },
+      play(ctx) { ctx.damageEnemy(ctx.target, ctx.cardDmg(50)); }
+    },
+    malaise: {
+      id: 'malaise', name: '低气压', type: 'skill', cost: -1, rarity: 'rare', set: 'clerk', exhaust: true, aoe: true, xCost: true,
+      desc: '用掉所有能量。给予所有敌人 X 层虚弱，并使其失去 X 点力量。消耗。',
+      play(ctx) {
+        const x = ctx.xValue || 0;
+        ctx.forEachEnemy(e => {
+          ctx.applyStatus(e, 'weak', x);
+          ctx.applyStatus(e, 'str', -x);
+        });
+      }
+    },
+    phantasmal: {
+      id: 'phantasmal', name: '幻影加班', type: 'skill', cost: 1, rarity: 'rare', set: 'clerk',
+      desc: '下回合，你的攻击牌打出两次。',
+      play(ctx) { ctx.state.player.nextPhantasmal = true; }
+    },
+    unload: {
+      id: 'unload', name: '清空收件箱', type: 'attack', cost: 1, rarity: 'rare', set: 'clerk',
+      desc: '造成 {dmg} 点伤害。弃掉所有非攻击手牌。', dmg: 14,
+      play(ctx) {
+        ctx.damageEnemy(ctx.target, ctx.cardDmg(14));
+        [...ctx.state.hand].filter(c => c.type !== 'attack').forEach(c => ctx.discardCard(c));
+      }
+    },
+    wraith_form: {
+      id: 'wraith_form', name: '幽灵工位', type: 'power', cost: 3, rarity: 'rare', set: 'clerk',
+      desc: '获得 2 层虚体。每回合结束失去 1 点敏捷。',
+      play(ctx) {
+        ctx.applyStatus(ctx.state.player, 'intangible', 2);
+        ctx.state.player.powers.wraithForm = (ctx.state.player.powers.wraithForm || 0) + 1;
+      }
+    },
+
+
+    // ── 状态 ──
+    wound: {
+      id: 'wound', name: '擦伤', type: 'status', cost: -1, rarity: 'status', set: 'token', unplayable: true,
+      desc: '不能被打出。',
+      play() {}
+    },
+    dazed: {
+      id: 'dazed', name: '晕眩', type: 'status', cost: -1, rarity: 'status', set: 'token', unplayable: true, ethereal: true,
+      desc: '不能被打出。虚无。',
+      play() {}
+    },
+    burn: {
+      id: 'burn', name: '灼伤', type: 'status', cost: -1, rarity: 'status', set: 'token', unplayable: true,
+      desc: '不能被打出。回合结束时受到 2 点伤害。',
+      play() {}
+    },
+  };
+
+  const UPGRADES = {
+    haul: { dmg: 9 },
+    plate: { blk: 8 },
+    bash: { dmg: 10, desc: '造成 {dmg} 点伤害。给予 3 层易伤。', play(ctx) {
+      ctx.damageEnemy(ctx.target, ctx.cardDmg(10));
+      ctx.applyStatus(ctx.target, 'vuln', 3);
+    }},
+    anger: { dmg: 8 },
+    armaments: { desc: '获得 {blk} 点格挡。升级手牌中的所有牌。', blk: 5, play(ctx) {
+      ctx.gainBlock(ctx.cardBlk(5));
+      ctx.state.hand.forEach(c => { if (!c.upgraded && UPGRADES[c.baseId]) upgradeCard(c); });
+    }},
+    body_slam: { cost: 0 },
+    clash: { dmg: 18 },
+    cleave: { dmg: 11 },
+    clothesline: { dmg: 14, desc: '造成 {dmg} 点伤害。给予 3 层虚弱。', play(ctx) {
+      ctx.damageEnemy(ctx.target, ctx.cardDmg(14));
+      ctx.applyStatus(ctx.target, 'weak', 3);
+    }},
+    flex: { desc: '获得 4 点力量。回合结束时失去 4 点力量。', play(ctx) {
+      ctx.applyStatus(ctx.state.player, 'str', 4);
+      ctx.state.player.tempStrLose = (ctx.state.player.tempStrLose || 0) + 4;
+    }},
+    havoc: { cost: 0 },
+    headbutt: { dmg: 12 },
+    heavy_blade: { dmg: 14, desc: '造成 {dmg} 点伤害。力量对此牌生效 5 倍。', strMult: 5 },
+    iron_wave: { dmg: 7, blk: 7 },
+    perfected: { dmg: 6, desc: '造成 {dmg} 点伤害。你的牌组中每有一张「甩货」，伤害 +3。', play(ctx) {
+      const strikes = G.deck.filter(c => c.baseId === 'haul').length;
+      ctx.damageEnemy(ctx.target, ctx.cardDmg(6 + strikes * 3));
+    }},
+    pommel: { dmg: 10, desc: '造成 {dmg} 点伤害。抽 2 张牌。', play(ctx) {
+      ctx.damageEnemy(ctx.target, ctx.cardDmg(10)); ctx.draw(2);
+    }},
+    shrug: { blk: 11 },
+    boomerang: { desc: '随机对敌人造成 {dmg} 点伤害 4 次。', play(ctx) {
+      for (let i = 0; i < 4; i++) {
+        const alive = ctx.state.enemies.filter(e => e.hp > 0);
+        if (!alive.length) break;
+        ctx.damageEnemy(alive[Math.floor(Math.random() * alive.length)], ctx.cardDmg(3));
+      }
+    }},
+    thunderclap: { dmg: 7 },
+    true_grit: { blk: 9 },
+    twin: { dmg: 7 },
+    warcry: { desc: '抽 2 张牌。将一张手牌放到抽牌堆顶。消耗。', play(ctx) {
+      ctx.draw(2);
+      ctx.chooseFrom(ctx.state.hand, '放到抽牌堆顶', (c) => {
+        if (!c) return;
+        const i = ctx.state.hand.findIndex(x => x.uid === c.uid);
+        if (i >= 0) ctx.state.hand.splice(i, 1);
+        ctx.state.draw.push(c);
+      });
+    }},
+    wild: { dmg: 17 },
+    battle_trance: { desc: '抽 4 张牌。本回合不能再抽牌。', play(ctx) { ctx.draw(4); ctx.state.player.noDraw = true; }},
+    bloodletting: { desc: '失去 3 点生命。获得 3 点能量。', play(ctx) { ctx.loseHp(3); ctx.state.energy += 3; }},
+    burning_pact: { desc: '消耗一张手牌。抽 3 张牌。', play(ctx) {
+      const others = ctx.state.hand.filter(c => c.uid !== ctx.card.uid);
+      ctx.chooseFrom(others, '选择一张牌消耗', (c) => { if (c) ctx.exhaustCard(c); ctx.draw(3); });
+    }},
+    carnage: { dmg: 28 },
+    dark_embrace: { cost: 1 },
+    disarm: { desc: '敌人失去 3 点力量。消耗。', play(ctx) { ctx.applyStatus(ctx.target, 'str', -3); }},
+    dropkick: { dmg: 8 },
+    entrench: { cost: 1 },
+    feel_no_pain: { desc: '每当有牌被消耗时，获得 4 点格挡。', play(ctx) {
+      ctx.state.player.powers.feelNoPain = (ctx.state.player.powers.feelNoPain || 0) + 4;
+    }},
+    flame_barrier: { blk: 16, desc: '获得 {blk} 点格挡。本回合受到攻击时，反弹 6 点伤害。', play(ctx) {
+      ctx.gainBlock(ctx.cardBlk(16));
+      ctx.state.player.flameBarrier = (ctx.state.player.flameBarrier || 0) + 6;
+    }},
+    hemokinesis: { dmg: 20 },
+    inflame: { desc: '获得 3 点力量。', play(ctx) { ctx.applyStatus(ctx.state.player, 'str', 3); }},
+    intimidate: { desc: '给予所有敌人 2 层虚弱。消耗。', play(ctx) {
+      ctx.forEachEnemy(e => ctx.applyStatus(e, 'weak', 2));
+    }},
+    metallicize: { desc: '在你的回合结束时，获得 4 点格挡。', play(ctx) {
+      ctx.state.player.powers.metallicize = (ctx.state.player.powers.metallicize || 0) + 4;
+    }},
+    power_through: { blk: 20 },
+    pummel: { desc: '造成 {dmg} 点伤害 5 次。消耗。', play(ctx) {
+      for (let i = 0; i < 5; i++) ctx.damageEnemy(ctx.target, ctx.cardDmg(2));
+    }},
+    rage: { desc: '本回合每当你打出攻击牌，获得 5 点格挡。', play(ctx) {
+      ctx.state.player.rageBlock = (ctx.state.player.rageBlock || 0) + 5;
+    }},
+    rampage: { dmg: 8, desc: '造成 {dmg} 点伤害。本场战斗此牌伤害永久 +8。', play(ctx) {
+      ctx.damageEnemy(ctx.target, ctx.cardDmg(ctx.card.dmg || 8));
+      ctx.card.dmg = (ctx.card.dmg || 8) + 8;
+    }},
+    seeing_red: { cost: 0 },
+    shockwave: { desc: '给予所有敌人 5 层虚弱和 5 层易伤。消耗。', play(ctx) {
+      ctx.forEachEnemy(e => { ctx.applyStatus(e, 'weak', 5); ctx.applyStatus(e, 'vuln', 5); });
+    }},
+    spot_weakness: { desc: '若敌人意图攻击，获得 4 点力量。', play(ctx) {
+      if (ctx.target.intent && ctx.target.intent.type === 'attack') ctx.applyStatus(ctx.state.player, 'str', 4);
+      else ctx.log('意图不是攻击，没有效果');
+    }},
+    uppercut: { desc: '造成 {dmg} 点伤害。给予 2 层虚弱和 2 层易伤。', dmg: 13, play(ctx) {
+      ctx.damageEnemy(ctx.target, ctx.cardDmg(13));
+      ctx.applyStatus(ctx.target, 'weak', 2);
+      ctx.applyStatus(ctx.target, 'vuln', 2);
+    }},
+    whirlwind: { dmg: 8 },
+    infernal_blade: { cost: 0 },
+    barricade: { cost: 2 },
+    berserk: { desc: '获得 1 层易伤。在你的回合开始时获得 1 点能量。', play(ctx) {
+      ctx.applyStatus(ctx.state.player, 'vuln', 1);
+      ctx.state.player.powers.berserk = (ctx.state.player.powers.berserk || 0) + 1;
+    }},
+    bludgeon: { dmg: 42 },
+    brutality: {},
+    corruption: { cost: 2 },
+    demon_form: { desc: '在你的回合开始时，获得 3 点力量。', play(ctx) {
+      ctx.state.player.powers.demonForm = (ctx.state.player.powers.demonForm || 0) + 3;
+    }},
+    double_tap: { desc: '本回合你的下两张攻击牌各打出两次。', play(ctx) {
+      ctx.state.player.doubleTap = (ctx.state.player.doubleTap || 0) + 2;
+    }},
+    exhume: { cost: 0 },
+    feed: { dmg: 12 },
+    fiend_fire: { dmg: 10 },
+    immolate: { dmg: 28 },
+    impervious: { blk: 40 },
+    juggernaut: { desc: '每当你获得格挡，对随机敌人造成 7 点伤害。', play(ctx) {
+      ctx.state.player.powers.juggernaut = (ctx.state.player.powers.juggernaut || 0) + 7;
+    }},
+    limit_break: { exhaust: false, desc: '将你的力量翻倍。不再消耗。' },
+    offering: { desc: '失去 6 点生命。获得 3 点能量。抽 3 张牌。消耗。', play(ctx) {
+      ctx.loseHp(6); ctx.state.energy += 3; ctx.draw(3);
+    }},
+    reaper: { dmg: 5 },
+
+    poke: { dmg: 9 },
+    clipguard: { blk: 8 },
+    withdraw: { blk: 11 },
+    mute: { dmg: 4, desc: '造成 {dmg} 点伤害。给予 2 层虚弱。', play(ctx) {
+      ctx.damageEnemy(ctx.target, ctx.cardDmg(4));
+      ctx.applyStatus(ctx.target, 'weak', 2);
+    }},
+    shiv: { dmg: 6 },
+    acrobatics: { desc: '抽 4 张牌。弃 1 张牌。', play(ctx) { ctx.draw(4); ctx.discardChoose(1); }},
+    backflip: { blk: 8 },
+    blade_dance: { desc: '将 4 张「回形针」放入手牌。', play(ctx) { for (let i = 0; i < 4; i++) ctx.addShiv(); }},
+    cloak_dagger: { desc: '获得 {blk} 点格挡。将 2 张「回形针」放入手牌。', blk: 6, play(ctx) {
+      ctx.gainBlock(ctx.cardBlk(6)); ctx.addShiv(); ctx.addShiv();
+    }},
+    deadly_poison: { desc: '给予 7 层黑料。', play(ctx) { ctx.applyStatus(ctx.target, 'poison', 7); }},
+    dagger_spray: { dmg: 6 },
+    dagger_throw: { dmg: 12 },
+    deflect: { blk: 7 },
+    dodge_roll: { blk: 6 },
+    flying_knee: { dmg: 11 },
+    outmaneuver: { desc: '下回合获得 3 点能量。', play(ctx) { ctx.state.player.nextEnergy = (ctx.state.player.nextEnergy || 0) + 3; }},
+    piercing_wail: { desc: '所有敌人本回合失去 8 点力量。消耗。', play(ctx) {
+      ctx.forEachEnemy(e => { ctx.applyStatus(e, 'str', -8); e.tempStrLose = (e.tempStrLose || 0) + 8; });
+    }},
+    prepared: { desc: '抽 2 张牌。弃 2 张牌。', play(ctx) { ctx.draw(2); ctx.discardChoose(2); }},
+    quick_slash: { dmg: 12 },
+    slice: { dmg: 9 },
+    sneaky: { dmg: 16 },
+    sucker: { dmg: 9, desc: '造成 {dmg} 点伤害。给予 2 层虚弱。', play(ctx) {
+      ctx.damageEnemy(ctx.target, ctx.cardDmg(9));
+      ctx.applyStatus(ctx.target, 'weak', 2);
+    }},
+    accuracy: { desc: '「回形针」额外造成 6 点伤害。', play(ctx) {
+      ctx.state.player.powers.accuracy = (ctx.state.player.powers.accuracy || 0) + 6;
+    }},
+    all_out: { dmg: 14 },
+    blur: { blk: 8 },
+    bouncing: { desc: '给予 5 层黑料。将一张此牌的复制放到抽牌堆顶。', play(ctx) {
+      ctx.applyStatus(ctx.target, 'poison', 5);
+      ctx.state.draw.push(mkCard('bouncing', true));
+    }},
+    burst: { desc: '本回合你的下两张技能牌各打出两次。', play(ctx) { ctx.state.player.burst = (ctx.state.player.burst || 0) + 2; }},
+    calc_gamble: {},
+    catalyst: { desc: '将目标的黑料层数变为 3 倍。消耗。', play(ctx) {
+      const p = ctx.target.statuses.poison || 0;
+      if (p) ctx.applyStatus(ctx.target, 'poison', p * 2);
+    }},
+    concentrate: { desc: '弃 2 张牌。获得 2 点能量。', play(ctx) { ctx.discardChoose(2); ctx.state.energy += 2; }},
+    crippling: { desc: '给予所有敌人 7 层黑料和 2 层虚弱。消耗。', play(ctx) {
+      ctx.forEachEnemy(e => { ctx.applyStatus(e, 'poison', 7); ctx.applyStatus(e, 'weak', 2); });
+    }},
+    die_die: { dmg: 17 },
+    escape_plan: { desc: '抽 1 张牌。若抽到技能牌，获得 5 点格挡。', play(ctx) {
+      const before = ctx.state.hand.length;
+      ctx.draw(1);
+      if (ctx.state.hand.length > before) {
+        const c = ctx.state.hand[ctx.state.hand.length - 1];
+        if (c.type === 'skill') ctx.gainBlock(ctx.cardBlk(5));
+      }
+    }},
+    expertise: { desc: '抽牌直至手牌有 7 张。', play(ctx) {
+      while (ctx.state.hand.length < 7) {
+        const len = ctx.state.hand.length;
+        ctx.draw(1);
+        if (ctx.state.hand.length === len) break;
+      }
+    }},
+    finisher: { dmg: 8 },
+    footwork: { desc: '获得 3 点敏捷。', play(ctx) { ctx.applyStatus(ctx.state.player, 'dex', 3); }},
+    heel_hook: { dmg: 8 },
+    infinite_blades: {},
+    leg_sweep: { blk: 14 },
+    noxious: { desc: '在你的回合开始时，给予所有敌人 3 层黑料。', play(ctx) {
+      ctx.state.player.powers.noxious = (ctx.state.player.powers.noxious || 0) + 3;
+    }},
+    predator: { dmg: 20 },
+    riddle: { dmg: 4 },
+    setup: { cost: 0 },
+    skewer: { dmg: 10 },
+    storm_steel: {},
+    tools_trade: {},
+    adrenaline_s: { desc: '获得 2 点能量。抽 2 张牌。消耗。', play(ctx) { ctx.state.energy += 2; ctx.draw(2); }},
+    after_image: {},
+    a_thousand: { desc: '每当你打出一张牌，对所有敌人造成 2 点伤害。', play(ctx) {
+      ctx.state.player.powers.thousandCuts = (ctx.state.player.powers.thousandCuts || 0) + 2;
+    }},
+    corpse_explosion: { desc: '给予 9 层黑料。该敌人死亡时，对所有敌人造成其最大生命的伤害。', play(ctx) {
+      ctx.applyStatus(ctx.target, 'poison', 9);
+      ctx.target.corpseExplosion = true;
+    }},
+    envenom: {},
+    grand_finale: { dmg: 60 },
+    malaise: {},
+    phantasmal: {},
+    unload: { dmg: 18 },
+    wraith_form: { desc: '获得 3 层虚体。每回合结束失去 1 点敏捷。', play(ctx) {
+      ctx.applyStatus(ctx.state.player, 'intangible', 3);
+      ctx.state.player.powers.wraithForm = (ctx.state.player.powers.wraithForm || 0) + 1;
+    }},
+
+  };
+
+  const RELICS = {
+    burning_blood: { id: 'burning_blood', name: '热血', icon: '🩸', desc: '每场战斗结束后，回复 6 点生命。' },
+    snake_ring: { id: 'snake_ring', name: '蛇形工牌', icon: '🐍', desc: '每场战斗开始时，多抽 2 张牌。' },
+    wrench: { id: 'wrench', name: '旧扳手', icon: '🔧', desc: '战斗开始时获得 1 点能量。' },
+    boots: { id: 'boots', name: '防滑靴', icon: '👢', desc: '每场战斗首次攻击额外造成 5 点伤害。' },
+    coffee: { id: 'coffee', name: '冷咖啡', icon: '☕', desc: '每回合多抽 1 张牌。' },
+    magnet: { id: 'magnet', name: '吸金磁', icon: '🧲', desc: '战斗胜利多获得 15 金币。' },
+    vest: { id: 'vest', name: '反光背心', icon: '🦺', desc: '战斗开始时获得 8 点格挡。' },
+    badge: { id: 'badge', name: '工牌', icon: '🪪', desc: '商店价格降低 20%。' },
+    fuse: { id: 'fuse', name: '备用保险丝', icon: '⚡', desc: '每场战斗一次：生命低于 30% 时回复 12 点。' },
+    clipboard: { id: 'clipboard', name: '清单板', icon: '📋', desc: '拾取时：从 3 张牌中选 1 张加入牌组。' },
+  };
+
+  const ENEMIES = {
+    drone: {
+      id: 'drone', name: '锈蚀无人机', art: '🤖', hp: 28,
+      intents: [
+        { type: 'attack', dmg: 7, label: '⚡7' },
+        { type: 'attack', dmg: 5, label: '⚡5' },
+        { type: 'debuff', status: 'weak', amt: 1, label: '虚弱' },
+      ]
+    },
+    thug: {
+      id: 'thug', name: '码头匪徒', art: '🥷', hp: 36,
+      intents: [
+        { type: 'attack', dmg: 10, label: '⚔10' },
+        { type: 'attack', dmg: 6, times: 2, label: '⚔6×2' },
+        { type: 'buff', status: 'str', amt: 2, label: '力量+2' },
+      ]
+    },
+    forklift: {
+      id: 'forklift', name: '失控叉车', art: '🚜', hp: 48,
+      intents: [
+        { type: 'attack', dmg: 14, label: '⚔14' },
+        { type: 'defend', blk: 10, label: '🛡10' },
+        { type: 'attack', dmg: 8, label: '⚔8' },
+      ]
+    },
+    scraper: {
+      id: 'scraper', name: '清障蟹', art: '🦀', hp: 22,
+      intents: [
+        { type: 'attack', dmg: 4, times: 2, label: '⚔4×2' },
+        { type: 'debuff', status: 'vuln', amt: 2, label: '易伤' },
+      ]
+    },
+    elite_crane: {
+      id: 'elite_crane', name: '精英·吊臂', art: '🏗️', hp: 70,
+      intents: [
+        { type: 'attack', dmg: 16, label: '⚔16' },
+        { type: 'buff', status: 'str', amt: 3, label: '力量+3' },
+        { type: 'attack', dmg: 9, times: 2, label: '⚔9×2' },
+        { type: 'defend', blk: 12, label: '🛡12' },
+      ]
+    },
+    elite_sentry: {
+      id: 'elite_sentry', name: '精英·哨塔', art: '📡', hp: 60,
+      intents: [
+        { type: 'attack', dmg: 12, label: '⚔12' },
+        { type: 'debuff', status: 'weak', amt: 2, label: '虚弱×2' },
+        { type: 'attack', dmg: 7, times: 3, label: '⚔7×3' },
+      ]
+    },
+    boss_core: {
+      id: 'boss_core', name: '崩坏主控', art: '🖥️', hp: 140,
+      intents: [
+        { type: 'attack', dmg: 18, label: '⚔18' },
+        { type: 'buff', status: 'str', amt: 2, label: '过载+2' },
+        { type: 'attack', dmg: 8, times: 3, label: '⚔8×3' },
+        { type: 'debuff', status: 'vuln', amt: 2, label: '易伤' },
+        { type: 'defend', blk: 15, label: '🛡15' },
+      ]
+    },
+  };
+
+  let G = null;
+  let combat = null;
+  let pendingCard = null;
+  let choosing = false;
+  let shopState = null;
+  let uid = 1;
+
+  function newRun(charId) {
+    const isClerk = charId === 'clerk';
+    G = {
+      character: isClerk ? 'clerk' : 'loader',
+      charName: isClerk ? '女员工' : '货手',
+      charArt: isClerk ? '👩‍💼' : '👷',
+      hp: isClerk ? 70 : 80,
+      maxHp: isClerk ? 70 : 80,
+      gold: 99,
+      floor: 0, act: 1,
+      deck: isClerk ? [
+        mkCard('poke'), mkCard('poke'), mkCard('poke'), mkCard('poke'), mkCard('poke'),
+        mkCard('clipguard'), mkCard('clipguard'), mkCard('clipguard'), mkCard('clipguard'), mkCard('clipguard'),
+        mkCard('withdraw'), mkCard('mute'),
+      ] : [
+        mkCard('haul'), mkCard('haul'), mkCard('haul'), mkCard('haul'), mkCard('haul'),
+        mkCard('plate'), mkCard('plate'), mkCard('plate'), mkCard('plate'),
+        mkCard('bash'),
+      ],
+      relics: isClerk ? ['snake_ring'] : ['burning_blood'],
+      map: null,
+      nodeId: null,
+      visited: new Set(),
+      fuseUsed: false,
+      bootsUsed: false,
+      won: false,
+    };
+    G.map = generateMap();
+    G.nodeId = G.map.startId;
+    G.visited.add(G.nodeId);
+  }
+
+  function mkCard(baseId, upgraded = false) {
+    const base = CARDS[baseId];
+    if (!base) throw new Error('unknown card ' + baseId);
+    const c = {
+      uid: uid++,
+      baseId,
+      name: base.name,
+      type: base.type,
+      cost: base.cost,
+      rarity: base.rarity,
+      desc: base.desc,
+      dmg: base.dmg,
+      blk: base.blk,
+      exhaust: !!base.exhaust,
+      aoe: !!base.aoe,
+      ethereal: !!base.ethereal,
+      unplayable: !!base.unplayable,
+      xCost: !!base.xCost,
+      strike: !!base.strike,
+      needsTarget: !!base.needsTarget,
+      strMult: base.strMult || 1,
+      upgraded: false,
+      play: base.play,
+      canPlay: base.canPlay,
+    };
+    if (upgraded) upgradeCard(c);
+    return c;
+  }
+
+  function upgradeCard(c) {
+    if (c.upgraded || c.rarity === 'status') return false;
+    const u = UPGRADES[c.baseId];
+    if (!u) return false;
+    c.upgraded = true;
+    if (!c.name.endsWith('+')) c.name = c.name + '+';
+    if (u.dmg != null) c.dmg = u.dmg;
+    if (u.blk != null) c.blk = u.blk;
+    if (u.cost != null) c.cost = u.cost;
+    if (u.strMult != null) c.strMult = u.strMult;
+    if (u.exhaust === false) c.exhaust = false;
+    if (u.desc) c.desc = u.desc;
+    if (u.play) c.play = u.play;
+    return true;
+  }
+
+  function cardText(c) {
+    let d = c.desc || CARDS[c.baseId].desc;
+    const dmg = c.dmg != null ? c.dmg : CARDS[c.baseId].dmg;
+    const blk = c.blk != null ? c.blk : CARDS[c.baseId].blk;
+    if (dmg != null) d = d.split('{dmg}').join(String(dmg));
+    if (blk != null) d = d.split('{blk}').join(String(blk));
+    if (c.exhaust && !d.includes('消耗')) d += ' 消耗。';
+    if (c.ethereal && !d.includes('虚无')) d += ' 虚无。';
+    return d;
+  }
+
+  function previewUpgradedCard(baseId) {
+    return mkCard(baseId, true);
+  }
+
+  function upgradeDiffHtml(c) {
+    if (c.upgraded) {
+      return `<div class="upgrade-preview"><div class="up-label">已升级</div>${cardText(c)}</div>`;
+    }
+    if (!UPGRADES[c.baseId]) return '';
+    const up = previewUpgradedCard(c.baseId);
+    const beforeCost = c.xCost ? 'X' : c.cost;
+    const afterCost = up.xCost ? 'X' : up.cost;
+    const costLine = beforeCost !== afterCost
+      ? `<div>费用 <span class="was">${beforeCost}</span><span class="now">${afterCost}</span></div>`
+      : '';
+    return `<div class="upgrade-preview">
+      <div class="up-label">升级后 · ${up.name}</div>
+      ${costLine}
+      <div>${cardText(up)}</div>
+    </div>`;
+  }
+
+  function effectiveCost(card) {
+    if (card.tempCost != null) return card.tempCost;
+    if (card.xCost) return combat ? combat.energy : 0;
+    if (card.unplayable) return 999;
+    if (combat && combat.player.powers.corruption && card.type === 'skill') return 0;
+    return card.cost < 0 ? 0 : card.cost;
+  }
+
+  function generateMap() {
+    const layers = 15;
+    const nodes = [];
+    const edges = [];
+    let id = 0;
+    const byLayer = [];
+    const start = { id: id++, layer: 0, col: 1, type: 'start', x: 0, y: 0 };
+    nodes.push(start);
+    byLayer[0] = [start];
+    for (let L = 1; L < layers - 1; L++) {
+      const count = L === 1 ? 2 : (L % 4 === 0 ? 2 : 3);
+      byLayer[L] = [];
+      for (let c = 0; c < count; c++) {
+        nodes.push({ id: id, layer: L, col: c, type: pickNodeType(L, c, count), x: 0, y: 0 });
+        byLayer[L].push(nodes[nodes.length - 1]);
+        id++;
+      }
+    }
+    const boss = { id: id++, layer: layers - 1, col: 1, type: 'boss', x: 0, y: 0 };
+    nodes.push(boss);
+    byLayer[layers - 1] = [boss];
+    for (let L = 0; L < layers - 1; L++) {
+      const cur = byLayer[L], next = byLayer[L + 1];
+      cur.forEach((n, i) => {
+        const targets = new Set();
+        const idx = Math.round((i / Math.max(1, cur.length - 1)) * (next.length - 1));
+        targets.add(next[idx].id);
+        if (next[idx - 1] && Math.random() < 0.55) targets.add(next[idx - 1].id);
+        if (next[idx + 1] && Math.random() < 0.55) targets.add(next[idx + 1].id);
+        targets.forEach(t => edges.push([n.id, t]));
+      });
+      next.forEach(n => {
+        if (!edges.some(e => e[1] === n.id)) edges.push([cur[Math.floor(Math.random() * cur.length)].id, n.id]);
+      });
+    }
+    const W = 700, H = 80 + layers * 90;
+    nodes.forEach(n => {
+      const row = byLayer[n.layer];
+      n.x = 80 + (W / (row.length + 1)) * (n.col + 1);
+      n.y = 50 + n.layer * 90;
+    });
+    return { nodes, edges, startId: start.id, height: H, width: W + 160 };
+  }
+
+  function pickNodeType(layer, col, count) {
+    if (layer === 1) return 'combat';
+    if (layer === 8 || layer % 5 === 0) return 'elite';
+    if (layer === 13) return Math.random() < 0.5 ? 'rest' : 'shop';
+    if (layer % 4 === 3 && col === 0) return 'rest';
+    if (layer % 4 === 3 && col === count - 1) return 'shop';
+    if (layer % 3 === 0 && col === 1) return 'treasure';
+    const r = Math.random();
+    if (r < 0.55) return 'combat';
+    if (r < 0.7) return 'unknown';
+    if (r < 0.82) return 'treasure';
+    if (r < 0.92) return 'rest';
+    return 'shop';
+  }
+
+  const NODE_ICON = { start: '🏁', combat: '⚔', elite: '💀', rest: '🔥', shop: '🛒', treasure: '📦', unknown: '❓', boss: '👑' };
+  const NODE_NAME = { start: '起点', combat: '战斗', elite: '精英', rest: '休息', shop: '商店', treasure: '货箱', unknown: '未知', boss: 'Boss' };
+
+  function $(id) { return document.getElementById(id); }
+  function showScreen(name) {
+    document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
+    $(`screen-${name}`).classList.add('active');
+  }
+  function toast(msg) {
+    const t = $('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    clearTimeout(toast._t);
+    toast._t = setTimeout(() => t.classList.remove('show'), 1800);
+  }
+  function showModal(html) {
+    $('modal').innerHTML = html;
+    $('overlay').classList.add('show');
+  }
+  function hideModal() { $('overlay').classList.remove('show'); }
+
+  function renderRelics(el) {
+    el.innerHTML = '';
+    G.relics.forEach(id => {
+      const r = RELICS[id];
+      const chip = document.createElement('span');
+      chip.className = 'relic-chip';
+      chip.innerHTML = `${r.icon} ${r.name}`;
+      chip.onmouseenter = (ev) => showRelicTip(r, ev);
+      chip.onmousemove = (ev) => moveRelicTip(ev);
+      chip.onmouseleave = hideRelicTip;
+      chip.onclick = (ev) => {
+        ev.stopPropagation();
+        hideRelicTip();
+        showModal(`
+          <h2>${r.icon} ${r.name}</h2>
+          <p style="font-size:15px;color:var(--text);line-height:1.6">${r.desc}</p>
+          <div class="modal-actions"><button class="btn" id="m-close">关闭</button></div>`);
+        $('m-close').onclick = hideModal;
+      };
+      el.appendChild(chip);
+    });
+  }
+
+  function showRelicTip(r, ev) {
+    const tip = $('relic-tip');
+    tip.innerHTML = `<b>${r.icon} ${r.name}</b>${r.desc}`;
+    tip.classList.add('show');
+    moveRelicTip(ev);
+  }
+  function moveRelicTip(ev) {
+    const tip = $('relic-tip');
+    const x = Math.min(ev.clientX + 14, window.innerWidth - 280);
+    const y = Math.min(ev.clientY + 14, window.innerHeight - 120);
+    tip.style.left = x + 'px';
+    tip.style.top = y + 'px';
+  }
+  function hideRelicTip() {
+    $('relic-tip').classList.remove('show');
+  }
+
+  function updateMapHud() {
+    $('map-hp').textContent = `${G.hp}/${G.maxHp}`;
+    $('map-hp-bar').style.width = `${(G.hp / G.maxHp) * 100}%`;
+    $('map-gold').textContent = G.gold;
+    $('map-floor').textContent = G.floor;
+    renderRelics($('map-relics'));
+  }
+
+  function renderMap() {
+    updateMapHud();
+    const canvas = $('map-canvas');
+    const m = G.map;
+    canvas.style.width = m.width + 'px';
+    canvas.style.height = m.height + 'px';
+    const reachable = getReachable();
+    const nodeMap = Object.fromEntries(m.nodes.map(n => [n.id, n]));
+    let lines = '';
+    m.edges.forEach(([a, b]) => {
+      const na = nodeMap[a], nb = nodeMap[b];
+      const done = G.visited.has(a) && G.visited.has(b);
+      const active = G.visited.has(a) && reachable.has(b);
+      lines += `<line x1="${na.x}" y1="${na.y}" x2="${nb.x}" y2="${nb.y}" stroke="${active ? '#e8a84a' : done ? '#3d5a48' : '#2a3a30'}" stroke-width="${active ? 3 : 2}" stroke-dasharray="${active ? '0' : '4 4'}" />`;
+    });
+    canvas.innerHTML = `<svg class="map-svg" width="${m.width}" height="${m.height}">${lines}</svg>`;
+    m.nodes.forEach(n => {
+      const div = document.createElement('div');
+      div.className = 'node';
+      if (n.id === G.nodeId) div.classList.add('current');
+      if (G.visited.has(n.id) && n.id !== G.nodeId) div.classList.add('done');
+      if (reachable.has(n.id)) div.classList.add('reachable');
+      div.style.left = n.x + 'px';
+      div.style.top = n.y + 'px';
+      div.innerHTML = `${NODE_ICON[n.type]}<div class="label">${NODE_NAME[n.type]}</div>`;
+      if (reachable.has(n.id)) div.onclick = () => enterNode(n);
+      canvas.appendChild(div);
+    });
+    const cur = nodeMap[G.nodeId];
+    canvas.parentElement.scrollTop = Math.max(0, cur.y - 120);
+  }
+
+  function getReachable() {
+    const set = new Set();
+    G.map.edges.forEach(([a, b]) => { if (a === G.nodeId && !G.visited.has(b)) set.add(b); });
+    return set;
+  }
+
+  function enterNode(n) {
+    G.nodeId = n.id;
+    G.visited.add(n.id);
+    G.floor = n.layer;
+    let type = n.type;
+    if (type === 'unknown') {
+      const r = Math.random();
+      type = r < 0.55 ? 'combat' : r < 0.75 ? 'treasure' : r < 0.9 ? 'shop' : 'rest';
+      toast(`未知节点：${NODE_NAME[type]}`);
+    }
+    if (type === 'start') { renderMap(); return; }
+    if (type === 'combat') startCombat('normal');
+    else if (type === 'elite') startCombat('elite');
+    else if (type === 'boss') startCombat('boss');
+    else if (type === 'rest') openRest();
+    else if (type === 'shop') { shopState = null; openShop(); }
+    else if (type === 'treasure') openTreasure();
+  }
+
+  function startCombat(tier) {
+    G.bootsUsed = false;
+    G.fuseUsed = false;
+    choosing = false;
+    pendingCard = null;
+    combat = {
+      tier, turn: 1, energy: 3, maxEnergy: 3,
+      player: {
+        block: 0, statuses: {}, powers: {},
+        nextDrawBonus: 0, tempStrLose: 0, noDraw: false,
+        rageBlock: 0, flameBarrier: 0, doubleTap: 0,
+      },
+      enemies: spawnEnemies(tier),
+      draw: shuffle(G.deck.map(c => ({ ...c, uid: uid++, play: c.play, canPlay: c.canPlay }))),
+      discard: [],
+      exhaustPile: [],
+      hand: [],
+      over: false,
+      logLines: [],
+    };
+    showScreen('combat');
+    if ($('player-name')) $('player-name').textContent = G.charName;
+    if ($('player-art')) $('player-art').textContent = G.charArt;
+    $('combat-title').textContent = tier === 'boss' ? 'Boss · 崩坏主控' : tier === 'elite' ? '精英战' : '战斗';
+    combat.enemies.forEach(rollIntent);
+    startPlayerTurn(true);
+  }
+
+  function spawnEnemies(tier) {
+    if (tier === 'boss') return [makeEnemy('boss_core')];
+    if (tier === 'elite') return [makeEnemy(Math.random() < 0.5 ? 'elite_crane' : 'elite_sentry')];
+    const r = Math.random();
+    if (r < 0.35) return [makeEnemy('drone'), makeEnemy('scraper')];
+    if (r < 0.6) return [makeEnemy('thug')];
+    if (r < 0.8) return [makeEnemy('forklift')];
+    return [makeEnemy('drone'), makeEnemy('drone')];
+  }
+
+  function makeEnemy(id) {
+    const def = ENEMIES[id];
+    const scale = 1 + (G.floor || 0) * 0.04;
+    const hp = Math.round(def.hp * scale);
+    return { uid: uid++, defId: id, name: def.name, art: def.art, hp, maxHp: hp, block: 0, statuses: {}, intent: null, intentIdx: 0 };
+  }
+
+  function rollIntent(e) {
+    const intents = ENEMIES[e.defId].intents;
+    e.intent = intents[e.intentIdx % intents.length];
+    e.intentIdx++;
+  }
+
+  function shuffle(arr) {
+    const a = [...arr];
+    for (let i = a.length - 1; i > 0; i--) {
+      const j = Math.floor(Math.random() * (i + 1));
+      [a[i], a[j]] = [a[j], a[i]];
+    }
+    return a;
+  }
+
+  function startPlayerTurn(first) {
+    if (combat.over) return;
+    const keepBlock = combat.player.powers.barricade || combat.player.blur;
+    if (!keepBlock) combat.player.block = 0;
+    combat.player.blur = false;
+    combat.player.noDraw = false;
+    combat.player.rageBlock = 0;
+    combat.player.flameBarrier = 0;
+    combat.player.doubleTap = 0;
+    combat.player.discardedThisTurn = false;
+    combat.player.attacksThisTurn = 0;
+    combat.player.burst = 0;
+    if (combat.player.nextPhantasmal) {
+      combat.player.phantasmal = true;
+      combat.player.nextPhantasmal = false;
+    } else {
+      combat.player.phantasmal = false;
+    }
+    // 临时 0 费：布局(_setupZero)保留直到打出；其它仅一回合
+    [...combat.hand, ...combat.discard, ...combat.draw, ...combat.exhaustPile].forEach(c => {
+      if (c && c.tempCost != null && !c._setupZero) delete c.tempCost;
+    });
+
+    combat.energy = combat.maxEnergy
+      + (first && G.relics.includes('wrench') ? 1 : 0)
+      + (combat.player.powers.berserk || 0)
+      + (combat.player.nextEnergy || 0);
+    combat.player.nextEnergy = 0;
+
+    if (combat.player.nextTurnBlock) {
+      combat.player.block += combat.player.nextTurnBlock;
+      combat.player.nextTurnBlock = 0;
+    }
+
+    if (combat.player.powers.demonForm) {
+      combat.player.statuses.str = (combat.player.statuses.str || 0) + combat.player.powers.demonForm;
+    }
+    if (combat.player.powers.infiniteBlades) {
+      for (let i = 0; i < combat.player.powers.infiniteBlades; i++) {
+        if (combat.hand.length < 10) combat.hand.push(mkCard('shiv'));
+      }
+    }
+    if (combat.player.powers.noxious) {
+      combat.enemies.forEach(e => {
+        if (e.hp > 0) {
+          e.statuses.poison = (e.statuses.poison || 0) + combat.player.powers.noxious;
+        }
+      });
+    }
+    if (combat.player.powers.toolsTrade) {
+      for (let i = 0; i < combat.player.powers.toolsTrade; i++) {
+        drawCards(1);
+        // discard choose after draw - deferred via flag
+      }
+      combat.player._toolsDiscard = combat.player.powers.toolsTrade;
+    }
+    if (first && G.relics.includes('vest')) combat.player.block += 8;
+
+    if (combat.player.powers.brutality) {
+      for (let i = 0; i < combat.player.powers.brutality; i++) {
+        drawCards(1);
+        loseHpDirect(1);
+      }
+    }
+
+    const drawN = 5
+      + (G.relics.includes('coffee') ? 1 : 0)
+      + (first && G.relics.includes('snake_ring') ? 2 : 0)
+      + (combat.player.nextDrawBonus || 0);
+    combat.player.nextDrawBonus = 0;
+    drawCards(drawN);
+    renderCombat();
+    if (combat.player._toolsDiscard) {
+      const n = combat.player._toolsDiscard;
+      combat.player._toolsDiscard = 0;
+      const ctx = makeCtx(null, null);
+      ctx.discardChoose(n);
+    }
+  }
+
+  function drawCards(n) {
+    if (combat.player.noDraw) return;
+    for (let i = 0; i < n; i++) {
+      if (combat.hand.length >= 10) break;
+      if (!combat.draw.length) {
+        if (!combat.discard.length) break;
+        combat.draw = shuffle(combat.discard);
+        combat.discard = [];
+        log('重新洗牌…');
+      }
+      combat.hand.push(combat.draw.pop());
+    }
+  }
+
+  function log(msg) {
+    combat.logLines.unshift(msg);
+    if (combat.logLines.length > 30) combat.logLines.pop();
+  }
+
+  function loseHpDirect(amt) {
+    G.hp -= amt;
+    floatNum($('player-actor'), amt, 'dmg');
+    log(`失去 ${amt} 生命`);
+    checkFuse();
+    if (G.hp <= 0) {
+      G.hp = 0; combat.over = true;
+      setTimeout(gameOver, 400);
+    }
+  }
+
+  function onExhaust(card) {
+    if (combat.player.powers.feelNoPain) {
+      const ctx = makeCtx(card, null);
+      ctx.gainBlock(combat.player.powers.feelNoPain);
+    }
+    if (combat.player.powers.darkEmbrace) drawCards(combat.player.powers.darkEmbrace);
+  }
+
+  function makeCtx(card, target) {
+    const ctx = {
+      state: combat,
+      card,
+      target,
+      xValue: 0,
+      log,
+      draw: (n) => drawCards(n),
+      forEachEnemy(fn) { [...combat.enemies].forEach(e => { if (e.hp > 0) fn(e); }); },
+      cardDmg(base) {
+        let d = base;
+        const mult = (card && card.strMult) || 1;
+        d += ((combat.player.statuses.str || 0) * mult);
+        if (G.relics.includes('boots') && !G.bootsUsed && card && card.type === 'attack') {
+          d += 5; G.bootsUsed = true; log('防滑靴：额外 5 伤害');
+        }
+        return Math.max(0, d);
+      },
+      cardBlk(base) { return base + (combat.player.statuses.dex || 0); },
+      gainBlock(amt) {
+        if (amt <= 0) return;
+        combat.player.block += amt;
+        floatNum($('player-actor'), amt, 'block');
+        log(`获得 ${amt} 格挡`);
+        if (combat.player.powers.juggernaut) {
+          const alive = combat.enemies.filter(e => e.hp > 0);
+          if (alive.length) {
+            const t = alive[Math.floor(Math.random() * alive.length)];
+            ctx.damageEnemy(t, combat.player.powers.juggernaut);
+          }
+        }
+      },
+      damageEnemy(enemy, raw) {
+        if (!enemy || enemy.hp <= 0) return 0;
+        let d = raw;
+        if ((enemy.statuses.vuln || 0) > 0) d = Math.floor(d * 1.5);
+        if ((combat.player.statuses.weak || 0) > 0) d = Math.floor(d * 0.75);
+        d = Math.max(0, d);
+        const blocked = Math.min(enemy.block, d);
+        enemy.block -= blocked;
+        const hpDmg = d - blocked;
+        enemy.hp -= hpDmg;
+        const el = document.querySelector(`[data-eid="${enemy.uid}"]`);
+        if (el) {
+          el.classList.add('hit');
+          setTimeout(() => el.classList.remove('hit'), 350);
+          floatNum(el, hpDmg > 0 ? hpDmg : blocked, hpDmg > 0 ? 'dmg' : 'block');
+        }
+        log(`${enemy.name} 受到 ${d} 伤害`);
+        if (hpDmg > 0 && card && card.type === 'attack' && combat.player.powers.envenom) {
+          enemy.statuses.poison = (enemy.statuses.poison || 0) + combat.player.powers.envenom;
+          log(`${enemy.name} 黑料 +${combat.player.powers.envenom}`);
+        }
+        if (enemy.hp <= 0) {
+          enemy.hp = 0;
+          log(`${enemy.name} 被击毁`);
+          if (enemy.corpseExplosion) {
+            const boom = enemy.maxHp;
+            log(`爆料！全场 ${boom} 伤害`);
+            combat.enemies.forEach(e => {
+              if (e.uid !== enemy.uid && e.hp > 0) {
+                e.hp -= boom;
+                if (e.hp < 0) e.hp = 0;
+              }
+            });
+          }
+        }
+        return hpDmg;
+      },
+      damagePlayer(raw, ignoreBlock = false) {
+        let d = raw;
+        if (!ignoreBlock) {
+          if ((combat.player.statuses.vuln || 0) > 0) d = Math.floor(d * 1.5);
+          const blocked = Math.min(combat.player.block, d);
+          combat.player.block -= blocked;
+          d -= blocked;
+          if (blocked) floatNum($('player-actor'), blocked, 'block');
+        }
+        if ((combat.player.statuses.intangible || 0) > 0 && d > 0) d = 1;
+        if (d > 0) {
+          G.hp -= d;
+          $('player-actor').classList.add('hit');
+          setTimeout(() => $('player-actor').classList.remove('hit'), 350);
+          floatNum($('player-actor'), d, 'dmg');
+          log(`你受到 ${d} 伤害`);
+        }
+        checkFuse();
+        if (G.hp <= 0) { G.hp = 0; combat.over = true; setTimeout(gameOver, 500); }
+      },
+      loseHp(amt) { loseHpDirect(amt); },
+      applyStatus(unit, key, amt) {
+        unit.statuses[key] = (unit.statuses[key] || 0) + amt;
+        if (unit.statuses[key] === 0) delete unit.statuses[key];
+        const names = { vuln: '易伤', weak: '虚弱', str: '力量', dex: '敏捷', poison: '黑料', intangible: '虚体' };
+        log(`${unit.name || '你'} ${amt >= 0 ? '获得' : '失去'} ${names[key] || key} ${Math.abs(amt)}`);
+      },
+      exhaustCard(c) {
+        const i = combat.hand.findIndex(x => x.uid === c.uid);
+        if (i >= 0) combat.hand.splice(i, 1);
+        else {
+          const j = combat.discard.findIndex(x => x.uid === c.uid);
+          if (j >= 0) combat.discard.splice(j, 1);
+        }
+        combat.exhaustPile.push(c);
+        log(`消耗：${c.name}`);
+        onExhaust(c);
+      },
+      shuffleIntoDraw(c) {
+        combat.draw.push(c);
+        combat.draw = shuffle(combat.draw);
+      },
+      chooseFrom(list, title, cb) {
+        if (!list || !list.length) { cb(null); return; }
+        if (list.length === 1) { cb(list[0]); renderCombat(); return; }
+        choosing = true;
+        showModal(`<h2>${title}</h2><div class="card-pick" id="choose-list"></div>`);
+        const box = $('choose-list');
+        list.forEach(c => {
+          const el = cardEl(c);
+          el.onclick = () => {
+            hideModal();
+            choosing = false;
+            cb(c);
+            renderCombat();
+            checkCombatEnd();
+          };
+          box.appendChild(el);
+        });
+      },
+      playFree(c, target, forceExhaust) {
+        const alive = combat.enemies.filter(e => e.hp > 0);
+        const t = needsTarget(c) ? (target && target.hp > 0 ? target : alive[0]) : alive[0];
+        const playFn = c.play || CARDS[c.baseId].play;
+        const sub = makeCtx(c, t);
+        playFn(sub);
+        if (c.type === 'power' && !forceExhaust) {
+          // 能力牌移出本场，不进弃牌
+        } else if (forceExhaust || c.exhaust) {
+          combat.exhaustPile.push(c);
+          onExhaust(c);
+        } else combat.discard.push(c);
+      },
+    };
+    return ctx;
+  }
+
+  function checkFuse() {
+    if (!G.relics.includes('fuse') || G.fuseUsed) return;
+    if (G.hp > 0 && G.hp / G.maxHp < 0.3) {
+      G.fuseUsed = true;
+      G.hp = Math.min(G.maxHp, G.hp + 12);
+      log('备用保险丝触发！回复 12 HP');
+      toast('备用保险丝触发！');
+    }
+  }
+
+  function floatNum(el, n, kind) {
+    if (!el || !n) return;
+    const f = document.createElement('div');
+    f.className = `float-dmg ${kind}`;
+    f.textContent = (kind === 'heal' ? '+' : kind === 'block' ? '🛡' : '-') + n;
+    f.style.left = (40 + Math.random() * 40) + 'px';
+    f.style.top = '20px';
+    el.style.position = 'relative';
+    el.appendChild(f);
+    setTimeout(() => f.remove(), 800);
+  }
+
+  function needsTarget(card) {
+    if (card.aoe || card.unplayable || card.type === 'power') return false;
+    if (card.needsTarget) return true;
+    if (card.type === 'attack') return true;
+    return false;
+  }
+
+  function tryPlayCard(card) {
+    if (combat.over || choosing) return;
+    if (card.unplayable) { toast('无法打出'); return; }
+    const ctxProbe = makeCtx(card, null);
+    if (card.canPlay && !card.canPlay(ctxProbe)) { toast('条件不满足'); return; }
+
+    const cost = effectiveCost(card);
+    if (!card.xCost && combat.energy < cost) { toast('能量不足'); return; }
+    if (card.xCost && combat.energy <= 0 && cost === 0) {
+      // X=0 仍可打出
+    } else if (!card.xCost && combat.energy < cost) {
+      toast('能量不足'); return;
+    }
+
+    const alive = combat.enemies.filter(e => e.hp > 0);
+    if (!alive.length) return;
+
+    if (needsTarget(card)) {
+      if (alive.length === 1) resolvePlay(card, alive[0]);
+      else {
+        pendingCard = card;
+        $('target-hint').classList.add('show');
+        renderHand();
+        toast('点击敌人选择目标');
+      }
+      return;
+    }
+    resolvePlay(card, alive[0]);
+  }
+
+  function resolvePlay(card, target) {
+    pendingCard = null;
+    $('target-hint').classList.remove('show');
+
+    let spent = effectiveCost(card);
+    let xValue = 0;
+    if (card.xCost) {
+      xValue = combat.energy;
+      spent = combat.energy;
+    }
+    combat.energy -= spent;
+
+    const idx = combat.hand.findIndex(c => c.uid === card.uid);
+    if (idx >= 0) combat.hand.splice(idx, 1);
+
+    if (card._setupZero) { delete card._setupZero; delete card.tempCost; }
+
+    const doEffect = () => {
+      const ctx = makeCtx(card, target);
+      ctx.xValue = xValue;
+      const playFn = card.play || CARDS[card.baseId].play;
+      playFn(ctx);
+    };
+
+    doEffect();
+
+    if (combat.player.powers.afterImage) {
+      makeCtx(card, target).gainBlock(combat.player.powers.afterImage);
+    }
+    if (combat.player.powers.thousandCuts) {
+      const dmg = combat.player.powers.thousandCuts;
+      combat.enemies.forEach(e => {
+        if (e.hp > 0) makeCtx(card, target).damageEnemy(e, dmg);
+      });
+    }
+
+    if (card.type === 'attack') {
+      combat.player.attacksThisTurn = (combat.player.attacksThisTurn || 0) + 1;
+    }
+
+    if (card.type === 'attack' && combat.player.rageBlock) {
+      makeCtx(card, target).gainBlock(combat.player.rageBlock);
+    }
+
+    if (card.type === 'attack' && (combat.player.doubleTap > 0 || combat.player.phantasmal)) {
+      if (combat.player.doubleTap > 0) combat.player.doubleTap--;
+      if (target && target.hp > 0) {
+        log(combat.player.phantasmal ? '幻影加班！' : '双击！');
+        doEffect();
+      }
+    }
+
+    if (card.type === 'skill' && combat.player.burst > 0) {
+      combat.player.burst--;
+      log('连办！');
+      doEffect();
+    }
+
+    let exhaust = card.exhaust || (combat.player.powers.corruption && card.type === 'skill');
+    if (card.type === 'power') {
+      // 能力牌打出后移出本场循环（不进弃牌，也不算「消耗」触发）
+      log(`${card.name} 成为持续能力`);
+    } else if (exhaust) {
+      combat.exhaustPile.push(card);
+      onExhaust(card);
+    } else {
+      combat.discard.push(card);
+    }
+
+    combat.enemies = combat.enemies.filter(e => e.hp > 0);
+    if (!choosing) {
+      renderCombat();
+      checkCombatEnd();
+    }
+  }
+
+  function checkCombatEnd() {
+    if (combat.over) return;
+    combat.enemies = combat.enemies.filter(e => e.hp > 0);
+    if (!combat.enemies.length) {
+      combat.over = true;
+      setTimeout(victory, 450);
+    }
+  }
+
+  function endTurn() {
+    if (combat.over || choosing) return;
+    if (pendingCard) {
+      pendingCard = null;
+      $('target-hint').classList.remove('show');
+    }
+
+    // 灼伤
+    const burns = combat.hand.filter(c => c.baseId === 'burn');
+    burns.forEach(() => loseHpDirect(2));
+
+    // 虚无：消耗；其余弃牌
+    const keep = [];
+    combat.hand.forEach(c => {
+      if (c.ethereal) {
+        combat.exhaustPile.push(c);
+        onExhaust(c);
+        log(`虚无消耗：${c.name}`);
+      } else keep.push(c);
+    });
+    combat.discard.push(...keep);
+    combat.hand = [];
+
+    // 金属化（回合结束格挡）
+    if (combat.player.powers.metallicize) {
+      combat.player.block += combat.player.powers.metallicize;
+      log(`金属化：+${combat.player.powers.metallicize} 格挡`);
+    }
+
+    // 发力回落
+    if (combat.player.tempStrLose) {
+      combat.player.statuses.str = (combat.player.statuses.str || 0) - combat.player.tempStrLose;
+      if (combat.player.statuses.str <= 0) delete combat.player.statuses.str;
+      combat.player.tempStrLose = 0;
+    }
+
+    if (combat.player.powers.wraithForm) {
+      combat.player.statuses.dex = (combat.player.statuses.dex || 0) - combat.player.powers.wraithForm;
+      if (combat.player.statuses.dex === 0) delete combat.player.statuses.dex;
+      log(`幽灵工位：敏捷 -${combat.player.powers.wraithForm}`);
+    }
+
+    ['vuln', 'weak', 'intangible'].forEach(k => {
+      if (combat.player.statuses[k]) {
+        combat.player.statuses[k]--;
+        if (combat.player.statuses[k] <= 0) delete combat.player.statuses[k];
+      }
+    });
+
+    renderCombat();
+    setTimeout(() => enemyTurn(), 300);
+  }
+
+  function enemyTurn() {
+    if (combat.over) return;
+    const queue = combat.enemies.filter(e => e.hp > 0);
+    let delay = 0;
+    queue.forEach((e, i) => {
+      setTimeout(() => {
+        if (combat.over || e.hp <= 0) return;
+        e.block = 0;
+        // 黑料：回合开始结算，无视格挡
+        const poi = e.statuses.poison || 0;
+        if (poi > 0) {
+          e.hp -= poi;
+          log(`${e.name} 黑料爆发 ${poi}`);
+          floatNum(document.querySelector(`[data-eid="${e.uid}"]`) || $('enemies'), poi, 'dmg');
+          e.statuses.poison = poi - 1;
+          if (e.statuses.poison <= 0) delete e.statuses.poison;
+          if (e.hp <= 0) {
+            e.hp = 0;
+            log(`${e.name} 被击毁`);
+            if (e.corpseExplosion) {
+              const boom = e.maxHp;
+              combat.enemies.forEach(o => {
+                if (o.uid !== e.uid && o.hp > 0) { o.hp = Math.max(0, o.hp - boom); }
+              });
+            }
+          }
+        }
+        if (e.hp > 0) executeIntent(e);
+        // 刺耳广播等临时力量回落
+        if (e.tempStrLose) {
+          e.statuses.str = (e.statuses.str || 0) + e.tempStrLose;
+          if (e.statuses.str === 0) delete e.statuses.str;
+          e.tempStrLose = 0;
+        }
+        combat.enemies = combat.enemies.filter(x => x.hp > 0);
+        renderCombat();
+        if (!combat.enemies.length) { combat.over = true; setTimeout(victory, 400); return; }
+        if (G.hp <= 0) return;
+        if (i === queue.length - 1) {
+          setTimeout(() => {
+            combat.enemies.forEach(en => { if (en.hp > 0) rollIntent(en); });
+            combat.turn++;
+            tickStatusesEndEnemy();
+            startPlayerTurn(false);
+          }, 350);
+        }
+      }, delay);
+      delay += 450;
+    });
+    if (!queue.length) { combat.over = true; victory(); }
+  }
+
+  function executeIntent(e) {
+    const intent = e.intent;
+    if (!intent) return;
+    const str = e.statuses.str || 0;
+    if (intent.type === 'attack') {
+      const times = intent.times || 1;
+      for (let i = 0; i < times; i++) {
+        let d = intent.dmg + str;
+        if ((e.statuses.weak || 0) > 0) d = Math.floor(d * 0.75);
+        const ctx = makeCtx(null, null);
+        const hpBefore = G.hp;
+        const blockBefore = combat.player.block;
+        ctx.damagePlayer(d);
+        // 火障：受到攻击时反弹
+        if (combat.player.flameBarrier && (G.hp < hpBefore || combat.player.block < blockBefore || d > 0)) {
+          ctx.damageEnemy(e, combat.player.flameBarrier);
+        }
+        if (combat.over) return;
+      }
+    } else if (intent.type === 'defend') {
+      e.block += intent.blk || 0;
+      log(`${e.name} 获得 ${intent.blk} 格挡`);
+    } else if (intent.type === 'debuff') {
+      makeCtx(null, null).applyStatus(combat.player, intent.status, intent.amt);
+    } else if (intent.type === 'buff') {
+      makeCtx(null, null).applyStatus(e, intent.status, intent.amt);
+    }
+  }
+
+  function tickStatusesEndEnemy() {
+    combat.enemies.forEach(e => {
+      ['vuln', 'weak'].forEach(k => {
+        if (e.statuses[k]) {
+          e.statuses[k]--;
+          if (e.statuses[k] <= 0) delete e.statuses[k];
+        }
+      });
+    });
+  }
+
+  function renderCombat() {
+    if (!combat) return;
+    $('energy').textContent = combat.energy;
+    $('draw-count').textContent = combat.draw.length;
+    $('discard-count').textContent = combat.discard.length;
+    $('turn-count').textContent = combat.turn;
+    $('combat-hp').textContent = `${G.hp}/${G.maxHp}`;
+    $('combat-gold').textContent = G.gold;
+    $('player-hp-text').textContent = `${G.hp}/${G.maxHp}`;
+    $('player-hp-bar').style.width = `${(G.hp / G.maxHp) * 100}%`;
+    $('player-block').textContent = `🛡 ${combat.player.block}`;
+    renderStatuses($('player-statuses'), combat.player);
+    renderRelics($('combat-relics'));
+    renderEnemies();
+    renderHand();
+    $('combat-log').innerHTML = combat.logLines.slice(0, 8).map(l => `<div>${l}</div>`).join('');
+  }
+
+  function renderStatuses(el, unit) {
+    const map = { vuln: ['易伤', 'vuln'], weak: ['虚弱', 'weak'], str: ['力量', 'str'], dex: ['敏捷', 'dex'], poison: ['黑料', 'poison'], intangible: ['虚体', ''] };
+    const parts = [];
+    Object.entries(unit.statuses || {}).forEach(([k, v]) => {
+      if (!v) return;
+      const m = map[k] || [k, ''];
+      parts.push(`<span class="status ${m[1]}">${m[0]} ${v}</span>`);
+    });
+    const pnames = {
+      barricade: '壁垒', metallicize: '金属化', demonForm: '魔形', berserk: '狂战',
+      brutality: '残暴', corruption: '腐化', darkEmbrace: '暗拥', feelNoPain: '无痛', juggernaut: '战车',
+      accuracy: '准头', infiniteBlades: '无限针', noxious: '毒雾', toolsTrade: '套装',
+      afterImage: '残像', thousandCuts: '千刀', envenom: '涂毒', wraithForm: '幽灵',
+    };
+    Object.entries(unit.powers || {}).forEach(([k, v]) => {
+      if (!v) return;
+      parts.push(`<span class="status">${pnames[k] || k}${typeof v === 'number' && v !== 1 ? ' ' + v : ''}</span>`);
+    });
+    if (unit.flameBarrier) parts.push(`<span class="status">火障 ${unit.flameBarrier}</span>`);
+    if (unit.rageBlock) parts.push(`<span class="status">狂怒 ${unit.rageBlock}</span>`);
+    if (unit.doubleTap) parts.push(`<span class="status">双击 ${unit.doubleTap}</span>`);
+    el.innerHTML = parts.join('');
+  }
+
+  function renderEnemies() {
+    const box = $('enemies');
+    box.innerHTML = '';
+    combat.enemies.forEach(e => {
+      const div = document.createElement('div');
+      div.className = 'actor enemy';
+      div.dataset.eid = e.uid;
+      let label = e.intent ? e.intent.label : '?';
+      if (e.intent && e.intent.type === 'attack') {
+        let d = e.intent.dmg + (e.statuses.str || 0);
+        if ((e.statuses.weak || 0) > 0) d = Math.floor(d * 0.75);
+        const times = e.intent.times || 1;
+        label = times > 1 ? `⚔${d}×${times}` : `⚔${d}`;
+      }
+      div.innerHTML = `
+        <div class="intent">${label}</div>
+        <div class="actor-art">${e.art}</div>
+        <div class="actor-name">${e.name}</div>
+        <div class="bar-row"><span class="block-badge">🛡 ${e.block}</span></div>
+        <div class="bar-row"><div class="bar hp"><i style="width:${(e.hp / e.maxHp) * 100}%"></i></div><span>${e.hp}/${e.maxHp}</span></div>
+        <div class="statuses"></div>`;
+      renderStatuses(div.querySelector('.statuses'), e);
+      div.onclick = () => { if (pendingCard && !choosing) resolvePlay(pendingCard, e); };
+      if (pendingCard) div.style.cursor = 'pointer';
+      box.appendChild(div);
+    });
+  }
+
+  function renderHand() {
+    const hand = $('hand');
+    hand.innerHTML = '';
+    combat.hand.forEach((c, i) => {
+      const cost = effectiveCost(c);
+      const ctxProbe = makeCtx(c, null);
+      const condFail = c.canPlay && !c.canPlay(ctxProbe);
+      const unplayable = c.unplayable || condFail || (!c.xCost && combat.energy < cost) || !!pendingCard || choosing;
+      const el = document.createElement('div');
+      el.className = `card ${c.type} ${c.rarity} ${c.upgraded ? 'upgraded' : ''} ${unplayable && !(pendingCard && pendingCard.uid === c.uid) ? 'unplayable' : ''} ${pendingCard && pendingCard.uid === c.uid ? 'selected' : ''}`;
+      el.style.transform = `rotate(${(i - (combat.hand.length - 1) / 2) * 2.5}deg)`;
+      const costLabel = c.xCost ? 'X' : (c.unplayable ? '-' : cost);
+      el.innerHTML = `
+        <div class="cost">${costLabel}</div>
+        <div class="cname">${c.name}</div>
+        <div class="ctype">${{ attack: '攻击', skill: '技能', power: '能力', status: '状态' }[c.type]}</div>
+        <div class="cdesc">${cardText(c)}</div>
+        <div class="rarity">${c.exhaust ? '消耗 ' : ''}${c.ethereal ? '虚无 ' : ''}${c.upgraded ? '已升级' : ''}</div>`;
+      el.onclick = () => {
+        if (pendingCard) {
+          if (pendingCard.uid === c.uid) {
+            pendingCard = null;
+            $('target-hint').classList.remove('show');
+            renderHand();
+          }
+          return;
+        }
+        tryPlayCard(c);
+      };
+      hand.appendChild(el);
+    });
+  }
+
+  function cardEl(c) {
+    const el = document.createElement('div');
+    el.className = `card ${c.type} ${c.rarity} ${c.upgraded ? 'upgraded' : ''}`;
+    const costLabel = c.xCost ? 'X' : (c.unplayable ? '-' : c.cost);
+    el.innerHTML = `
+      <div class="cost">${costLabel}</div>
+      <div class="cname">${c.name}</div>
+      <div class="ctype">${{ attack: '攻击', skill: '技能', power: '能力', status: '状态' }[c.type] || ''}</div>
+      <div class="cdesc">${cardText(c)}</div>
+      <div class="rarity">${c.exhaust ? '消耗 ' : ''}${c.ethereal ? '虚无 ' : ''}${c.upgraded ? '已升级' : (UPGRADES[c.baseId] ? '可升级' : '')}</div>`;
+    return el;
+  }
+
+  function deckCardBlock(c) {
+    const wrap = document.createElement('div');
+    wrap.className = 'deck-card-wrap';
+    const el = cardEl(c);
+    el.style.cursor = 'pointer';
+    el.onclick = () => showCardDetail(c);
+    wrap.appendChild(el);
+    const diff = upgradeDiffHtml(c);
+    if (diff) {
+      const preview = document.createElement('div');
+      preview.innerHTML = diff;
+      wrap.appendChild(preview.firstElementChild);
+    }
+    return wrap;
+  }
+
+  function showCardDetail(c) {
+    const up = (!c.upgraded && UPGRADES[c.baseId]) ? previewUpgradedCard(c.baseId) : null;
+    showModal(`
+      <h2>${c.name}</h2>
+      <p>${{ attack: '攻击', skill: '技能', power: '能力', status: '状态' }[c.type]} · 费用 ${c.xCost ? 'X' : c.cost}${c.upgraded ? ' · 已升级' : ''}</p>
+      <div class="card-pick" style="align-items:flex-start">
+        <div class="deck-card-wrap">
+          <div style="color:var(--muted);font-size:12px;margin-bottom:4px">当前</div>
+        </div>
+        ${up ? `<div class="deck-card-wrap"><div style="color:var(--teal2);font-size:12px;margin-bottom:4px">升级后</div></div>` : ''}
+      </div>
+      <div class="modal-actions"><button class="btn" id="m-close">关闭</button></div>`);
+    const pick = $('modal').querySelector('.card-pick');
+    const slots = pick.querySelectorAll('.deck-card-wrap');
+    slots[0].appendChild(cardEl(c));
+    if (up && slots[1]) slots[1].appendChild(cardEl(up));
+    $('m-close').onclick = () => viewDeck();
+  }
+
+  function victory() {
+    let gold = combat.tier === 'boss' ? 80 : combat.tier === 'elite' ? 40 : 18;
+    gold += Math.floor(Math.random() * 10);
+    if (G.relics.includes('magnet')) gold += 15;
+    G.gold += gold;
+
+    if (G.relics.includes('burning_blood') && G.hp > 0) {
+      const before = G.hp;
+      G.hp = Math.min(G.maxHp, G.hp + 6);
+      const healed = G.hp - before;
+      if (healed > 0) toast(`热血：回复 ${healed} HP`);
+    }
+
+    if (combat.tier === 'boss') {
+      showModal(`
+        <h2>货物已夺回</h2>
+        <p>崩坏主控被关闭。关键货物安全。你赚到了 ${gold} 金币。</p>
+        <div class="modal-actions"><button class="btn" id="m-win">完成救援</button></div>`);
+      $('m-win').onclick = () => { hideModal(); showWin(); };
+      return;
+    }
+
+    const picks = rollCardRewards(combat.tier === 'elite' ? 'uncommon' : 'common');
+    showModal(`
+      <h2>战斗胜利</h2>
+      <p>获得 ${gold} 金币。选择一张牌加入牌组，或跳过。</p>
+      <div class="card-pick" id="reward-cards"></div>
+      <div class="modal-actions">
+        ${combat.tier === 'elite' ? '<button class="btn teal" id="m-relic">领取遗物</button>' : ''}
+        <button class="btn ghost" id="m-skip">跳过</button>
+      </div>`);
+    const box = $('reward-cards');
+    picks.forEach(c => {
+      const el = cardEl(c);
+      el.onclick = () => {
+        G.deck.push(mkCard(c.baseId));
+        toast(`获得：${c.name}`);
+        if (combat.tier === 'elite') offerRelic();
+        else { hideModal(); showScreen('map'); renderMap(); }
+      };
+      box.appendChild(el);
+    });
+    if ($('m-relic')) $('m-relic').onclick = () => offerRelic();
+    $('m-skip').onclick = () => {
+      if (combat.tier === 'elite') offerRelic();
+      else { hideModal(); showScreen('map'); renderMap(); }
+    };
+  }
+
+  function rollCardRewards(minRarity) {
+    const set = G.character === 'clerk' ? 'clerk' : 'loader';
+    const pool = Object.values(CARDS).filter(c =>
+      c.rarity !== 'basic' && c.rarity !== 'status' && c.rarity !== 'token' && (c.set || 'loader') === set
+    );
+    const weights = minRarity === 'uncommon'
+      ? { common: 30, uncommon: 50, rare: 20 }
+      : { common: 60, uncommon: 30, rare: 10 };
+    const picks = [], used = new Set();
+    while (picks.length < 3) {
+      const rarity = weighted(weights);
+      let list = pool.filter(c => c.rarity === rarity && !used.has(c.id));
+      if (!list.length) list = pool.filter(c => !used.has(c.id));
+      if (!list.length) break;
+      const c = list[Math.floor(Math.random() * list.length)];
+      used.add(c.id);
+      picks.push(mkCard(c.id));
+    }
+    return picks;
+  }
+
+  function weighted(w) {
+    const total = Object.values(w).reduce((a, b) => a + b, 0);
+    let r = Math.random() * total;
+    for (const [k, v] of Object.entries(w)) {
+      r -= v;
+      if (r <= 0) return k;
+    }
+    return 'common';
+  }
+
+  function offerRelic() {
+    const owned = new Set(G.relics);
+    const pool = Object.values(RELICS).filter(r => !owned.has(r.id) && r.id !== 'clipboard' && r.id !== 'burning_blood' && r.id !== 'snake_ring');
+    if (!pool.length) {
+      G.gold += 25;
+      toast('没有新遗物，改为 25 金币');
+      hideModal(); showScreen('map'); renderMap();
+      return;
+    }
+    const r = pool[Math.floor(Math.random() * pool.length)];
+    showModal(`
+      <h2>精英掉落</h2>
+      <p style="font-size:28px;margin:12px 0">${r.icon}</p>
+      <p><b style="color:var(--amber2)">${r.name}</b><br>${r.desc}</p>
+      <div class="modal-actions"><button class="btn" id="m-take">收下</button></div>`);
+    $('m-take').onclick = () => {
+      G.relics.push(r.id);
+      hideModal(); showScreen('map'); renderMap();
+    };
+  }
+
+  function openRest() {
+    showModal(`
+      <h2>休息点 · 临时工棚</h2>
+      <p>烤烤火，或者打磨一张牌。</p>
+      <div class="modal-actions">
+        <button class="btn teal" id="m-heal">休息（回复 30% 生命）</button>
+        <button class="btn" id="m-up">升级一张牌</button>
+      </div>`);
+    $('m-heal').onclick = () => {
+      const amt = Math.floor(G.maxHp * 0.3);
+      G.hp = Math.min(G.maxHp, G.hp + amt);
+      toast(`回复 ${amt} HP`);
+      hideModal(); showScreen('map'); renderMap();
+    };
+    $('m-up').onclick = () => openUpgrade();
+  }
+
+  function openUpgrade() {
+    const upgradable = G.deck.filter(c => !c.upgraded && UPGRADES[c.baseId]);
+    if (!upgradable.length) {
+      toast('没有可升级的牌');
+      hideModal(); showScreen('map'); renderMap();
+      return;
+    }
+    showModal(`<h2>升级卡牌</h2><p>先点选一张，预览升级效果后再确认。</p>
+      <div class="card-pick" id="up-list"></div>
+      <div class="modal-actions"><button class="btn ghost" id="m-cancel">返回休息</button></div>`);
+    const box = $('up-list');
+    upgradable.forEach(c => {
+      const el = cardEl(c);
+      el.onclick = () => confirmUpgrade(c);
+      box.appendChild(el);
+    });
+    $('m-cancel').onclick = () => openRest();
+  }
+
+  function confirmUpgrade(c) {
+    const after = previewUpgradedCard(c.baseId);
+    showModal(`
+      <h2>确认升级？</h2>
+      <p>确定后无法撤销（除非你…存档读档）。</p>
+      <div class="card-pick" style="align-items:flex-start">
+        <div class="deck-card-wrap">
+          <div style="color:var(--muted);font-size:12px;margin-bottom:6px;text-align:center">升级前</div>
+        </div>
+        <div style="align-self:center;color:var(--amber2);font-size:22px;padding:0 8px">→</div>
+        <div class="deck-card-wrap">
+          <div style="color:var(--teal2);font-size:12px;margin-bottom:6px;text-align:center">升级后</div>
+        </div>
+      </div>
+      <div class="modal-actions">
+        <button class="btn teal" id="m-confirm-up">确定升级</button>
+        <button class="btn ghost" id="m-back-up">返回</button>
+      </div>`);
+    const wraps = $('modal').querySelectorAll('.deck-card-wrap');
+    wraps[0].appendChild(cardEl(c));
+    wraps[1].appendChild(cardEl(after));
+    $('m-confirm-up').onclick = () => {
+      upgradeCard(c);
+      toast(`升级：${c.name}`);
+      hideModal(); showScreen('map'); renderMap();
+    };
+    $('m-back-up').onclick = () => openUpgrade();
+  }
+
+  const SAVE_KEY = 'save_the_load_slot1';
+
+  function serializeCard(c) {
+    return {
+      baseId: c.baseId,
+      upgraded: !!c.upgraded,
+      dmg: c.dmg,
+      blk: c.blk,
+      cost: c.cost,
+      name: c.name,
+    };
+  }
+
+  function deserializeCard(data) {
+    const c = mkCard(data.baseId, false);
+    if (data.upgraded) upgradeCard(c);
+    // 狂砸等战斗外保留的数值（若有）
+    if (data.dmg != null && data.baseId === 'rampage') c.dmg = data.dmg;
+    return c;
+  }
+
+  function saveRun() {
+    if (!G) { toast('没有进行中的救援'); return; }
+    if (!$('screen-map').classList.contains('active')) {
+      toast('请在地图界面存档（战斗前存最稳）');
+      return;
+    }
+    const payload = {
+      version: 2,
+      savedAt: Date.now(),
+      G: {
+        character: G.character,
+        charName: G.charName,
+        charArt: G.charArt,
+        hp: G.hp,
+        maxHp: G.maxHp,
+        gold: G.gold,
+        floor: G.floor,
+        act: G.act,
+        deck: G.deck.map(serializeCard),
+        relics: [...G.relics],
+        map: G.map,
+        nodeId: G.nodeId,
+        visited: [...G.visited],
+        fuseUsed: G.fuseUsed,
+        bootsUsed: G.bootsUsed,
+        won: G.won,
+      },
+    };
+    try {
+      localStorage.setItem(SAVE_KEY, JSON.stringify(payload));
+      toast('存档成功 · 打不过就 Load');
+      refreshLoadButton();
+    } catch (err) {
+      toast('存档失败：浏览器限制');
+    }
+  }
+
+  function hasSave() {
+    try { return !!localStorage.getItem(SAVE_KEY); } catch (e) { return false; }
+  }
+
+  function refreshLoadButton() {
+    const btn = $('btn-load');
+    if (!btn) return;
+    if (!hasSave()) { btn.style.display = 'none'; return; }
+    btn.style.display = '';
+    try {
+      const data = JSON.parse(localStorage.getItem(SAVE_KEY));
+      const when = data.savedAt ? new Date(data.savedAt).toLocaleString() : '';
+      const who = (data.G && data.G.charName) || '未知';
+      btn.textContent = `读取存档（${who}）`;
+      btn.title = when ? `存于 ${when}` : '';
+    } catch (e) {
+      btn.textContent = '读取存档';
+    }
+  }
+
+  function loadRun() {
+    let data;
+    try {
+      data = JSON.parse(localStorage.getItem(SAVE_KEY));
+    } catch (e) {
+      toast('存档损坏');
+      return;
+    }
+    if (!data || !data.G) { toast('没有存档'); return; }
+    const s = data.G;
+    G = {
+      character: s.character || 'loader',
+      charName: s.charName || (s.character === 'clerk' ? '女员工' : '货手'),
+      charArt: s.charArt || (s.character === 'clerk' ? '👩‍💼' : '👷'),
+      hp: s.hp,
+      maxHp: s.maxHp,
+      gold: s.gold,
+      floor: s.floor || 0,
+      act: s.act || 1,
+      deck: (s.deck || []).map(deserializeCard),
+      relics: s.relics || (s.character === 'clerk' ? ['snake_ring'] : ['burning_blood']),
+      map: s.map,
+      nodeId: s.nodeId,
+      visited: new Set(s.visited || []),
+      fuseUsed: !!s.fuseUsed,
+      bootsUsed: !!s.bootsUsed,
+      won: !!s.won,
+    };
+    combat = null;
+    shopState = null;
+    pendingCard = null;
+    choosing = false;
+    hideModal();
+    showScreen('map');
+    renderMap();
+    toast('读档成功 · Save the Load');
+  }
+
+  function showHowTo() {
+    showModal(`
+      <h2>玩法说明</h2>
+      <p style="text-align:left;line-height:1.7;max-width:520px;margin:0 auto 16px">
+        · <b style="color:var(--amber2)">货手</b>：力量 / 消耗 / 易伤。<br>
+        · <b style="color:var(--teal2)">女员工</b>：黑料 / 弃牌 / 回形针。<br>
+        · <b>精髓</b>：地图点「存档」，打不过回标题「读取存档」。<br>
+        · 升级牌会先预览效果，再点确定，防止误触。<br>
+        · 按 E 结束回合，Esc 取消选目标。
+      </p>
+      <div class="modal-actions"><button class="btn" id="m-close">知道了</button></div>`);
+    $('m-close').onclick = hideModal;
+  }
+
+  function openShop() {
+    const discount = G.relics.includes('badge') ? 0.8 : 1;
+
+    // 同一次进店保留货架，可连续买/删
+    if (!shopState) {
+      const cards = rollCardRewards('common');
+      const owned = new Set(G.relics);
+      const relicPool = Object.values(RELICS).filter(r => !owned.has(r.id) && r.id !== 'burning_blood' && r.id !== 'snake_ring');
+      shopState = {
+        cards,
+        prices: cards.map(c => {
+          const base = c.rarity === 'rare' ? 70 : c.rarity === 'uncommon' ? 45 : 28;
+          return Math.floor(base * discount);
+        }),
+        sold: cards.map(() => false),
+        relic: relicPool.length ? relicPool[Math.floor(Math.random() * relicPool.length)] : null,
+        relicSold: false,
+        relicPrice: Math.floor(140 * discount),
+        removePrice: Math.floor(50 * discount),
+        removeUsed: false,
+      };
+    }
+
+    const s = shopState;
+    const relicBtn = (s.relic && !s.relicSold)
+      ? `<button class="btn" id="m-buy-relic">${s.relic.icon} ${s.relic.name} · ${s.relicPrice}金</button>`
+      : (s.relicSold ? `<button class="btn" disabled>遗物已购</button>` : '');
+    const removeBtn = s.removeUsed
+      ? `<button class="btn ghost" disabled>本店已删过牌</button>`
+      : `<button class="btn ghost" id="m-remove">删除一张牌 · ${s.removePrice}金</button>`;
+
+    showModal(`
+      <h2>黑市货栈</h2>
+      <p>金币：<b style="color:var(--amber2)">${G.gold}</b> · 可连续购买，点「离开商店」结束</p>
+      <div class="shop-row" id="shop-cards"></div>
+      <div class="modal-actions" style="margin-bottom:12px">
+        ${relicBtn}
+        ${removeBtn}
+      </div>
+      <div class="modal-actions"><button class="btn teal" id="m-leave">离开商店</button></div>`);
+
+    const box = $('shop-cards');
+    s.cards.forEach((c, i) => {
+      const wrap = document.createElement('div');
+      wrap.style.textAlign = 'center';
+      if (s.sold[i]) wrap.classList.add('sold-tag');
+      const el = cardEl(c);
+      const buy = document.createElement('button');
+      buy.className = 'btn';
+      buy.style.cssText = 'margin-top:8px;font-size:13px;padding:8px 14px';
+      buy.textContent = s.sold[i] ? '已售' : `${s.prices[i]} 金`;
+      buy.disabled = !!s.sold[i];
+      buy.onclick = () => {
+        if (s.sold[i]) return;
+        if (G.gold < s.prices[i]) { toast('金币不足'); return; }
+        G.gold -= s.prices[i];
+        G.deck.push(mkCard(c.baseId));
+        s.sold[i] = true;
+        toast(`购买：${c.name}`);
+        openShop();
+      };
+      wrap.appendChild(el);
+      wrap.appendChild(buy);
+      box.appendChild(wrap);
+    });
+
+    if ($('m-buy-relic')) {
+      $('m-buy-relic').onclick = () => {
+        if (G.gold < s.relicPrice) { toast('金币不足'); return; }
+        G.gold -= s.relicPrice;
+        G.relics.push(s.relic.id);
+        s.relicSold = true;
+        if (s.relic.id === 'clipboard') {
+          offerClipboardCards(true);
+          return;
+        }
+        toast(`获得遗物：${s.relic.name}`);
+        openShop();
+      };
+    }
+    if ($('m-remove')) {
+      $('m-remove').onclick = () => {
+        if (G.gold < s.removePrice) { toast('金币不足'); return; }
+        openRemoveCard(s.removePrice);
+      };
+    }
+    $('m-leave').onclick = () => {
+      shopState = null;
+      hideModal();
+      showScreen('map');
+      renderMap();
+    };
+  }
+
+  function offerClipboardCards(fromShop) {
+    const picks = rollCardRewards('common');
+    showModal(`<h2>清单板</h2><p>从 3 张牌中选 1 张加入牌组。</p><div class="card-pick" id="clip-cards"></div>`);
+    const box = $('clip-cards');
+    picks.forEach(c => {
+      const el = cardEl(c);
+      el.onclick = () => {
+        G.deck.push(mkCard(c.baseId));
+        toast(`获得：${c.name}`);
+        if (fromShop) openShop();
+        else { hideModal(); showScreen('map'); renderMap(); }
+      };
+      box.appendChild(el);
+    });
+  }
+
+  function openRemoveCard(price) {
+    showModal(`<h2>删除卡牌</h2><p>花 ${price} 金删除一张牌。删除后仍可继续购物。</p>
+      <div class="card-pick" id="rm-list"></div>
+      <div class="modal-actions"><button class="btn ghost" id="m-cancel">返回商店</button></div>`);
+    const box = $('rm-list');
+    G.deck.forEach((c, idx) => {
+      const el = cardEl(c);
+      el.onclick = () => {
+        G.gold -= price;
+        G.deck.splice(idx, 1);
+        if (shopState) shopState.removeUsed = true;
+        toast(`删除：${c.name}`);
+        openShop();
+      };
+      box.appendChild(el);
+    });
+    $('m-cancel').onclick = () => openShop();
+  }
+
+  function openTreasure() {
+    const r = Math.random();
+    if (r < 0.45) {
+      const gold = 35 + Math.floor(Math.random() * 30);
+      G.gold += gold;
+      showModal(`<h2>货箱</h2><p>找到 ${gold} 金币。</p>
+        <div class="modal-actions"><button class="btn" id="m-ok">收下</button></div>`);
+      $('m-ok').onclick = () => { hideModal(); showScreen('map'); renderMap(); };
+    } else if (r < 0.8) {
+      const owned = new Set(G.relics);
+      const pool = Object.values(RELICS).filter(x => !owned.has(x.id) && x.id !== 'burning_blood' && x.id !== 'snake_ring');
+      if (!pool.length) {
+        G.gold += 40;
+        toast('空箱，改为 40 金币');
+        hideModal(); showScreen('map'); renderMap();
+        return;
+      }
+      const rel = pool[Math.floor(Math.random() * pool.length)];
+      showModal(`<h2>货箱</h2><p style="font-size:28px">${rel.icon}</p>
+        <p><b style="color:var(--amber2)">${rel.name}</b><br>${rel.desc}</p>
+        <div class="modal-actions"><button class="btn" id="m-ok">收下</button></div>`);
+      $('m-ok').onclick = () => {
+        G.relics.push(rel.id);
+        if (rel.id === 'clipboard') { offerClipboardCards(); return; }
+        hideModal(); showScreen('map'); renderMap();
+      };
+    } else {
+      const picks = rollCardRewards('uncommon');
+      showModal(`<h2>货箱 · 稀有货单</h2><p>选择一张牌。</p><div class="card-pick" id="tr-cards"></div>
+        <div class="modal-actions"><button class="btn ghost" id="m-skip">跳过</button></div>`);
+      const box = $('tr-cards');
+      picks.forEach(c => {
+        const el = cardEl(c);
+        el.onclick = () => {
+          G.deck.push(mkCard(c.baseId));
+          toast(`获得：${c.name}`);
+          hideModal(); showScreen('map'); renderMap();
+        };
+        box.appendChild(el);
+      });
+      $('m-skip').onclick = () => { hideModal(); showScreen('map'); renderMap(); };
+    }
+  }
+
+  function gameOver() {
+    showModal(`
+      <h2>救援失败</h2>
+      <p>货手倒下了。货物仍在崩坏港区深处。<br>到达楼层 ${G.floor} · 牌组 ${G.deck.length} 张</p>
+      <div class="modal-actions">
+        <button class="btn" id="m-retry">再来一次</button>
+        <button class="btn ghost" id="m-title">返回标题</button>
+      </div>`);
+    $('m-retry').onclick = () => { hideModal(); beginRun(G.character); };
+    $('m-title').onclick = () => { hideModal(); showScreen('title'); };
+  }
+
+  function showWin() {
+    showModal(`
+      <h2>SAVE THE LOAD</h2>
+      <p>你把关键货物抢了回来。<br>最终生命 ${G.hp}/${G.maxHp} · 金币 ${G.gold} · 牌组 ${G.deck.length} 张</p>
+      <div class="modal-actions">
+        <button class="btn" id="m-again">再开一局</button>
+        <button class="btn ghost" id="m-title">返回标题</button>
+      </div>`);
+    $('m-again').onclick = () => { hideModal(); beginRun(G.character); };
+    $('m-title').onclick = () => { hideModal(); showScreen('title'); };
+  }
+
+  function viewDeck() {
+    showModal(`
+      <h2>当前牌组（${G.deck.length}）</h2>
+      <p>已升级牌名带 +；下方绿色框为升级预览。点击卡牌可对比升级前后。</p>
+      <div class="card-pick" id="deck-list" style="align-items:flex-start"></div>
+      <div class="modal-actions"><button class="btn" id="m-close">关闭</button></div>`);
+    const box = $('deck-list');
+    const sorted = [...G.deck].sort((a, b) => (b.upgraded ? 1 : 0) - (a.upgraded ? 1 : 0) || a.name.localeCompare(b.name, 'zh'));
+    sorted.forEach(c => box.appendChild(deckCardBlock(c)));
+    $('m-close').onclick = hideModal;
+  }
+
+
+  function beginRun(charId) {
+    newRun(charId);
+    showScreen('map');
+    renderMap();
+  }
+
+  if ($('pick-loader')) $('pick-loader').onclick = () => beginRun('loader');
+  if ($('pick-clerk')) $('pick-clerk').onclick = () => beginRun('clerk');
+  $('btn-howto').onclick = showHowTo;
+  $('btn-end-turn').onclick = endTurn;
+  $('btn-view-deck').onclick = viewDeck;
+  if ($('btn-save')) $('btn-save').onclick = saveRun;
+  if ($('btn-load')) $('btn-load').onclick = loadRun;
+  refreshLoadButton();
+
+  document.addEventListener('keydown', (e) => {
+    if ((e.key === 'e' || e.key === 'E') && $('screen-combat').classList.contains('active')) endTurn();
+    if ((e.key === 's' || e.key === 'S') && $('screen-map').classList.contains('active') && !e.ctrlKey) saveRun();
+    if (e.key === 'Escape') {
+      pendingCard = null;
+      const hint = $('target-hint');
+      if (hint) hint.classList.remove('show');
+      if (combat && $('screen-combat').classList.contains('active')) renderHand();
+    }
+  });
+})();
+</script>
+</body>
+</html>
