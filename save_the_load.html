@@ -207,12 +207,6 @@
   .pile-info .pile-btn:hover {
     border-color: var(--amber); color: var(--amber2); background: #2a2418;
   }
-  #btn-deck-fab {
-    position: fixed; left: 16px; bottom: 16px; z-index: 60;
-    display: none;
-  }
-  #btn-deck-fab.show { display: inline-flex; }
-
   .battlefield {
     flex: 1; display: grid; grid-template-columns: 1fr 1fr;
     gap: 16px; min-height: 0; position: relative;
@@ -552,6 +546,31 @@
   }
   .deck-btn:hover { color: var(--text); border-color: var(--amber); }
 
+  /* 查看地图 peek 浮层 */
+  #peek-map-bar {
+    display: none;
+    position: fixed; bottom: 0; left: 0; right: 0; z-index: 200;
+    background: linear-gradient(0deg, #0c1210ee, #0c121088);
+    border-top: 1px solid var(--amber);
+    padding: 10px 20px;
+    justify-content: center; gap: 16px; align-items: center;
+    backdrop-filter: blur(4px);
+  }
+  #peek-map-bar.show { display: flex; }
+  #peek-map-bar .peek-label {
+    font-size: 13px; color: var(--muted);
+  }
+  #btn-peek-back {
+    border: 1px solid var(--amber);
+    background: linear-gradient(180deg, #3a2a14, #221808);
+    color: var(--amber2); font-family: inherit; font-size: 14px;
+    font-weight: 700; padding: 8px 28px; border-radius: 6px;
+    cursor: pointer; letter-spacing: 0.1em;
+    box-shadow: 0 3px 0 #5a3a10;
+    transition: transform 0.12s, box-shadow 0.12s;
+  }
+  #btn-peek-back:hover { transform: translateY(-2px); box-shadow: 0 5px 0 #5a3a10; }
+
 
   .char-pick {
     display: flex; gap: 18px; justify-content: center; flex-wrap: wrap;
@@ -574,6 +593,29 @@
   .char-card.clerk:hover { border-color: #7ec8a0; box-shadow: 0 12px 28px #0008, 0 0 18px #4ec9a044; }
   .char-card.doubao:hover { border-color: #6ec8e8; box-shadow: 0 12px 28px #0008, 0 0 18px #4aa8d044; }
   .char-card.tianhou:hover { border-color: #c090e8; box-shadow: 0 12px 28px #0008, 0 0 18px #b07be844; }
+  .char-card.heshen {
+    border-color: #e8a030; background: linear-gradient(160deg, #1a1408, #2a1e00);
+    position: relative; overflow: hidden;
+  }
+  .char-card.heshen::before {
+    content: ''; position: absolute; inset: 0;
+    background: radial-gradient(ellipse at 50% 0%, #e8a03022 0%, transparent 70%);
+    pointer-events: none;
+  }
+  .char-card.heshen:hover {
+    border-color: #ffc840;
+    box-shadow: 0 12px 28px #0008, 0 0 28px #e8a03066, 0 0 8px #e8a03044;
+  }
+  .char-card.heshen h3 { color: #ffc840; }
+  .heshen-entry {
+    margin-top: 28px; display: flex; flex-direction: column; align-items: center; gap: 12px;
+  }
+  .heshen-label {
+    font-size: 15px; font-weight: 700; color: #e8602080;
+    letter-spacing: 0.12em; text-transform: uppercase;
+    border-top: 1px solid #e8602030; padding-top: 20px; width: 100%; text-align: center;
+    cursor: default;
+  }
   .char-card .art { font-size: 42px; margin-bottom: 8px; }
   .char-card h3 { margin: 0 0 6px; color: var(--amber2); font-size: 18px; }
   .char-card.clerk h3 { color: var(--teal2); }
@@ -596,6 +638,18 @@
   .status.poison { border-color: #80e080; color: #b0ffb0; background: #183018; }
   .status.lockon { border-color: #e8c060; color: #ffe9a0; background: #3a3018; }
   .status.focus { border-color: #6ec8e8; color: #b8e8ff; background: #183040; }
+  .perm-score-bar {
+    margin-top: 8px; display: none; align-items: center; gap: 6px;
+    font-size: 12px; color: #e8a030; font-weight: 700;
+  }
+  .perm-score-bar.show { display: flex; }
+  .perm-pips { display: flex; gap: 3px; }
+  .perm-pip {
+    width: 10px; height: 10px; border-radius: 50%;
+    border: 1px solid #e8a03088; background: #1a1408;
+    transition: background 0.15s;
+  }
+  .perm-pip.lit { background: #e8a030; border-color: #ffc840; box-shadow: 0 0 6px #e8a03099; }
   .orb-bar {
     display: flex; gap: 5px; margin-top: 8px; min-height: 30px;
     flex-wrap: wrap; justify-content: center; max-width: 160px;
@@ -668,6 +722,14 @@
     <div class="title-actions">
       <button class="btn ghost" id="btn-howto">玩法说明</button>
     </div>
+    <div class="heshen-entry" id="heshen-entry">
+      <div class="heshen-label">红温了？来开挂！</div>
+      <div class="char-card heshen" id="pick-heshen">
+        <div class="art">🔱</div>
+        <h3>赫神</h3>
+        <p>120 HP · 遗物「根权限」开战选权限牌<br>5能量 · 7摸牌 · 起手：sudo / 防火墙 / 权限升级</p>
+      </div>
+    </div>
     <div class="ver">v3.6</div>
   </div>
 
@@ -733,6 +795,9 @@
           <div class="statuses" id="player-statuses"></div>
           <div class="stance-bar" id="stance-bar" title="姿态 / 真言"></div>
           <div class="orb-bar" id="orb-bar" title="能球（右=最旧 · 新球排左边）"></div>
+          <div class="perm-score-bar" id="perm-score-bar" title="权限积分：每打出技能/能力牌+1，满5触发权限升级">
+            🔱 <div class="perm-pips" id="perm-pips"></div>
+          </div>
         </div>
       </div>
       <div class="side-col">
@@ -757,7 +822,10 @@
 </div>
 <div id="toast"></div>
 <div id="relic-tip" class="relic-tip"></div>
-<button class="deck-btn" id="btn-deck-fab" title="查看牌组">牌组</button>
+<div id="peek-map-bar">
+  <span class="peek-label">👁 正在查看地图 · 节点不可点击</span>
+  <button id="btn-peek-back">← 返回继续</button>
+</div>
 
 <script>
 (() => {
@@ -900,7 +968,7 @@
         for (let i = 0; i < 3; i++) {
           const alive = ctx.state.enemies.filter(e => e.hp > 0);
           if (!alive.length) break;
-          ctx.damageEnemy(alive[Math.floor(Math.random() * alive.length)], ctx.cardDmg(3));
+          ctx.damageEnemy(alive[Math.floor(rng() * alive.length)], ctx.cardDmg(3));
         }
       }
     },
@@ -1116,7 +1184,7 @@
       desc: '将一张随机攻击牌放入手牌，本回合耗能变为 0。消耗。',
       play(ctx) {
         const pool = Object.values(CARDS).filter(c => c.type === 'attack' && c.rarity !== 'basic' && c.rarity !== 'status');
-        const pick = pool[Math.floor(Math.random() * pool.length)];
+        const pick = pool[Math.floor(rng() * pool.length)];
         const c = mkCard(pick.id);
         c.tempCost = 0;
         ctx.state.hand.push(c);
@@ -2050,7 +2118,7 @@
       desc: '生成 1 个随机能球。',
       play(ctx) {
         const types = ['lightning', 'frost', 'dark', 'plasma'];
-        ctx.channelOrb(types[Math.floor(Math.random() * types.length)]);
+        ctx.channelOrb(types[Math.floor(rng() * types.length)]);
       }
     },
     consume_slot: {
@@ -2195,7 +2263,7 @@
         for (let i = 0; i < 2; i++) {
           const alive = ctx.state.enemies.filter(e => e.hp > 0);
           if (!alive.length) break;
-          ctx.damageEnemy(alive[Math.floor(Math.random() * alive.length)], ctx.cardDmg(7));
+          ctx.damageEnemy(alive[Math.floor(rng() * alive.length)], ctx.cardDmg(7));
         }
       }
     },
@@ -2247,7 +2315,7 @@
       play(ctx) {
         const pool = Object.values(CARDS).filter(c => c.type === 'power' && c.set === 'doubao');
         if (!pool.length) return;
-        const pick = pool[Math.floor(Math.random() * pool.length)];
+        const pick = pool[Math.floor(rng() * pool.length)];
         const c = mkCard(pick.id);
         c.tempCost = 0;
         if (ctx.state.hand.length >= 10) ctx.state.discard.push(c);
@@ -2434,7 +2502,7 @@
         for (let i = 0; i < n; i++) {
           const alive = ctx.state.enemies.filter(e => e.hp > 0);
           if (!alive.length) break;
-          ctx.damageEnemy(alive[Math.floor(Math.random() * alive.length)], ctx.cardDmg(7));
+          ctx.damageEnemy(alive[Math.floor(rng() * alive.length)], ctx.cardDmg(7));
         }
       }
     },
@@ -2695,7 +2763,7 @@
         const picks = [];
         sets.forEach(s => {
           const pool = Object.values(CARDS).filter(c => c.set === s && c.type === 'attack' && c.rarity !== 'basic' && c.rarity !== 'token');
-          if (pool.length) picks.push(mkCard(pool[Math.floor(Math.random() * pool.length)].id));
+          if (pool.length) picks.push(mkCard(pool[Math.floor(rng() * pool.length)].id));
         });
         if (!picks.length) return;
         ctx.chooseFrom(picks, '选择一张攻击牌', (c) => {
@@ -2960,7 +3028,7 @@
         if (ctx.target.hp <= 0) {
           const cand = G.deck.filter(c => !c.upgraded && UPGRADES[c.baseId]);
           if (cand.length) {
-            const c = cand[Math.floor(Math.random() * cand.length)];
+            const c = cand[Math.floor(rng() * cand.length)];
             upgradeCard(c);
             ctx.log(`教诲：永久升级「${c.name}」`);
           }
@@ -2999,7 +3067,7 @@
         for (let i = 0; i < 5; i++) {
           const alive = ctx.state.enemies.filter(e => e.hp > 0);
           if (!alive.length) break;
-          ctx.damageEnemy(alive[Math.floor(Math.random() * alive.length)], ctx.cardDmg(5));
+          ctx.damageEnemy(alive[Math.floor(rng() * alive.length)], ctx.cardDmg(5));
         }
       }
     },
@@ -3115,6 +3183,272 @@
       desc: '不能被打出。虚无。',
       play() {}
     },
+
+    // ══════════════════════════════════════════════
+    // ── 赫神专属牌（set: 'heshen'）──
+    // ══════════════════════════════════════════════
+
+    // 基础牌
+    hs_sudo: {
+      id: 'hs_sudo', name: 'sudo', type: 'attack', cost: 1, rarity: 'basic', set: 'heshen', needsTarget: true,
+      desc: '造成 {dmg} 点伤害。', dmg: 12,
+      play(ctx) { ctx.damageEnemy(ctx.target, ctx.cardDmg(12)); }
+    },
+    hs_firewall: {
+      id: 'hs_firewall', name: '防火墙', type: 'skill', cost: 1, rarity: 'basic', set: 'heshen',
+      desc: '获得 {blk} 点格挡。', blk: 14,
+      play(ctx) { ctx.gainBlock(ctx.cardBlk(14)); }
+    },
+    hs_chmod: {
+      id: 'hs_chmod', name: '权限升级', type: 'skill', cost: 0, rarity: 'basic', set: 'heshen',
+      desc: '抽 2 张牌。',
+      play(ctx) { ctx.draw(2); }
+    },
+
+    // 权限牌（由遗物「根权限」生成，token 不进奖励池）
+    hs_perm_delete: {
+      id: 'hs_perm_delete', name: 'DELETE', type: 'attack', cost: 0, rarity: 'token', set: 'heshen',
+      needsTarget: true, exhaust: true,
+      desc: '对一名敌人造成 60 点伤害。消耗。',
+      play(ctx) { ctx.damageEnemy(ctx.target, ctx.cardDmg(60)); }
+    },
+    hs_perm_patch: {
+      id: 'hs_perm_patch', name: 'PATCH', type: 'skill', cost: 0, rarity: 'token', set: 'heshen',
+      exhaust: true,
+      desc: '获得 30 点格挡，回复 2 点能量。消耗。',
+      play(ctx) { ctx.gainBlock(ctx.cardBlk(30)); ctx.state.energy += 2; }
+    },
+    hs_perm_override: {
+      id: 'hs_perm_override', name: 'OVERRIDE', type: 'skill', cost: 0, rarity: 'token', set: 'heshen',
+      exhaust: true,
+      desc: '本回合所有牌费用 -1。消耗。',
+      play(ctx) { ctx.state.player.powers.overrideActive = 1; ctx.log('OVERRIDE：本回合所有牌费用 -1'); }
+    },
+
+    // 攻击牌
+    hs_rm_rf: {
+      id: 'hs_rm_rf', name: 'sudo rm -rf', type: 'attack', cost: 2, rarity: 'common', set: 'heshen',
+      needsTarget: true, exhaust: true,
+      desc: '对一名敌人造成 9 点伤害。若本回合已打出 5 张或更多牌，改为造成 999 点伤害。消耗。',
+      play(ctx) {
+        const played = ctx.state.cardsPlayedThisTurn || 0;
+        const dmg = played >= 5 ? 999 : 9;
+        ctx.damageEnemy(ctx.target, ctx.cardDmg(dmg));
+        if (dmg < 999) ctx.log('本回合出牌数不足 5，sudo rm -rf 威力受限');
+      }
+    },
+    hs_format: {
+      id: 'hs_format', name: '格式化', type: 'attack', cost: 3, rarity: 'uncommon', set: 'heshen',
+      exhaust: true,
+      desc: '对所有敌人造成 40 点伤害，每有 1 点权限积分额外造成 10 点伤害（积分不消耗）。消耗。',
+      play(ctx) {
+        const score = ctx.state._heshenPermScore || 0;
+        const dmg = ctx.cardDmg(40 + score * 10);
+        ctx.forEachEnemy(e => ctx.damageEnemy(e, dmg));
+        ctx.log(`格式化：${40 + score * 10} 伤害（积分 ${score}）`);
+      }
+    },
+    hs_sudo_f: {
+      id: 'hs_sudo_f', name: 'sudo -f', type: 'attack', cost: 1, rarity: 'common', set: 'heshen',
+      needsTarget: true,
+      desc: '造成 {dmg} 点伤害，再造成 {dmg} 点伤害。', dmg: 20,
+      play(ctx) {
+        ctx.damageEnemy(ctx.target, ctx.cardDmg(20));
+        ctx.damageEnemy(ctx.target, ctx.cardDmg(20));
+      }
+    },
+    hs_ddos: {
+      id: 'hs_ddos', name: 'DDoS', type: 'attack', cost: 2, rarity: 'uncommon', set: 'heshen',
+      needsTarget: true,
+      desc: '对一名敌人造成 3 点伤害，连击 9 次。',
+      play(ctx) {
+        for (let i = 0; i < 9; i++) ctx.damageEnemy(ctx.target, ctx.cardDmg(3));
+      }
+    },
+    hs_exploit: {
+      id: 'hs_exploit', name: '漏洞利用', type: 'attack', cost: 1, rarity: 'common', set: 'heshen',
+      needsTarget: true,
+      desc: '对一名敌人造成 25 点伤害。若该敌人有任意负面状态，伤害翻倍。',
+      play(ctx) {
+        const hasDebuff = ctx.target && Object.keys(ctx.target.statuses || {}).some(
+          k => ['poison', 'weak', 'vuln', 'burn', 'frail'].includes(k) && ctx.target.statuses[k] > 0
+        );
+        const base = 25;
+        ctx.damageEnemy(ctx.target, ctx.cardDmg(hasDebuff ? base * 2 : base));
+      }
+    },
+    hs_zero_day: {
+      id: 'hs_zero_day', name: '零日攻击', type: 'attack', cost: 0, rarity: 'common', set: 'heshen',
+      needsTarget: true,
+      desc: '造成 8 点伤害。若本回合已打出 3 张或更多牌，改为造成 40 点伤害。',
+      play(ctx) {
+        const played = ctx.state.cardsPlayedThisTurn || 0;
+        ctx.damageEnemy(ctx.target, ctx.cardDmg(played >= 3 ? 40 : 8));
+      }
+    },
+    hs_nuke: {
+      id: 'hs_nuke', name: '核弹头', type: 'attack', cost: 3, rarity: 'rare', set: 'heshen',
+      desc: '对所有敌人造成 120 点伤害，但你失去 50 点生命。',
+      play(ctx) {
+        ctx.forEachEnemy(e => ctx.damageEnemy(e, ctx.cardDmg(120)));
+        ctx.loseHp(50);
+      }
+    },
+    hs_kill_proc: {
+      id: 'hs_kill_proc', name: '进程终止', type: 'attack', cost: 1, rarity: 'common', set: 'heshen',
+      needsTarget: true,
+      desc: '造成 {dmg} 点伤害。若该敌人死亡，回复 1 点能量并抽 1 张牌。', dmg: 18,
+      play(ctx) {
+        const before = ctx.target ? ctx.target.hp : 0;
+        ctx.damageEnemy(ctx.target, ctx.cardDmg(18));
+        if (ctx.target && ctx.target.hp <= 0 && before > 0) {
+          ctx.state.energy += 1;
+          ctx.draw(1);
+        }
+      }
+    },
+
+    // 技能牌
+    hs_invincible: {
+      id: 'hs_invincible', name: '无敌帧', type: 'skill', cost: 1, rarity: 'uncommon', set: 'heshen',
+      exhaust: true,
+      desc: '本回合受到的所有伤害变为 1。消耗。',
+      play(ctx) { ctx.state.player.powers.invincibleFrame = 1; ctx.log('无敌帧：本回合受到伤害最低为 1'); }
+    },
+    hs_sudo_rm: {
+      id: 'hs_sudo_rm', name: 'rm -rf 状态', type: 'skill', cost: 0, rarity: 'common', set: 'heshen',
+      needsTarget: true, exhaust: true,
+      desc: '清除一名敌人的所有格挡和负面状态叠层。消耗。',
+      play(ctx) {
+        if (!ctx.target) return;
+        ctx.target.block = 0;
+        ['weak', 'vuln', 'frail', 'poison', 'regen'].forEach(k => { delete ctx.target.statuses[k]; });
+        ctx.log('rm -rf 状态：清除敌人格挡与负面状态');
+      }
+    },
+    hs_root_login: {
+      id: 'hs_root_login', name: 'root 登录', type: 'skill', cost: 2, rarity: 'uncommon', set: 'heshen',
+      desc: '下回合开始时，能量 +3。',
+      play(ctx) {
+        ctx.state.player.nextEnergy = (ctx.state.player.nextEnergy || 0) + 3;
+        ctx.log('root 登录：下回合 +3 能量');
+      }
+    },
+    hs_hotpatch: {
+      id: 'hs_hotpatch', name: '热补丁', type: 'skill', cost: 1, rarity: 'common', set: 'heshen',
+      desc: '回复 18 点生命。若当前 HP 低于 50%，改为回复 40 点生命。',
+      play(ctx) {
+        const lowHp = G.hp < G.maxHp * 0.5;
+        const amt = lowHp ? 40 : 18;
+        const before = G.hp;
+        G.hp = Math.min(G.maxHp, G.hp + amt);
+        ctx.log(`热补丁：回复 ${G.hp - before} HP`);
+      }
+    },
+    hs_portscan: {
+      id: 'hs_portscan', name: '端口扫描', type: 'skill', cost: 0, rarity: 'common', set: 'heshen',
+      desc: '预览所有敌人下下回合的行动意图。获得 1 层神器。',
+      play(ctx) {
+        ctx.applyStatus(ctx.state.player, 'artifact', 1);
+        const lines = ctx.state.enemies.filter(e => e.hp > 0).map(e => {
+          // e.intent 是本回合已亮出的意图，e.intentIdx 指向下一条（即下回合）
+          // 我们要预览的是「下下回合」——intentIdx 当前已 +1，所以 intentIdx % len 就是下一回合，
+          // intentIdx+1 % len 才是下下回合
+          const def = ENEMIES[e.defId];
+          if (!def || !def.intents || !def.intents.length) return `${e.name}：未知`;
+          const intents = def.intents;
+          const nextNextIntent = intents[(e.intentIdx) % intents.length]; // intentIdx 已指向下回合，这就是下下回合
+          const label = nextNextIntent ? (nextNextIntent.label || nextNextIntent.type || '未知') : '未知';
+          return `${e.name}：${label}`;
+        }).join('  |  ');
+        ctx.log(`端口扫描：下下回合 → ${lines}`);
+        toast(`📡 下下回合：${lines}`);
+      }
+    },
+    hs_perm_up: {
+      id: 'hs_perm_up', name: '权限提升', type: 'skill', cost: 1, rarity: 'common', set: 'heshen',
+      desc: '抽 3 张牌，本回合手牌上限 +3。',
+      play(ctx) {
+        ctx.state._heshenHandBonus = (ctx.state._heshenHandBonus || 0) + 3;
+        ctx.draw(3);
+      }
+    },
+    hs_overflow: {
+      id: 'hs_overflow', name: 'overflow', type: 'skill', cost: 0, rarity: 'rare', set: 'heshen',
+      desc: '本回合每打出一张牌获得 1 点能量，但每打出一张牌失去 5 点生命。',
+      play(ctx) { ctx.state.player.powers.overflowMode = 1; ctx.log('overflow：激活——每牌 +1 能量，-5 HP'); }
+    },
+    hs_sandbox_escape: {
+      id: 'hs_sandbox_escape', name: '沙盒逃逸', type: 'skill', cost: 2, rarity: 'rare', set: 'heshen',
+      desc: '消耗手牌中所有其他牌，每消耗一张造成 15 点伤害（作用于随机敌人）。',
+      play(ctx) {
+        const toExhaust = ctx.state.hand.filter(c => c.uid !== ctx.card.uid);
+        if (!toExhaust.length) { ctx.log('沙盒逃逸：手牌已空'); return; }
+        toExhaust.forEach(c => {
+          ctx.exhaustCard(c);
+          const living = ctx.state.enemies.filter(e => e.hp > 0);
+          if (living.length) {
+            const t = living[Math.floor(rng() * living.length)];
+            ctx.damageEnemy(t, ctx.cardDmg(15));
+          }
+        });
+      }
+    },
+    hs_restore: {
+      id: 'hs_restore', name: '系统还原', type: 'skill', cost: 3, rarity: 'rare', set: 'heshen',
+      desc: '将弃牌堆所有牌洗回抽牌堆，回满能量。',
+      play(ctx) {
+        [...ctx.state.discard].forEach(c => ctx.state.draw.push(c));
+        ctx.state.discard = [];
+        ctx.state.draw = shuffle(ctx.state.draw);
+        ctx.state.energy = ctx.state.maxEnergy;
+        ctx.log('系统还原：弃牌堆归位，能量回满');
+      }
+    },
+
+    // 能力牌
+    hs_moyu: {
+      id: 'hs_moyu', name: '摸鱼.exe', type: 'power', cost: 1, rarity: 'common', set: 'heshen',
+      desc: '每回合结束时回复 6 点生命，下回合多抽 1 张牌。',
+      play(ctx) {
+        ctx.state.player.powers.moyuExe = (ctx.state.player.powers.moyuExe || 0) + 1;
+        ctx.log('摸鱼.exe：已激活');
+      }
+    },
+    hs_fullstack: {
+      id: 'hs_fullstack', name: '全栈权限', type: 'power', cost: 3, rarity: 'rare', set: 'heshen',
+      desc: '每回合开始时获得 2 点力量和 2 点敏捷，但每回合最大能量 -1（下限 3，到达后不再增长）。',
+      play(ctx) {
+        ctx.state.player.powers.fullstack = 1;
+        ctx.log('全栈权限：已激活');
+      }
+    },
+    hs_kernel_panic: {
+      id: 'hs_kernel_panic', name: '内核恐慌', type: 'power', cost: 2, rarity: 'uncommon', set: 'heshen',
+      desc: '每回合开始时，给所有敌人附加 2 层易伤。',
+      play(ctx) {
+        ctx.state.player.powers.kernelPanic = (ctx.state.player.powers.kernelPanic || 0) + 2;
+        ctx.log('内核恐慌：已激活');
+      }
+    },
+    hs_autorun: {
+      id: 'hs_autorun', name: '自动化脚本', type: 'power', cost: 1, rarity: 'uncommon', set: 'heshen',
+      desc: '每回合开始时，随机打出抽牌堆顶的一张牌（0 费）。',
+      play(ctx) {
+        ctx.state.player.powers.autoRun = (ctx.state.player.powers.autoRun || 0) + 1;
+        ctx.log('自动化脚本：已激活');
+      }
+    },
+    hs_godmode: {
+      id: 'hs_godmode', name: '上帝模式', type: 'power', cost: 5, rarity: 'rare', set: 'heshen',
+      desc: '永久：本场战斗 HP 不会降至 0 以下（最低降至 1）。',
+      play(ctx) {
+        ctx.state.player.powers.godMode = 1;
+        ctx.log('上帝模式：激活——HP 不会归零');
+        toast('🔱 上帝模式：已激活');
+      }
+    },
+
   };
 
   const UPGRADES = {
@@ -3186,7 +3520,7 @@
       for (let i = 0; i < 4; i++) {
         const alive = ctx.state.enemies.filter(e => e.hp > 0);
         if (!alive.length) break;
-        ctx.damageEnemy(alive[Math.floor(Math.random() * alive.length)], ctx.cardDmg(3));
+        ctx.damageEnemy(alive[Math.floor(rng() * alive.length)], ctx.cardDmg(3));
       }
     }},
     thunderclap: { dmg: 7 },
@@ -3469,7 +3803,7 @@
     capacitor: { desc: '获得 3 个能球槽位。', play(ctx) { ctx.state.maxOrbs += 3; }},
     chaos_orb: { desc: '生成 2 个随机能球。', play(ctx) {
       const types = ['lightning', 'frost', 'dark', 'plasma'];
-      for (let i = 0; i < 2; i++) ctx.channelOrb(types[Math.floor(Math.random() * types.length)]);
+      for (let i = 0; i < 2; i++) ctx.channelOrb(types[Math.floor(rng() * types.length)]);
     }},
     consume_slot: { desc: '获得 3 点集中。失去 1 个能球槽位。', play(ctx) {
       ctx.applyStatus(ctx.state.player, 'focus', 3);
@@ -3741,7 +4075,7 @@
       for (let i = 0; i < 6; i++) {
         const alive = ctx.state.enemies.filter(e => e.hp > 0);
         if (!alive.length) break;
-        ctx.damageEnemy(alive[Math.floor(Math.random() * alive.length)], ctx.cardDmg(6));
+        ctx.damageEnemy(alive[Math.floor(rng() * alive.length)], ctx.cardDmg(6));
       }
     }},
     scrawl: { cost: 0 },
@@ -3758,11 +4092,142 @@
     }},
     deva_form: { ethereal: false, desc: '在你的回合开始时，每回合获得的能量比上一回合多 1 点。' },
 
+    // ── 赫神升级版 ──
+    hs_sudo: { dmg: 16 },
+    hs_firewall: { blk: 19 },
+    hs_chmod: { desc: '抽 3 张牌。', play(ctx) { ctx.draw(3); } },
+    hs_perm_delete: { desc: '对一名敌人造成 90 点伤害。消耗。', play(ctx) { ctx.damageEnemy(ctx.target, ctx.cardDmg(90)); } },
+    hs_perm_patch: { desc: '获得 40 点格挡，回复 3 点能量。消耗。', play(ctx) { ctx.gainBlock(ctx.cardBlk(40)); ctx.state.energy += 3; } },
+    hs_rm_rf: { cost: 2, desc: '对一名敌人造成 9 点伤害。若本回合已打出 3 张或更多牌，改为造成 999 点伤害。消耗。',
+      play(ctx) {
+        const played = ctx.state.cardsPlayedThisTurn || 0;
+        const dmg = played >= 3 ? 999 : 9;
+        ctx.damageEnemy(ctx.target, ctx.cardDmg(dmg));
+        if (dmg < 999) ctx.log('本回合出牌数不足 3，sudo rm -rf 威力受限');
+      }
+    },
+    hs_format: { cost: 2, desc: '对所有敌人造成 40 点伤害，每有 1 点权限积分额外造成 15 点伤害（积分不消耗）。消耗。',
+      play(ctx) {
+        const score = ctx.state._heshenPermScore || 0;
+        const dmg = ctx.cardDmg(40 + score * 15);
+        ctx.forEachEnemy(e => ctx.damageEnemy(e, dmg));
+        ctx.log(`格式化+：${40 + score * 15} 伤害（积分 ${score}）`);
+      }
+    },
+    hs_sudo_f: { dmg: 26, desc: '造成 {dmg} 点伤害，再造成 {dmg} 点伤害。',
+      play(ctx) { ctx.damageEnemy(ctx.target, ctx.cardDmg(26)); ctx.damageEnemy(ctx.target, ctx.cardDmg(26)); }
+    },
+    hs_ddos: { desc: '对一名敌人造成 3 点伤害，连击 10 次。',
+      play(ctx) { for (let i = 0; i < 10; i++) ctx.damageEnemy(ctx.target, ctx.cardDmg(3)); }
+    },
+    hs_exploit: { desc: '对一名敌人造成 35 点伤害。若该敌人有任意负面状态，伤害翻倍。',
+      play(ctx) {
+        const hasDebuff = ctx.target && Object.keys(ctx.target.statuses || {}).some(
+          k => ['poison', 'weak', 'vuln', 'burn', 'frail'].includes(k) && ctx.target.statuses[k] > 0
+        );
+        ctx.damageEnemy(ctx.target, ctx.cardDmg(hasDebuff ? 70 : 35));
+      }
+    },
+    hs_zero_day: { desc: '造成 8 点伤害。若本回合已打出 3 张或更多牌，改为造成 55 点伤害。',
+      play(ctx) { ctx.damageEnemy(ctx.target, ctx.cardDmg((ctx.state.cardsPlayedThisTurn || 0) >= 3 ? 55 : 8)); }
+    },
+    hs_nuke: { desc: '对所有敌人造成 120 点伤害，但你失去 40 点生命。',
+      play(ctx) { ctx.forEachEnemy(e => ctx.damageEnemy(e, ctx.cardDmg(120))); ctx.loseHp(40); }
+    },
+    hs_kill_proc: { dmg: 25, desc: '造成 {dmg} 点伤害。若该敌人死亡，回复 1 点能量并抽 1 张牌。',
+      play(ctx) {
+        const before = ctx.target ? ctx.target.hp : 0;
+        ctx.damageEnemy(ctx.target, ctx.cardDmg(25));
+        if (ctx.target && ctx.target.hp <= 0 && before > 0) {
+          ctx.state.energy += 1;
+          ctx.draw(1);
+        }
+      }
+    },
+    hs_invincible: { cost: 0, desc: '本回合受到的所有伤害变为 1。消耗。',
+      play(ctx) { ctx.state.player.powers.invincibleFrame = 1; ctx.log('无敌帧+：本回合受到伤害最低为 1'); }
+    },
+    hs_sudo_rm: { desc: '清除一名敌人的所有格挡、负面状态，并给予 3 层虚弱。消耗。',
+      play(ctx) {
+        if (!ctx.target) return;
+        ctx.target.block = 0;
+        ['weak', 'vuln', 'frail', 'poison', 'regen'].forEach(k => { delete ctx.target.statuses[k]; });
+        ctx.applyStatus(ctx.target, 'weak', 3);
+        ctx.log('rm -rf+：清除格挡与负面状态并虚弱 3');
+      }
+    },
+    hs_root_login: { desc: '下回合开始时，能量 +4。', cost: 2,
+      play(ctx) { ctx.state.player.nextEnergy = (ctx.state.player.nextEnergy || 0) + 4; ctx.log('root 登录+：下回合 +4 能量'); }
+    },
+    hs_hotpatch: { desc: '回复 25 点生命。若当前 HP 低于 50%，改为回复 55 点生命。',
+      play(ctx) {
+        const lowHp = G.hp < G.maxHp * 0.5;
+        const amt = lowHp ? 55 : 25;
+        const before = G.hp;
+        G.hp = Math.min(G.maxHp, G.hp + amt);
+        ctx.log(`热补丁+：回复 ${G.hp - before} HP`);
+      }
+    },
+    hs_portscan: { desc: '预览所有敌人下下回合的行动意图。获得 2 层神器。',
+      play(ctx) {
+        ctx.applyStatus(ctx.state.player, 'artifact', 2);
+        const lines = ctx.state.enemies.filter(e => e.hp > 0).map(e => {
+          const def = ENEMIES[e.defId];
+          if (!def || !def.intents || !def.intents.length) return `${e.name}：未知`;
+          const nextNextIntent = def.intents[(e.intentIdx) % def.intents.length];
+          return `${e.name}：${nextNextIntent ? (nextNextIntent.label || nextNextIntent.type || '未知') : '未知'}`;
+        }).join('  |  ');
+        ctx.log(`端口扫描+：下下回合 → ${lines}`);
+        toast(`📡 下下回合：${lines}`);
+      }
+    },
+    hs_perm_up: { desc: '抽 4 张牌，本回合手牌上限 +3。',
+      play(ctx) { ctx.state._heshenHandBonus = (ctx.state._heshenHandBonus || 0) + 3; ctx.draw(4); }
+    },
+    hs_overflow: { cost: 0, desc: '本回合每打出一张牌获得 2 点能量，但每打出一张牌失去 5 点生命。',
+      play(ctx) { ctx.state.player.powers.overflowMode = 2; ctx.log('overflow+：激活——每牌 +2 能量，-5 HP'); }
+    },
+    hs_sandbox_escape: { desc: '消耗手牌中所有其他牌，每消耗一张造成 22 点伤害（随机敌人）。',
+      play(ctx) {
+        const toExhaust = ctx.state.hand.filter(c => c.uid !== ctx.card.uid);
+        if (!toExhaust.length) { ctx.log('沙盒逃逸+：手牌已空'); return; }
+        toExhaust.forEach(c => {
+          ctx.exhaustCard(c);
+          const living = ctx.state.enemies.filter(e => e.hp > 0);
+          if (living.length) ctx.damageEnemy(living[Math.floor(rng() * living.length)], ctx.cardDmg(22));
+        });
+      }
+    },
+    hs_restore: { desc: '将弃牌堆所有牌洗回抽牌堆，回满能量，再抽 2 张牌。',
+      play(ctx) {
+        [...ctx.state.discard].forEach(c => ctx.state.draw.push(c));
+        ctx.state.discard = [];
+        ctx.state.draw = shuffle(ctx.state.draw);
+        ctx.state.energy = ctx.state.maxEnergy;
+        ctx.draw(2);
+        ctx.log('系统还原+：弃牌堆归位，能量回满，抽 2');
+      }
+    },
+    hs_moyu: { desc: '每回合结束时回复 9 点生命，下回合多抽 2 张牌。',
+      play(ctx) { ctx.state.player.powers.moyuExe = (ctx.state.player.powers.moyuExe || 0) + 2; ctx.log('摸鱼.exe+：已激活'); }
+    },
+    hs_fullstack: { desc: '每回合开始时获得 2 点力量和 2 点敏捷，但每回合最大能量 -1（下限 3，到达后不再增长）。',
+      play(ctx) { ctx.state.player.powers.fullstack = 2; ctx.log('全栈权限+：已激活'); }
+    },
+    hs_kernel_panic: { desc: '每回合开始时，给所有敌人附加 3 层易伤。',
+      play(ctx) { ctx.state.player.powers.kernelPanic = (ctx.state.player.powers.kernelPanic || 0) + 3; ctx.log('内核恐慌+：已激活'); }
+    },
+    hs_autorun: { desc: '每回合开始时，随机打出抽牌堆顶的两张牌（0 费）。',
+      play(ctx) { ctx.state.player.powers.autoRun = (ctx.state.player.powers.autoRun || 0) + 2; ctx.log('自动化脚本+：已激活'); }
+    },
+    hs_godmode: { cost: 4, desc: '永久：本场战斗 HP 不会降至 0 以下（最低降至 1）。',
+      play(ctx) { ctx.state.player.powers.godMode = 1; ctx.log('上帝模式+：激活'); toast('🔱 上帝模式+：已激活'); }
+    },
 
   };
 
   const STARTER_RELICS = new Set(['burning_blood', 'snake_ring', 'cracked_core', 'pure_water',
-    'black_blood', 'coil_badge', 'frozen_core', 'holy_water']);
+    'black_blood', 'coil_badge', 'frozen_core', 'holy_water', 'root_access']);
 
   const RELICS = {
     // ── 起始（对应塔1职业遗物，starter=true 不进入掉落池）──
@@ -3775,6 +4240,7 @@
     coil_badge: { id: 'coil_badge', name: '盘蛇工牌', icon: '🐉', rarity: 'starter', desc: '每个回合开始时，多抽 1 张牌。（替换蛇形工牌）', starter: true },
     frozen_core: { id: 'frozen_core', name: '冻芯模块', icon: '❄️', rarity: 'starter', desc: '回合结束时若有空闲球槽，生成 1 个冰球。（替换豆芯裂开）', starter: true },
     holy_water: { id: 'holy_water', name: '圣润水', icon: '💧', rarity: 'starter', desc: '每场战斗开始时，将 3 张「神恩」放入手牌。（替换天后露）', starter: true },
+    root_access: { id: 'root_access', name: '根权限', icon: '🔱', rarity: 'starter', desc: '每场战斗开始时，从 DELETE / PATCH / OVERRIDE 三张权限牌中选一张加入手牌（0 费，消耗）。', starter: true },
 
     // ── 普通遗物（Common）──
     strawberry: { id: 'strawberry', name: '加餐草莓', icon: '🍓', rarity: 'common', desc: '拾取时：最大生命 +7，并回复 7 点生命。' },
@@ -3841,7 +4307,7 @@
     paper_frog: { id: 'paper_frog', name: '纸蛙贴纸', icon: '🐸', rarity: 'uncommon', desc: '易伤影响下的敌人受到攻击伤害提升从 50% 增加到 75%。' },
     old_coin: { id: 'old_coin', name: '旧港积分券', icon: '🪙', rarity: 'uncommon', desc: '拾取时：获得 300 金币。' },
     black_card: { id: 'black_card', name: '黑市 VIP 卡', icon: '🃏', rarity: 'uncommon', desc: '商店内所有商品额外打八折。' },
-    white_mask: { id: 'white_mask', name: '白狐工装面具', icon: '🎭', rarity: 'uncommon', desc: '战斗胜利后，必定额外掉落一瓶药水。' },
+    white_mask: { id: 'white_mask', name: '白象方便面', icon: '🍜', rarity: 'uncommon', desc: '战斗胜利后，必定额外掉落一瓶药水。' },
     potion_belt: { id: 'potion_belt', name: '药水工具腰带', icon: '🧰', rarity: 'uncommon', desc: '额外获得 2 个药水栏位。' },
     life_beetle: { id: 'life_beetle', name: '保命虫壳', icon: '🪲', rarity: 'uncommon', desc: '受到足以致命的伤害时，保留 1 点生命值，然后销毁此遗物。' },
     big_pot: { id: 'big_pot', name: '大铁锅', icon: '🍲', rarity: 'uncommon', desc: '拾取时：在地图上生成 5 瓶随机药水。' },
@@ -4206,6 +4672,54 @@
       use(ctx) { ctx.enterStance('divinity'); }
     },
 
+    // ── 赫神专属 ──
+    hs_perm_key: {
+      id: 'hs_perm_key', name: '权限密钥', icon: '🗝️', rarity: 'common', char: 'heshen', combatOnly: true,
+      desc: '【赫神】将一张随机权限牌（DELETE/PATCH/OVERRIDE）加入手牌，本回合 0 费（圣皮：加入 2 张）。',
+      use(ctx) {
+        const n = ctx.ancientTome ? 2 : 1;
+        const opts = ['hs_perm_delete', 'hs_perm_patch', 'hs_perm_override'];
+        for (let i = 0; i < n; i++) {
+          const c = mkCard(opts[Math.floor(rng() * opts.length)]);
+          c.tempCost = 0;
+          if (ctx.state.hand.length < 10) ctx.state.hand.push(c);
+          else ctx.state.discard.push(c);
+          ctx.log(`权限密钥：加入 ${c.name}`);
+        }
+      }
+    },
+    hs_crash_dump: {
+      id: 'hs_crash_dump', name: '崩溃转储', icon: '💾', rarity: 'uncommon', char: 'heshen', combatOnly: true,
+      desc: '【赫神】从弃牌堆取回费用最高的 2 张牌放入手牌，本回合 0 费（圣皮：4 张）。',
+      use(ctx) {
+        const n = ctx.ancientTome ? 4 : 2;
+        const sorted = [...ctx.state.discard].sort((a, b) => (b.cost || 0) - (a.cost || 0));
+        const picks = sorted.slice(0, n);
+        picks.forEach(c => {
+          const i = ctx.state.discard.findIndex(x => x.uid === c.uid);
+          if (i >= 0) ctx.state.discard.splice(i, 1);
+          c.tempCost = 0;
+          if (ctx.state.hand.length < 10) ctx.state.hand.push(c);
+          else ctx.state.draw.push(c);
+          ctx.log(`崩溃转储：取回 ${c.name}（0 费）`);
+        });
+      }
+    },
+    hs_sys_image: {
+      id: 'hs_sys_image', name: '系统镜像', icon: '🖥️', rarity: 'rare', char: 'heshen', combatOnly: true,
+      desc: '【赫神】复制手牌中每张牌各一张放入弃牌堆（圣皮：放入手牌）。',
+      use(ctx) {
+        const copies = [...ctx.state.hand].map(c => mkCard(c.baseId, c.upgraded));
+        if (ctx.ancientTome) {
+          copies.forEach(c => { if (ctx.state.hand.length < 10) ctx.state.hand.push(c); else ctx.state.discard.push(c); });
+          ctx.log(`系统镜像（圣皮）：复制 ${copies.length} 张牌入手牌`);
+        } else {
+          copies.forEach(c => ctx.state.discard.push(c));
+          ctx.log(`系统镜像：复制 ${copies.length} 张牌入弃牌堆`);
+        }
+      }
+    },
+
     // ── 全职业通用：新增药水 ──
     regen_pot: {
       id: 'regen_pot', name: '回春注射液', icon: '💉', rarity: 'uncommon', combatOnly: true,
@@ -4289,7 +4803,7 @@
       use(ctx) {
         const n = ctx.ancientTome ? 10 : 5;
         ctx.draw(n);
-        ctx.state.hand.forEach(c => { c.tempCost = Math.floor(Math.random() * 4); });
+        ctx.state.hand.forEach(c => { c.tempCost = Math.floor(rng() * 4); });
         ctx.log(`毒蛇生油：抽 ${n} 张，费用随机化`);
       }
     },
@@ -4886,6 +5400,15 @@
           mkCard('eruption'), mkCard('vigilance'),
         ],
       },
+      heshen: {
+        character: 'heshen', charName: '赫神', charArt: '🔱', hp: 120,
+        relics: ['root_access'],
+        deck: () => [
+          mkCard('hs_sudo'), mkCard('hs_sudo'), mkCard('hs_sudo'), mkCard('hs_sudo'), mkCard('hs_sudo'),
+          mkCard('hs_firewall'), mkCard('hs_firewall'), mkCard('hs_firewall'),
+          mkCard('hs_chmod'), mkCard('hs_chmod'),
+        ],
+      },
     };
     const p = profiles[charId] || profiles.loader;
     G = {
@@ -4951,6 +5474,7 @@
     if (G.character === 'clerk') return 'clerk';
     if (G.character === 'doubao') return 'doubao';
     if (G.character === 'tianhou') return 'tianhou';
+    if (G.character === 'heshen') return 'heshen';
     return 'loader';
   }
 
@@ -5147,14 +5671,15 @@
 
   function lightningHit(raw) {
     const focus = focusAmt();
-    const dmg = Math.max(0, raw + focus);
+    const str = (combat && combat.player.statuses.str) || 0;
+    const dmg = Math.max(0, raw + focus + str);
     const alive = combat.enemies.filter(e => e.hp > 0);
     if (!alive.length) return;
     const ctx = makeCtx(null, null);
     if (combat.player.powers.electrodynamics) {
       alive.forEach(e => ctx.damageEnemy(e, Math.floor(dmg * orbDmgMult(e))));
     } else {
-      const t = alive[Math.floor(Math.random() * alive.length)];
+      const t = alive[Math.floor(rng() * alive.length)];
       ctx.damageEnemy(t, Math.floor(dmg * orbDmgMult(t)));
     }
   }
@@ -5162,19 +5687,24 @@
   function evokeOrbObj(o) {
     if (!o) return;
     const focus = focusAmt();
+    const str = (combat && combat.player.statuses.str) || 0;
+    const dex = (combat && combat.player.statuses.dex) || 0;
     const ctx = makeCtx(null, null);
     if (o.type === 'lightning') {
       lightningHit(8);
       log('激发电球');
     } else if (o.type === 'frost') {
-      ctx.gainBlock(Math.max(0, 5 + focus));
+      // 冰球格挡受敏捷影响
+      ctx.gainBlock(Math.max(0, 5 + focus + dex));
       log('激发冰球');
     } else if (o.type === 'dark') {
       const alive = combat.enemies.filter(e => e.hp > 0);
       if (alive.length) {
         alive.sort((a, b) => a.hp - b.hp);
         const t = alive[0];
-        const d = Math.max(0, Math.floor((o.dark || 6) * orbDmgMult(t)));
+        // 黑球伤害受力量影响；虚弱通过 damageEnemy 处理
+        const baseDark = (o.dark || 6) + str;
+        const d = Math.max(0, Math.floor(baseDark * orbDmgMult(t)));
         ctx.damageEnemy(t, d);
       }
       log('激发黑球');
@@ -5199,11 +5729,14 @@
   function triggerOrbPassive(o) {
     if (!o) return;
     const focus = focusAmt();
+    const str = (combat && combat.player.statuses.str) || 0;
+    const dex = (combat && combat.player.statuses.dex) || 0;
     const ctx = makeCtx(null, null);
     if (o.type === 'lightning') {
       lightningHit(3);
     } else if (o.type === 'frost') {
-      ctx.gainBlock(Math.max(0, 2 + focus));
+      // 冰球被动格挡受敏捷影响
+      ctx.gainBlock(Math.max(0, 2 + focus + dex));
     } else if (o.type === 'dark') {
       o.dark = (o.dark || 6) + Math.max(0, 6 + focus);
     } else if (o.type === 'plasma') {
@@ -5372,6 +5905,10 @@
     let cost = card.cost < 0 ? 0 : card.cost;
     if (combat && (card.forceField || card.baseId === 'force_field')) {
       cost = Math.max(0, cost - (combat.powersPlayed || 0));
+    }
+    // 赫神：OVERRIDE——本回合所有牌费用 -1（动态计算，新抽的牌也生效）
+    if (combat && combat.player.powers.overrideActive) {
+      cost = Math.max(0, cost - 1);
     }
     return cost;
   }
@@ -5555,19 +6092,31 @@
     return { nodes, edges, startId: start.id, height: H, width: W + 120, heightRows: HEIGHT };
   }
 
-  // 塔1房间分配：仅第 9 层（index 8）宝箱；Boss 前休息；问号偏多；精英不早出
+  // 塔1房间分配：仅第 9 层（index 8）宝箱；Boss 前休息；问号偏多；精英/火堆不早出
   function assignRoomTypes(nodes, edges, height) {
     const content = nodes.filter(n => n.type !== 'start' && n.type !== 'boss');
+    const nodeById = {};
+    nodes.forEach(n => { nodeById[n.id] = n; });
+
+    // parentOf[id] = 父节点 id 列表
     const parentOf = {};
+    // childrenOf[id] = 子节点 id 列表（用于分叉唯一性检查）
+    const childrenOf = {};
     edges.forEach(([a, b]) => {
       if (!parentOf[b]) parentOf[b] = [];
       parentOf[b].push(a);
+      if (!childrenOf[a]) childrenOf[a] = [];
+      childrenOf[a].push(b);
     });
 
+    // 硬编码层规则
     content.forEach(n => {
       const row = n.layer - 1;
+      // 第1层（row=0）：强制普通怪
       if (row === 0) n.type = 'combat';
+      // 第9层（row=8）：宝箱
       else if (row === 8) n.type = 'treasure';
+      // 第15层（row=14，即 height-1）：火堆（Boss前必休息）
       else if (row === height - 1) n.type = 'rest';
       else n.type = 'pending';
     });
@@ -5577,19 +6126,29 @@
     // 约：战斗 42% / 问号 28% / 精英 10% / 商店 8% / 休息 12%
     const quotas = {
       unknown: Math.max(2, Math.round(total * 0.28)),
-      elite: Math.max(1, Math.round(total * 0.10)),
-      shop: Math.max(1, Math.round(total * 0.08)),
-      rest: Math.max(1, Math.round(total * 0.12)),
+      elite:   Math.max(1, Math.round(total * 0.10)),
+      shop:    Math.max(1, Math.round(total * 0.08)),
+      rest:    Math.max(1, Math.round(total * 0.12)),
     };
 
     const trySet = (n, type) => {
       const row = n.layer - 1;
-      if (type === 'elite' && row < 5) return false;
-      // 商店、精英、休息处不能与同类型相邻（参考杀戮尖塔设计规则）
+      // 精英、火堆、商店最早第6层（row>=5）才允许出现
+      if ((type === 'elite' || type === 'rest' || type === 'shop') && row < 5) return false;
+      // 商店、精英、火堆：
+      //   ① 路径连续性——父节点不能同类
+      //   ② 分叉唯一性——与自己同一父节点的兄弟（已定型）不能同类
       if (type === 'rest' || type === 'shop' || type === 'elite') {
-        const parents = parentOf[n.id] || [];
-        const parentNodes = parents.map(id => nodes.find(x => x.id === id)).filter(Boolean);
-        if (parentNodes.some(p => p.type === type)) return false;
+        const parents = (parentOf[n.id] || []).map(id => nodeById[id]).filter(Boolean);
+        // ① 父节点同类检查
+        if (parents.some(p => p.type === type)) return false;
+        // ② 兄弟节点同类检查（同一父节点的其他子节点已被设为同类）
+        for (const p of parents) {
+          const siblings = (childrenOf[p.id] || [])
+            .filter(sid => sid !== n.id)
+            .map(sid => nodeById[sid]).filter(Boolean);
+          if (siblings.some(s => s.type === type)) return false;
+        }
       }
       n.type = type;
       return true;
@@ -5605,18 +6164,18 @@
     };
 
     fill('unknown', quotas.unknown);
-    fill('elite', quotas.elite);
-    fill('shop', quotas.shop);
-    fill('rest', quotas.rest);
+    fill('elite',   quotas.elite);
+    fill('shop',    quotas.shop);
+    fill('rest',    quotas.rest);
     pending.forEach(n => { if (n.type === 'pending') n.type = 'combat'; });
 
-    // 保证至少有一个商店、一个精英（若地图够大）
-    const mid = content.filter(n => n.layer - 1 >= 5 && n.layer - 1 < height - 1 && n.type === 'combat');
-    if (!content.some(n => n.type === 'elite') && mid.length) {
-      mid[Math.floor(Math.random() * mid.length)].type = 'elite';
+    // 保底：至少有一个商店、一个精英（限 row>=5 的格挡外）
+    const midCombat = content.filter(n => n.layer - 1 >= 5 && n.layer - 1 < height - 1 && n.type === 'combat');
+    if (!content.some(n => n.type === 'elite') && midCombat.length) {
+      midCombat[Math.floor(Math.random() * midCombat.length)].type = 'elite';
     }
     if (!content.some(n => n.type === 'shop')) {
-      const cands = content.filter(n => n.type === 'combat' && n.layer - 1 > 0 && n.layer - 1 < height - 1);
+      const cands = content.filter(n => n.type === 'combat' && n.layer - 1 >= 5 && n.layer - 1 < height - 1);
       if (cands.length) cands[Math.floor(Math.random() * cands.length)].type = 'shop';
     }
   }
@@ -5628,7 +6187,6 @@
   function showScreen(name) {
     document.querySelectorAll('.screen').forEach(s => s.classList.remove('active'));
     $(`screen-${name}`).classList.add('active');
-    if (typeof refreshDeckFab === 'function') refreshDeckFab();
   }
   function toast(msg) {
     const t = $('toast');
@@ -5642,6 +6200,56 @@
     $('overlay').classList.add('show');
   }
   function hideModal() { $('overlay').classList.remove('show'); }
+
+  // ── 查看地图 Peek ──────────────────────────────────────────
+  // 临时隐藏弹窗，显示地图（只读），底部显示"返回"按钮
+  let _peekSavedHtml = null;
+  let _peekSavedScreen = null; // 'map' | 'combat' | null
+
+  function peekMap() {
+    if (_peekSavedHtml !== null) return; // 已在 peek 状态
+    // 记录弹窗内容和当前屏幕
+    _peekSavedHtml = $('modal').innerHTML;
+    const screens = ['map','combat','title'];
+    _peekSavedScreen = screens.find(s => $(`screen-${s}`) && $(`screen-${s}`).classList.contains('active')) || null;
+    // 隐藏 overlay，切到地图屏幕
+    $('overlay').classList.remove('show');
+    showScreen('map');
+    renderMap();
+    // 地图节点在 peek 期间不可点（覆盖一层）
+    $('peek-map-bar').classList.add('show');
+  }
+
+  function peekMapBack() {
+    if (_peekSavedHtml === null) return;
+    $('peek-map-bar').classList.remove('show');
+    // 恢复原屏幕
+    if (_peekSavedScreen) showScreen(_peekSavedScreen);
+    // 恢复弹窗
+    $('modal').innerHTML = _peekSavedHtml;
+    $('overlay').classList.add('show');
+    _peekSavedHtml = null;
+    _peekSavedScreen = null;
+    // 重新绑定弹窗里的 peek 按钮
+    const pb = $('modal').querySelector('.btn-peek-map');
+    if (pb) pb.onclick = peekMap;
+  }
+
+  // 给 showModal 加 peek 按钮的工具函数：在 modal-actions 前插入按钮
+  function injectPeekBtn(modalEl) {
+    if (!modalEl) return;
+    const existing = modalEl.querySelector('.btn-peek-map');
+    if (existing) { existing.onclick = peekMap; return; }
+    const btn = document.createElement('button');
+    btn.className = 'btn ghost btn-peek-map';
+    btn.textContent = '🗺 查看地图';
+    btn.style.cssText = 'font-size:13px;padding:8px 18px;';
+    btn.onclick = peekMap;
+    // 插入到 modal-actions 之前，或者直接 append
+    const actions = modalEl.querySelector('.modal-actions');
+    if (actions) actions.prepend(btn);
+    else modalEl.appendChild(btn);
+  }
 
 
   function potionPoolForRun() {
@@ -5659,7 +6267,7 @@
     const rarity = weighted(weights);
     let list = pool.filter(p => p.rarity === rarity);
     if (!list.length) list = pool;
-    return list[Math.floor(Math.random() * list.length)];
+    return list[Math.floor(rng() * list.length)];
   }
 
   function potionFreeSlot() {
@@ -5819,15 +6427,18 @@
   }
 
   function maybeOfferPotion(next) {
-    // 保底机制：基础 40%，未掉落时 +10%，直到 100%；掉落后重置
-    if (!G._potionDropChance) G._potionDropChance = 0.4;
-    const roll = Math.random();
-    if (roll > G._potionDropChance) {
+    // 原版算法：基础 40%，未掉落 +10%，掉落后 -10%，精英额外临时 +12.5%
+    if (G._potionDropChance == null) G._potionDropChance = 0.4;
+    const eliteBonus = (combat && combat.tier === 'elite') ? 0.125 : 0;
+    const effectiveChance = Math.min(1.0, G._potionDropChance + eliteBonus);
+    const roll = rng();
+    if (roll > effectiveChance) {
+      // 未掉落：+10%（不超过 100%）
       G._potionDropChance = Math.min(1.0, G._potionDropChance + 0.1);
       next(); return;
     }
-    // 掉落成功：重置概率
-    G._potionDropChance = 0.4;
+    // 掉落成功：-10%（不低于 0%）
+    G._potionDropChance = Math.max(0, G._potionDropChance - 0.1);
     // 稀有度权重：65% 普通 / 25% 罕见 / 10% 稀有
     const rarityHint = combat && combat.tier === 'elite' ? 'uncommon' : null;
     const pot = rollPotion(rarityHint);
@@ -5936,6 +6547,8 @@
   }
 
   function enterNode(n) {
+    // peek 状态下不允许进入节点，必须先返回弹窗
+    if (_peekSavedHtml !== null) { toast('请先点「← 返回继续」再操作'); return; }
     G.nodeId = n.id;
     G.visited.add(n.id);
     G.floor = n.layer;
@@ -5963,7 +6576,7 @@
       return;
     } else if (type === 'unknown') {
       const ep = eventsForAct();
-      G.pendingEventId = ep[Math.floor(Math.random() * ep.length)].id;
+      G.pendingEventId = ep[Math.floor(rng() * ep.length)].id;
       writeCheckpoint('event');
       openEvent(EVENTS.find(e => e.id === G.pendingEventId));
       return;
@@ -5976,7 +6589,7 @@
   // ── 辅助：从标准诅咒池随机抽一张（不含 curse_regret 这种特殊不可驱除）──
   function randomCurseId(exclude = []) {
     const pool = ['curse_injury', 'curse_clumsy'].filter(id => !exclude.includes(id));
-    return pool[Math.floor(Math.random() * pool.length)];
+    return pool[Math.floor(rng() * pool.length)];
   }
 
   // ── 辅助：寄生虫驱除检查（驱除时扣血）──
@@ -6015,7 +6628,7 @@
           toast('塞入「悔恨条」（不可驱除）');
           const pool = availableRelics({ noClipboard: true });
           if (!pool.length) { G.gold += 50; ctx.done('没有遗物，改为 50 金币。牌组加入「悔恨条」。'); return; }
-          const rel = pool[Math.floor(Math.random() * pool.length)];
+          const rel = pool[Math.floor(rng() * pool.length)];
           grantRelic(rel.id);
           ctx.done(`获得 ${rel.icon} ${rel.name}。牌组塞入「悔恨条」（不可驱除）。`);
         }},
@@ -6067,7 +6680,7 @@
               cd.rarity === rarity && (cd.set || 'loader') === set
               && cd.id !== c.baseId && !['status','curse','token','starter'].includes(cd.rarity)
             );
-            const pick = pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
+            const pick = pool.length ? pool[Math.floor(rng() * pool.length)] : null;
             if (!pick) { ctx.done('没有找到合适的替换牌。'); return; }
             const i = G.deck.findIndex(x => x.uid === c.uid);
             if (i >= 0) G.deck.splice(i, 1, mkCard(pick.id));
@@ -6077,7 +6690,7 @@
         { label: '⬆️ 升级（无条件升级一张牌）', run(ctx) {
           const ups = G.deck.filter(c => !c.upgraded && UPGRADES[c.baseId]);
           if (!ups.length) { ctx.done('没有可升级的牌。'); return; }
-          ctx.pickCard(ups, '选择升级', (c) => {
+          ctx.pickUpgradeCard(ups, '选择升级', (c) => {
             upgradeCard(c);
             ctx.done(`「${c.name}」升级完成。`);
           });
@@ -6112,7 +6725,7 @@
         { label: '🐸 拿走神蛙（+金币奖励遗物，触发陷阱）', run(ctx) {
           // 给予「招财工蛙」遗物效果模拟：直接给 gold_toad 或用随机罕见遗物
           const trapChoices = ['失去 25% 最大生命', '失去 35% 当前生命', '塞入「工伤记录」诅咒'];
-          const trap = trapChoices[Math.floor(Math.random() * trapChoices.length)];
+          const trap = trapChoices[Math.floor(rng() * trapChoices.length)];
           if (trap === '失去 25% 最大生命') {
             const loss = Math.max(1, Math.floor(G.maxHp * 0.25));
             G.maxHp = Math.max(1, G.maxHp - loss);
@@ -6127,7 +6740,7 @@
           if (!granted) {
             // 已有招财工蛙，改给随机罕见遗物或金币
             const pool = availableRelics({ rarity: 'rare', noClipboard: true });
-            const rel = pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
+            const rel = pool.length ? pool[Math.floor(rng() * pool.length)] : null;
             if (rel) { grantRelic(rel.id); ctx.done(`触发陷阱：${trap}。获得 ${rel.icon} ${rel.name}（招财工蛙已有）。`); }
             else { G.gold += 80; ctx.done(`触发陷阱：${trap}。获得 80 金币（无合适遗物）。`); }
           } else {
@@ -6189,7 +6802,7 @@
           const loss = Math.max(1, Math.floor(G.maxHp * 0.15));
           G.maxHp = Math.max(1, G.maxHp - loss);
           G.hp = Math.min(G.hp, G.maxHp);
-          const gold = 25 + Math.floor(Math.random() * 11);
+          const gold = 25 + Math.floor(rng() * 11);
           grantGold(gold);
           ctx.done(`你捏着鼻子吞下去。最大生命 -${loss}，+${gold} 金币。`);
         }},
@@ -6213,7 +6826,7 @@
             const dmg = Math.min(baseDmg, G.hp - 1);
             G.hp -= dmg;
             const successChance = Math.min(0.25 + attempts * 0.18, 0.95);
-            const success = Math.random() < successChance;
+            const success = rng() < successChance;
             if (success) {
               const pool = availableRelics({ noClipboard: true });
               if (!pool.length) {
@@ -6221,7 +6834,7 @@
                 ctx.done(`掏了 ${attempts} 次，受了 ${baseDmg} 点伤，掏出了 40 金币。`);
                 return;
               }
-              const rel = pool[Math.floor(Math.random() * pool.length)];
+              const rel = pool[Math.floor(rng() * pool.length)];
               grantRelic(rel.id);
               ctx.done(`掏了 ${attempts} 次，受了 ${baseDmg} 点伤，掏出了 ${rel.icon} ${rel.name}！`);
             } else {
@@ -6271,7 +6884,7 @@
           });
         }},
         { label: '💰 搜寻板条箱（+50-80 金，但塞入「寄生虫」诅咒）', run(ctx) {
-          const gold = 50 + Math.floor(Math.random() * 31);
+          const gold = 50 + Math.floor(rng() * 31);
           grantGold(gold);
           addCardToDeck('curse_parasite');
           ctx.done(`获得 ${gold} 金币，但「寄生虫」寄生到了牌组里（驱除时扣最大生命）。`);
@@ -6325,7 +6938,7 @@
           G.hp = Math.max(1, G.hp - loss);
           let upgraded = 0;
           const ups = G.deck.filter(c => !c.upgraded && UPGRADES[c.baseId]);
-          const picks = ups.sort(() => 0.5 - Math.random()).slice(0, 2);
+          const picks = shuffle(ups).slice(0, 2);
           picks.forEach(c => { upgradeCard(c); upgraded++; });
           ctx.done(`失去 ${loss} 生命。随机升级 ${upgraded} 张牌（${picks.map(c=>c.name).join('、') || '无可升级牌'}）。`);
         }},
@@ -6370,7 +6983,7 @@
             ctx.done(`失去 ${loss} 生命，没有合适的遗物，改为 50 金币。`);
             return;
           }
-          const rel = pool[Math.floor(Math.random() * pool.length)];
+          const rel = pool[Math.floor(rng() * pool.length)];
           grantRelic(rel.id);
           ctx.done(`失去 ${loss} 生命，换到了 ${rel.icon} ${rel.name}。`);
         }},
@@ -6393,7 +7006,7 @@
         { label: '✅ 同意（随机失去一个非起始遗物，获得「问号牌奖励翻倍」效果）', run(ctx) {
           const owned = G.relics.filter(id => !['burning_blood','snake_ring','cracked_core','pure_water','black_blood','coil_badge','frozen_core','holy_water'].includes(id));
           if (!owned.length) { ctx.done('你没有可以交换的遗物。'); return; }
-          const sacrificed = owned[Math.floor(Math.random() * owned.length)];
+          const sacrificed = owned[Math.floor(rng() * owned.length)];
           const si = G.relics.indexOf(sacrificed);
           if (si >= 0) G.relics.splice(si, 1);
           G.nlothGift = true; // 下个卡牌选择稀有度提升
@@ -6480,7 +7093,7 @@
         { label: '校准一张牌（升级）', run(ctx) {
           const ups = G.deck.filter(c => !c.upgraded && UPGRADES[c.baseId]);
           if (!ups.length) { ctx.done('没有可升级的牌。'); return; }
-          ctx.pickCard(ups, '选择升级', (c) => {
+          ctx.pickUpgradeCard(ups, '选择升级', (c) => {
             upgradeCard(c);
             ctx.done(`「${c.name}」被校准完毕。`);
           });
@@ -6511,7 +7124,7 @@
           G.hp -= dmg;
           const set = charSet();
           const pool = Object.values(CARDS).filter(c => c.rarity === 'common' && (c.set || 'loader') === set);
-          const pick = pool[Math.floor(Math.random() * pool.length)];
+          const pick = pool[Math.floor(rng() * pool.length)];
           if (pick) addCardToDeck(pick.id);
           ctx.done(`失去 ${dmg} 生命，学会了「${pick ? pick.name : '无'}」。`);
         }},
@@ -6529,7 +7142,7 @@
           G.hp = Math.min(G.hp, G.maxHp);
           const pool = availableRelics({ noClipboard: true });
           if (!pool.length) { G.gold += 40; ctx.done('没有遗物，改为 40 金币。'); return; }
-          const rel = pool[Math.floor(Math.random() * pool.length)];
+          const rel = pool[Math.floor(rng() * pool.length)];
           grantRelic(rel.id);
           ctx.done(`最大生命 -8。获得 ${rel.icon} ${rel.name}。`);
         }},
@@ -6608,7 +7221,7 @@
           G.hp -= dmg;
           const pool = availableRelics();
           if (!pool.length) { G.gold += 35; ctx.done(`静电打手。失去 ${dmg}，改为 35 金币。`); return; }
-          const rel = pool[Math.floor(Math.random() * pool.length)];
+          const rel = pool[Math.floor(rng() * pool.length)];
           grantRelic(rel.id);
           if (rel.id === 'clipboard') {
             offerClipboardCards();
@@ -6632,7 +7245,7 @@
           G.gold -= 15;
           const ups = G.deck.filter(c => !c.upgraded && UPGRADES[c.baseId]);
           if (!ups.length) { ctx.done('没有可升级的牌，钱也收走了。'); return; }
-          const c = ups[Math.floor(Math.random() * ups.length)];
+          const c = ups[Math.floor(rng() * ups.length)];
           upgradeCard(c);
           ctx.done(`他用砂纸打磨了「${c.name}」。`);
         }},
@@ -6649,7 +7262,7 @@
           G.hp -= dmg;
           const ups = G.deck.filter(c => !c.upgraded && UPGRADES[c.baseId]);
           if (ups.length) {
-            const c = ups[Math.floor(Math.random() * ups.length)];
+            const c = ups[Math.floor(rng() * ups.length)];
             upgradeCard(c);
             ctx.done(`火光照亮牌背。失去 ${dmg}，升级「${c.name}」。`);
           } else ctx.done(`灼了一下。失去 ${dmg}。`);
@@ -6670,7 +7283,7 @@
           const set = charSet();
           const pool = Object.values(CARDS).filter(c => c.rarity === 'common' && (c.set || 'loader') === set);
           for (let i = 0; i < 2; i++) {
-            const pick = pool[Math.floor(Math.random() * pool.length)];
+            const pick = pool[Math.floor(rng() * pool.length)];
             if (pick) addCardToDeck(pick.id);
           }
           ctx.done('你多领了两份任务书。');
@@ -6703,7 +7316,7 @@
           startCombat('boss');
           // 强制换成一层 Boss
           if (combat) {
-            combat.enemies = [makeEnemy(bosses[Math.floor(Math.random() * bosses.length)])];
+            combat.enemies = [makeEnemy(bosses[Math.floor(rng() * bosses.length)])];
             combat.enemies.forEach(rollIntent);
             combat.bossName = combat.enemies[0].name;
             $('combat-title').textContent = `心花幻战 · ${combat.bossName}`;
@@ -6731,17 +7344,17 @@
         { label: '抓住攻击牌（升级一张攻击）', run(ctx) {
           const ups = G.deck.filter(c => c.type === 'attack' && !c.upgraded && UPGRADES[c.baseId]);
           if (!ups.length) { ctx.done('没有可升级的攻击牌。'); return; }
-          ctx.pickCard(ups, '升级攻击牌', (c) => { upgradeCard(c); ctx.done(`抓住了「${c.name}」。`); });
+          ctx.pickUpgradeCard(ups, '升级攻击牌', (c) => { upgradeCard(c); ctx.done(`抓住了「${c.name}」。`); });
         }},
         { label: '抓住技能牌（升级一张技能）', run(ctx) {
           const ups = G.deck.filter(c => c.type === 'skill' && !c.upgraded && UPGRADES[c.baseId]);
           if (!ups.length) { ctx.done('没有可升级的技能牌。'); return; }
-          ctx.pickCard(ups, '升级技能牌', (c) => { upgradeCard(c); ctx.done(`抓住了「${c.name}」。`); });
+          ctx.pickUpgradeCard(ups, '升级技能牌', (c) => { upgradeCard(c); ctx.done(`抓住了「${c.name}」。`); });
         }},
         { label: '抓住能力牌（升级一张能力）', run(ctx) {
           const ups = G.deck.filter(c => c.type === 'power' && !c.upgraded && UPGRADES[c.baseId]);
           if (!ups.length) { ctx.done('没有可升级的能力牌。'); return; }
-          ctx.pickCard(ups, '升级能力牌', (c) => { upgradeCard(c); ctx.done(`抓住了「${c.name}」。`); });
+          ctx.pickUpgradeCard(ups, '升级能力牌', (c) => { upgradeCard(c); ctx.done(`抓住了「${c.name}」。`); });
         }},
       ],
     },
@@ -6756,7 +7369,7 @@
           G.hp -= dmg;
           const ups = G.deck.filter(c => !c.upgraded && UPGRADES[c.baseId]);
           if (ups.length) {
-            const c = ups[Math.floor(Math.random() * ups.length)];
+            const c = ups[Math.floor(rng() * ups.length)];
             upgradeCard(c);
             ctx.done(`撞破一面假墙。失去 ${dmg}，升级「${c.name}」。`);
           } else ctx.done(`失去 ${dmg} 生命。`);
@@ -6786,7 +7399,7 @@
         { label: '浅尝（获得 1 张稀有牌）', run(ctx) {
           const set = charSet();
           const pool = Object.values(CARDS).filter(c => c.rarity === 'rare' && (c.set || 'loader') === set);
-          const pick = pool[Math.floor(Math.random() * pool.length)];
+          const pick = pool[Math.floor(rng() * pool.length)];
           if (pick) addCardToDeck(pick.id);
           ctx.done(pick ? `记忆闪过：「${pick.name}」。` : '石碑沉默。');
         }},
@@ -6796,7 +7409,7 @@
           const set = charSet();
           const pool = Object.values(CARDS).filter(c => c.rarity === 'rare' && (c.set || 'loader') === set);
           for (let i = 0; i < 2; i++) {
-            const pick = pool[Math.floor(Math.random() * pool.length)];
+            const pick = pool[Math.floor(rng() * pool.length)];
             if (pick) addCardToDeck(pick.id);
           }
           ctx.done(`头痛欲裂。失去 ${dmg}，记住了更多。`);
@@ -6845,7 +7458,7 @@
           G.hp -= dmg;
           const pool = availableRelics({ noClipboard: true });
           if (!pool.length) { G.gold += 40; ctx.done(`失去 ${dmg}，改为 40 金。`); return; }
-          const rel = pool[Math.floor(Math.random() * pool.length)];
+          const rel = pool[Math.floor(rng() * pool.length)];
           grantRelic(rel.id);
           ctx.done(`失去 ${dmg}。获得 ${rel.icon} ${rel.name}。`);
         }},
@@ -6890,7 +7503,7 @@
 
   function openEvent(forcedEv) {
     const pool = eventsForAct();
-    const ev = forcedEv || pool[Math.floor(Math.random() * pool.length)];
+    const ev = forcedEv || pool[Math.floor(rng() * pool.length)];
     const choicesHtml = ev.choices.map((ch, i) => {
       const poor = ch.needGold && G.gold < ch.needGold;
       return `<button class="btn ${poor ? 'ghost' : 'teal'}" style="width:100%;margin:6px 0;text-align:left;line-height:1.4" data-ci="${i}" ${poor ? 'disabled' : ''}>${ch.label}${poor ? '（金币不足）' : ''}</button>`;
@@ -6900,9 +7513,11 @@
       <p style="text-align:left;line-height:1.7;max-width:520px;margin:0 auto 12px;color:var(--muted)">${ev.body}</p>
       <div id="event-choices" style="max-width:520px;margin:0 auto">${choicesHtml}</div>
       <div class="modal-actions" style="margin-top:10px">
+        <button class="btn ghost btn-peek-map">🗺 查看地图</button>
         <button class="btn" id="m-quick-event" style="background:linear-gradient(180deg,#3a2814,#221808)">重来</button>
       </div>`);
     if ($('m-quick-event')) $('m-quick-event').onclick = () => quickLoad();
+    injectPeekBtn($('modal'));
 
     const finishMap = () => {
       G.pendingEventId = null;
@@ -6914,7 +7529,8 @@
       leave(msg) { if (msg) toast(msg); finishMap(); },
       done(msg) {
         showModal(`<h2>${ev.title}</h2><p style="line-height:1.7">${msg}</p>
-          <div class="modal-actions"><button class="btn" id="m-ok">继续</button></div>`);
+          <div class="modal-actions"><button class="btn ghost btn-peek-map">🗺 查看地图</button><button class="btn" id="m-ok">继续</button></div>`);
+        injectPeekBtn($('modal'));
         $('m-ok').onclick = finishMap;
       },
       // 事件失血辅助：触发牛皮弹弓等遗物
@@ -6928,7 +7544,8 @@
       },
       pickCard(list, title, cb) {
         showModal(`<h2>${title}</h2><div class="card-pick" id="ev-cards"></div>
-          <div class="modal-actions"><button class="btn ghost" id="m-cancel">返回</button></div>`);
+          <div class="modal-actions"><button class="btn ghost btn-peek-map">🗺 查看地图</button><button class="btn ghost" id="m-cancel">返回</button></div>`);
+        injectPeekBtn($('modal'));
         const box = $('ev-cards');
         list.forEach(c => {
           const el = cardEl(c);
@@ -6936,6 +7553,37 @@
           box.appendChild(el);
         });
         $('m-cancel').onclick = () => openEvent(ev);
+      },
+      // 升级专用：点牌后弹升级前后对比，确认才执行
+      pickUpgradeCard(list, title, cb) {
+        const self = this;
+        self.pickCard(list, title, (c) => {
+          // 生成升级后预览（临时副本）
+          const preview = mkCard(c.baseId, true);
+          const html = `
+            <h2>确认升级</h2>
+            <p style="color:var(--muted);font-size:13px">升级后无法撤销，请确认</p>
+            <div style="display:flex;gap:20px;justify-content:center;align-items:flex-start;flex-wrap:wrap;margin-bottom:16px">
+              <div style="text-align:center">
+                <div style="font-size:11px;color:var(--muted);margin-bottom:6px">升级前</div>
+                <div id="upg-before"></div>
+              </div>
+              <div style="font-size:28px;align-self:center;color:var(--amber)">→</div>
+              <div style="text-align:center">
+                <div style="font-size:11px;color:var(--teal2);margin-bottom:6px">升级后</div>
+                <div id="upg-after"></div>
+              </div>
+            </div>
+            <div class="modal-actions">
+              <button class="btn" id="m-upg-confirm">✅ 确认升级</button>
+              <button class="btn ghost" id="m-upg-back">↩ 重新选择</button>
+            </div>`;
+          showModal(html);
+          $('upg-before').appendChild(cardEl(c));
+          $('upg-after').appendChild(cardEl(preview));
+          $('m-upg-confirm').onclick = () => cb(c);
+          $('m-upg-back').onclick = () => self.pickUpgradeCard(list, title, cb);
+        });
       },
     };
     document.querySelectorAll('#event-choices [data-ci]').forEach(btn => {
@@ -6981,6 +7629,12 @@
       over: false,
       logLines: [],
     };
+    // 赫神：起始能量 5，起始摸牌 7
+    if (G.character === 'heshen') {
+      combat.energy = 5;
+      combat.maxEnergy = 5;
+      combat.player.nextDrawBonus = 2; // 基础5+2=7
+    }
     showScreen('combat');
     if ($('player-name')) $('player-name').textContent = G.charName;
     if ($('player-art')) $('player-art').textContent = G.charArt;
@@ -7009,7 +7663,7 @@
     const act = G.act || 1;
     if (tier === 'boss') {
       if (act >= 3) {
-        const r = Math.random();
+        const r = rng();
         if (r < 0.34) {
           return [makeEnemy('boss_awakened'), makeEnemy('cultist'), makeEnemy('cultist')];
         }
@@ -7019,22 +7673,22 @@
       const bosses = act >= 2
         ? ['boss_automaton', 'boss_collector', 'boss_champ']
         : ['boss_slime', 'boss_guardian', 'boss_hex'];
-      return [makeEnemy(bosses[Math.floor(Math.random() * bosses.length)])];
+      return [makeEnemy(bosses[Math.floor(rng() * bosses.length)])];
     }
     if (tier === 'elite') {
       if (act >= 3) {
-        const r = Math.random();
+        const r = rng();
         if (r < 0.34) return [makeEnemy('elite_head')];
         if (r < 0.67) return [makeEnemy('elite_nemesis')];
         return [makeEnemy('elite_repto'), makeEnemy('dagger_minion')];
       }
       if (act >= 2) {
-        const r = Math.random();
+        const r = rng();
         if (r < 0.34) return [makeEnemy('elite_book')];
         if (r < 0.67) return [makeEnemy('elite_gremlin_leader'), makeEnemy('mad_gremlin'), makeEnemy('fat_gremlin')];
         return [makeEnemy('elite_taskmaster'), makeEnemy('blue_slaver'), makeEnemy('red_slaver')];
       }
-      const r = Math.random();
+      const r = rng();
       if (r < 0.34) return [makeEnemy('elite_nob')];
       if (r < 0.67) return [makeEnemy('elite_laga')];
       // 左/右从攻击起拍，中间从塞晕眩起拍 → 两边打时中间塞，中间打时两边塞
@@ -7119,7 +7773,7 @@
     const strong = act >= 3 ? act3Strong : act >= 2 ? act2Strong : act1Strong;
     const f = G.floor || 1;
     const pool = f <= 3 ? weak : f <= 8 ? weak.concat(strong) : strong;
-    return pool[Math.floor(Math.random() * pool.length)]();
+    return pool[Math.floor(rng() * pool.length)]();
   }
 
   function makeEnemy(id) {
@@ -7247,6 +7901,8 @@
     combat.player.burst = 0;
     combat.player.echoUsed = false;
     combat.player.retainHand = false;
+    // 赫神：累计本回合出牌数到总出牌数（供 sudo rm -rf 判断）
+    combat._totalCardsPlayed = (combat._totalCardsPlayed || 0) + (combat.cardsPlayedThisTurn || 0);
     combat.cardsPlayedThisTurn = 0;
     if (combat.player.nextPhantasmal) {
       combat.player.phantasmal = true;
@@ -7299,6 +7955,79 @@
         else combat.discard.push(m);
       }
       log('圣润水：获得 3 张神恩');
+    }
+    // 根权限：战斗开始时弹窗选择权限牌
+    if (first && G.relics.includes('root_access')) {
+      choosing = true;
+      showModal(`
+        <h2>🔱 根权限</h2>
+        <p>选择一张权限牌加入手牌（0 费，消耗）：</p>
+        <div class="modal-actions" style="flex-direction:column;gap:8px">
+          <button class="btn" id="ra-delete" style="background:linear-gradient(180deg,#5a0000,#3a0000)">
+            🔴 DELETE — 对一名敌人造成 60 点伤害
+          </button>
+          <button class="btn teal" id="ra-patch">
+            🔵 PATCH — 获得 30 格挡 + 回 2 能量
+          </button>
+          <button class="btn ghost" id="ra-override" style="border-color:#c8a020;color:#c8a020">
+            🟡 OVERRIDE — 本回合所有牌费用 -1
+          </button>
+        </div>`);
+      const pick = (cardId) => {
+        hideModal();
+        choosing = false;
+        const c = mkCard(cardId);
+        c.tempCost = 0;
+        if (combat.hand.length < 10) combat.hand.push(c);
+        else combat.discard.push(c);
+        log(`根权限：选择 ${c.name}`);
+        renderCombat();
+      };
+      $('ra-delete').onclick = () => pick('hs_perm_delete');
+      $('ra-patch').onclick = () => pick('hs_perm_patch');
+      $('ra-override').onclick = () => pick('hs_perm_override');
+    }
+    // 赫神能力：内核恐慌——每回合给所有敌人附加易伤
+    if (!first && combat.player.powers.kernelPanic) {
+      combat.enemies.forEach(e => {
+        if (e.hp > 0) {
+          e.statuses.vuln = (e.statuses.vuln || 0) + combat.player.powers.kernelPanic;
+        }
+      });
+      log(`内核恐慌：所有敌人 +${combat.player.powers.kernelPanic} 层易伤`);
+    }
+    // 赫神能力：全栈权限——每回合开始 +2 力量+2 敏捷，最大能量 -1（下限 3，到 3 后力量敏捷也停止增长）
+    if (!first && combat.player.powers.fullstack) {
+      if (combat.maxEnergy > 3) {
+        combat.maxEnergy--;
+        combat.energy = Math.min(combat.energy, combat.maxEnergy);
+        combat.player.statuses.str = (combat.player.statuses.str || 0) + 2;
+        combat.player.statuses.dex = (combat.player.statuses.dex || 0) + 2;
+        log(`全栈权限：+2 力量，+2 敏捷，能量上限 -1（当前上限 ${combat.maxEnergy}）`);
+      } else {
+        log(`全栈权限：能量上限已至下限 3，力量敏捷不再增长`);
+      }
+    }
+    // 赫神能力：自动化脚本——打出抽牌堆顶 n 张
+    if (!first && combat.player.powers.autoRun) {
+      for (let i = 0; i < combat.player.powers.autoRun; i++) {
+        if (combat.draw.length === 0) {
+          if (combat.discard.length === 0) break;
+          combat.draw = shuffle([...combat.discard]);
+          combat.discard = [];
+        }
+        const top = combat.draw.pop();
+        if (top) {
+          const prevCost = top.cost;
+          top.tempCost = 0;
+          const ctx = makeCtx(top, combat.enemies.find(e => e.hp > 0) || null);
+          if (top.play) top.play(ctx);
+          top.tempCost = prevCost;
+          log(`自动化脚本：打出 ${top.name}`);
+          combat.discard.push(top);
+        }
+      }
+      renderCombat();
     }
     if (combat.player.powers.blasphemyDeath) {
       log('渎神反噬！');
@@ -7365,7 +8094,7 @@
       for (let i = 0; i < combat.player.powers.creativeAI; i++) {
         const pool = Object.values(CARDS).filter(c => c.type === 'power' && c.set === 'doubao');
         if (!pool.length) break;
-        const pick = pool[Math.floor(Math.random() * pool.length)];
+        const pick = pool[Math.floor(rng() * pool.length)];
         const c = mkCard(pick.id);
         if (combat.hand.length < 10) combat.hand.push(c);
         else combat.discard.push(c);
@@ -7376,7 +8105,7 @@
       for (let i = 0; i < combat.player.powers.helloWorld; i++) {
         const pool = Object.values(CARDS).filter(c => c.rarity === 'common' && c.set === 'doubao');
         if (!pool.length) break;
-        const pick = pool[Math.floor(Math.random() * pool.length)];
+        const pick = pool[Math.floor(rng() * pool.length)];
         const c = mkCard(pick.id);
         if (combat.hand.length < 10) combat.hand.push(c);
         else combat.discard.push(c);
@@ -7558,7 +8287,7 @@
     if (combat.player.confused) {
       combat.hand.forEach(c => {
         if (c.unplayable || c.xCost) return;
-        c.tempCost = Math.floor(Math.random() * 4);
+        c.tempCost = Math.floor(rng() * 4);
       });
       log('混乱：手牌耗能已打乱');
     }
@@ -7644,8 +8373,9 @@
 
   function drawCards(n) {
     if (combat.player.noDraw) return;
+    const handLimit = 10 + (combat._heshenHandBonus || 0);
     for (let i = 0; i < n; i++) {
-      if (combat.hand.length >= 10) break;
+      if (combat.hand.length >= handLimit) break;
       if (!combat.draw.length) {
         if (!combat.discard.length) break;
         combat.draw = shuffle(combat.discard);
@@ -7692,6 +8422,8 @@
       toast('缓冲层！');
       return;
     }
+    // 赫神：无敌帧——本回合受到伤害最低为 1
+    if (combat && combat.player.powers.invincibleFrame) amt = Math.min(amt, 1);
     if (G.relics.includes('tungsten') && amt > 0) amt = Math.max(1, amt - 1);
     G.hp -= amt;
     if (combat) combat.player.tookDamageThisTurn = true;
@@ -7699,6 +8431,13 @@
     log(`失去 ${amt} 生命`);
     checkFuse();
     if (G.hp <= 0) {
+      // 赫神：上帝模式——HP 不降至 0
+      if (combat && combat.player.powers.godMode) {
+        G.hp = 1;
+        log('上帝模式：HP 不会归零');
+        toast('🔱 上帝模式！');
+        return;
+      }
       if (tryFairyPotion()) return;
       // 保命虫壳：致命时保留 1 点生命，然后销毁此遗物
       if (G._lifeBeetleActive && G.relics.includes('life_beetle')) {
@@ -7726,7 +8465,7 @@
         && ((c.set || 'loader') === (charSet()))
       );
       if (pool.length && combat.hand.length < 10) {
-        const pick = pool[Math.floor(Math.random() * pool.length)];
+        const pick = pool[Math.floor(rng() * pool.length)];
         const c = mkCard(pick.id);
         combat.hand.push(c);
         log(`枯枝吊牌：获得 ${c.name}`);
@@ -7805,7 +8544,7 @@
   function discardRandomFromHand(n) {
     let left = n;
     while (left > 0 && combat.hand.length) {
-      const idx = Math.floor(Math.random() * combat.hand.length);
+      const idx = Math.floor(rng() * combat.hand.length);
       discardFromHand(combat.hand[idx]);
       left--;
     }
@@ -7916,7 +8655,7 @@
         if (combat.player.powers.juggernaut) {
           const alive = combat.enemies.filter(e => e.hp > 0);
           if (alive.length) {
-            const t = alive[Math.floor(Math.random() * alive.length)];
+            const t = alive[Math.floor(rng() * alive.length)];
             ctx.damageEnemy(t, combat.player.powers.juggernaut);
           }
         }
@@ -8023,6 +8762,8 @@
         // 百夫长护壳：单次攻击伤害不超过 15 点
         if (!ignoreBlock && d > 0 && G.relics.includes('centurion_shell')) d = Math.min(d, 15);
         if ((combat.player.statuses.intangible || 0) > 0 && d > 0) d = 1;
+        // 赫神：无敌帧——受到伤害最低为 1
+        if (combat.player.powers.invincibleFrame && d > 0) d = Math.min(d, 1);
         if (d > 0 && G.relics.includes('tungsten')) d = Math.max(1, d - 1);
         if (d > 0) {
           if (combat.player.powers.buffer) {
@@ -8060,6 +8801,8 @@
         }
         checkFuse();
         if (G.hp <= 0) {
+          // 赫神：上帝模式
+          if (combat.player.powers.godMode) { G.hp = 1; log('上帝模式：HP 不会归零'); toast('🔱 上帝模式！'); return; }
           if (tryFairyPotion()) { /* saved */ }
           else if (G._lifeBeetleActive && G.relics.includes('life_beetle')) {
             G.hp = 1;
@@ -8305,7 +9048,18 @@
     combat.cardsPlayedThisTurn = (combat.cardsPlayedThisTurn || 0) + 1;
     const isFirstCard = combat.cardsPlayedThisTurn === 1;
 
-    // 天鹅绒港号：单回合出牌数不超过 6 张（检测超限）
+    // 赫神：权限积分（每打出技能/能力牌+1）
+    if (G.character === 'heshen' && (card.type === 'skill' || card.type === 'power')) {
+      combat._heshenPermScore = (combat._heshenPermScore || 0) + 1;
+      if (combat._heshenPermScore >= 5) {
+        combat._heshenPermScore -= 5;
+        combat.energy = combat.maxEnergy;
+        const ctxPerm = makeCtx(card, null);
+        ctxPerm.forEachEnemy(e => ctxPerm.damageEnemy(e, 10));
+        log('🔱 权限升级！能量回满，全场 10 伤害');
+        toast('🔱 权限升级！');
+      }
+    }
     if (G.relics.includes('velvet_collar') && combat.cardsPlayedThisTurn > 6) {
       // 不阻止本张（已在打出前检测），仅标记后续手牌为不可打
       combat._velvetLimited = true;
@@ -8409,6 +9163,13 @@
       }
     }
 
+    // 赫神：overflow——每打出一张牌获得能量并失去 HP
+    if (combat.player.powers.overflowMode) {
+      combat.energy += combat.player.powers.overflowMode;
+      loseHpDirect(5);
+      log(`overflow：+${combat.player.powers.overflowMode} 能量，-5 HP`);
+    }
+
     if (card.type === 'attack' && (combat.player.doubleTap > 0 || combat.player.phantasmal)) {
       if (combat.player.doubleTap > 0) combat.player.doubleTap--;
       if (target && target.hp > 0) {
@@ -8436,7 +9197,7 @@
     }
 
     let exhaust = card.exhaust || (combat.player.powers.corruption && card.type === 'skill');
-    if (exhaust && G.relics.includes('strange_spoon') && Math.random() < 0.5) {
+    if (exhaust && G.relics.includes('strange_spoon') && rng() < 0.5) {
       exhaust = false;
       log('怪勺：本该消耗的牌进入弃牌堆');
     }
@@ -8657,6 +9418,25 @@
       combat.player.statuses.regen--;
       if (combat.player.statuses.regen <= 0) delete combat.player.statuses.regen;
     }
+    // 赫神：摸鱼.exe——回合结束回复 HP，下回合多抽
+    if (combat.player.powers.moyuExe) {
+      const stacks = combat.player.powers.moyuExe;
+      const healAmt = stacks >= 2 ? 9 : 6; // 升级后叠层2给9HP
+      const drawBonus = stacks;
+      const before = G.hp;
+      G.hp = Math.min(G.maxHp, G.hp + healAmt);
+      if (G.hp > before) log(`摸鱼.exe：回复 ${G.hp - before} HP`);
+      combat.player.nextDrawBonus = (combat.player.nextDrawBonus || 0) + drawBonus;
+      log(`摸鱼.exe：下回合多抽 ${drawBonus} 张`);
+    }
+    // 赫神：无敌帧——重置
+    if (combat.player.powers.invincibleFrame) delete combat.player.powers.invincibleFrame;
+    // 赫神：overflowMode——仅本回合生效
+    if (combat.player.powers.overflowMode) delete combat.player.powers.overflowMode;
+    // 赫神：overrideActive——仅本回合生效
+    if (combat.player.powers.overrideActive) {
+      delete combat.player.powers.overrideActive;
+    }
     // 速战冲剂临时敏捷回落
     if (combat.player.tempDexLose) {
       combat.player.statuses.dex = (combat.player.statuses.dex || 0) - combat.player.tempDexLose;
@@ -8739,6 +9519,13 @@
   function executeIntent(e, intentOpt) {
     const intent = intentOpt || e.intent;
     if (!intent) return;
+    // 眩晕：跳过本回合行动，消耗一层
+    if (!intentOpt && (e.statuses.stun || 0) > 0) {
+      e.statuses.stun--;
+      if (e.statuses.stun <= 0) delete e.statuses.stun;
+      log(`${e.name} 处于眩晕状态，跳过行动`);
+      return;
+    }
     const str = e.statuses.str || 0;
     if (intent.type === 'multi' && intent.parts) {
       intent.parts.forEach(p => executeIntent(e, p));
@@ -8869,6 +9656,20 @@
     // 撤离烟雾弹：非Boss战斗时显示逃跑按钮
     const bombBtn = $('btn-smoke-bomb');
     if (bombBtn) bombBtn.style.display = (G.relics.includes('smoke_bomb') && combat.tier !== 'boss') ? '' : 'none';
+    // 赫神权限积分
+    const permBar = $('perm-score-bar');
+    const permPips = $('perm-pips');
+    if (permBar && permPips) {
+      if (G.character === 'heshen') {
+        permBar.classList.add('show');
+        const score = combat._heshenPermScore || 0;
+        permPips.innerHTML = Array.from({length: 5}, (_, i) =>
+          `<div class="perm-pip${i < score ? ' lit' : ''}" title="${score}/5 → 满5自动触发"></div>`
+        ).join('');
+      } else {
+        permBar.classList.remove('show');
+      }
+    }
   }
 
   function renderStatuses(el, unit) {
@@ -9054,7 +9855,7 @@
 
   function victory() {
     let gold = combat.tier === 'boss' ? 80 : combat.tier === 'elite' ? 40 : 18;
-    gold += Math.floor(Math.random() * 10);
+    gold += Math.floor(rng() * 10);
     if (G.relics.includes('magnet')) gold += 15;
     // 招财工蛙：获得金币时额外 +25%
     if (G.relics.includes('gold_toad')) gold = Math.floor(gold * 1.25);
@@ -9094,7 +9895,7 @@
     // 白狐工装面具：战斗胜利后必定掉落药水
     if (G.relics.includes('white_mask') && potionFreeSlot() >= 0) {
       addPotion(rollPotion().id);
-      toast('白狐工装面具：获得一瓶药水！');
+      toast('白象方便面：获得一瓶药水！');
     }
 
     // 黑星吊坠：精英死亡额外掉落 1 个遗物（先于普通流程执行，加入待掉遗物标记）
@@ -9113,7 +9914,7 @@
     if (G._mushroomEliteReward && combat.tier === 'elite') {
       G._mushroomEliteReward = false;
       const rarePool = availableRelics({ rarity: 'rare', noClipboard: true });
-      const bonusRel = rarePool.length ? rarePool[Math.floor(Math.random() * rarePool.length)] : null;
+      const bonusRel = rarePool.length ? rarePool[Math.floor(rng() * rarePool.length)] : null;
       if (bonusRel) {
         grantRelic(bonusRel.id);
         toast(`史莱姆之战：保证稀有遗物 ${bonusRel.icon} ${bonusRel.name}！`);
@@ -9123,12 +9924,12 @@
     // 工区混混团：精英战胜利后给大量金币 + 遗物
     if (G._goonsFightReward && combat.tier === 'elite') {
       G._goonsFightReward = false;
-      const bonusGold = 100 + Math.floor(Math.random() * 51);
+      const bonusGold = 100 + Math.floor(rng() * 51);
       grantGold(bonusGold);
       gold += bonusGold;
       toast(`击退混混！额外 +${bonusGold} 金币`);
       const maskPool = availableRelics({ noClipboard: true });
-      const maskRel = maskPool.length ? maskPool[Math.floor(Math.random() * maskPool.length)] : null;
+      const maskRel = maskPool.length ? maskPool[Math.floor(rng() * maskPool.length)] : null;
       if (maskRel) {
         grantRelic(maskRel.id);
         toast(`还获得了遗物 ${maskRel.icon} ${maskRel.name}`);
@@ -9139,7 +9940,7 @@
       if (G._mindBloomReward) {
         G._mindBloomReward = false;
         const pool = availableRelics({ noClipboard: true });
-        const relic = pool.length ? pool[Math.floor(Math.random() * pool.length)] : null;
+        const relic = pool.length ? pool[Math.floor(rng() * pool.length)] : null;
         showModal(`
           <h2>心花幻战胜利</h2>
           <p>${combat.bossName || '幻影'}消散。获得 ${gold} 金币${relic ? `与遗物 ${relic.icon} ${relic.name}` : ''}。</p>
@@ -9176,8 +9977,10 @@
         <div class="card-pick" id="reward-cards"></div>
         <div class="modal-actions">
           ${combat.tier === 'elite' ? '<button class="btn teal" id="m-relic">领取遗物</button>' : ''}
+          <button class="btn ghost btn-peek-map">🗺 查看地图</button>
           <button class="btn ghost" id="m-skip">${skipLabel}</button>
         </div>`);
+      injectPeekBtn($('modal'));
       const box = $('reward-cards');
       picksToShow.forEach(c => {
         const el = cardEl(c);
@@ -9235,21 +10038,27 @@
       if (tier === 'boss') {
         rarity = 'rare';
       } else {
-        // 皮带机制：当前金牌概率 = 基础 + rareCardCounter
-        const rareBonus = noCounter ? 0 : (G.rareCardCounter || -5);
+        // 皮带机制：当前金牌概率 = 基础 + rareCardCounter（上限 +40%）
+        const rareBonus = noCounter ? 0 : Math.min(40, G.rareCardCounter || -5);
         // 恩洛斯礼物：下次卡牌奖励稀有度大幅提升
         const nlothBoost = (!noCounter && G.nlothGift) ? 50 : 0;
         if (!noCounter && G.nlothGift) { G.nlothGift = false; }
         let rareChance, uncommonChance, commonChance;
         if (tier === 'elite') {
+          // 精英：金10% 蓝40% 白50%
           rareChance     = Math.max(0, 10 + rareBonus + nlothBoost);
-          uncommonChance = 90;
-          commonChance   = 0;
-        } else {
-          // 普通怪基础 0%（counter=-5 时实际为负，保底为0）；商店/事件 rareBonus=0 → 0%
-          rareChance     = Math.max(0, 0 + rareBonus + nlothBoost);
+          uncommonChance = 40;
+          commonChance   = 50;
+        } else if (tier === 'shop') {
+          // 商店：金9% 蓝37% 白54%（不受counter影响）
+          rareChance     = 9;
           uncommonChance = 37;
-          commonChance   = 63;
+          commonChance   = 54;
+        } else {
+          // 普通怪：金3% 蓝37% 白60%（基准3% + counter偏移）
+          rareChance     = Math.max(0, 3 + rareBonus + nlothBoost);
+          uncommonChance = 37;
+          commonChance   = 60;
         }
         const total = commonChance + uncommonChance + rareChance;
         const r = rng() * total;
@@ -9261,13 +10070,15 @@
           rarity = 'common';
         }
 
-        // 皮带更新（商店/事件不计入）
+        // 皮带更新（商店不计入）
         if (!noCounter) {
           if (rarity === 'rare') {
-            G.rareCardCounter = -5;
-          } else {
-            G.rareCardCounter = (G.rareCardCounter || -5) + 1;
+            G.rareCardCounter = -5;  // 出金卡：重置
+          } else if (rarity === 'common') {
+            // 只有出白卡才涨计数器
+            G.rareCardCounter = Math.min(40, (G.rareCardCounter || -5) + 1);
           }
+          // 出蓝卡不影响计数器
         }
       }
 
@@ -9465,33 +10276,100 @@
 
   function offerBossRewards(bossName, gold, onDone) {
     const picks = rollCardRewards('boss');
-    // Boss 专属遗物池，池空则降级到加权池
+    // Boss 专属遗物池 3 选 1，池空则降级到加权池
     let bossPool = availableRelics({ rarity: 'boss' });
-    const relic = bossPool.length ? bossPool[rngInt(bossPool.length)] : pickRelicWeighted({ noClipboard: true });
+    const relicPicks = [];
+    if (bossPool.length) {
+      const shuffled = shuffle(bossPool);
+      relicPicks.push(...shuffled.slice(0, Math.min(3, shuffled.length)));
+    } else {
+      // boss 池空：从加权池里抽最多 3 个不重复
+      const fallback = availableRelics({ noClipboard: true });
+      const shuffled = shuffle(fallback);
+      relicPicks.push(...shuffled.slice(0, Math.min(3, shuffled.length)));
+    }
+
+    const relicHtml = relicPicks.length ? `
+      <p style="margin:10px 0 6px;color:var(--muted);font-size:13px">选择一件遗物：</p>
+      <div id="boss-relics" style="display:flex;gap:12px;justify-content:center;flex-wrap:wrap;margin-bottom:12px">
+        ${relicPicks.map((r, i) => `
+          <div class="boss-relic-opt" data-ri="${i}" style="
+            cursor:pointer;border:2px solid var(--amber);border-radius:10px;
+            padding:12px 16px;background:#1a1a0e;text-align:center;
+            min-width:120px;max-width:160px;transition:background 0.15s">
+            <div style="font-size:28px">${r.icon}</div>
+            <div style="color:var(--amber2);font-weight:700;margin:4px 0">${r.name}</div>
+            <div style="color:var(--muted);font-size:12px;line-height:1.4">${r.desc}</div>
+          </div>`).join('')}
+      </div>` : '';
+
     showModal(`
       <h2>Boss 击破 · ${bossName}</h2>
-      <p>获得 ${gold} 金币。选择一张牌，并收下遗物奖励。</p>
-      ${relic ? `<p style="font-size:22px;margin:8px 0">${relic.icon} <b style="color:var(--amber2)">${relic.name}</b><br><span style="color:var(--muted);font-size:13px">${relic.desc}</span></p>` : ''}
+      <p>获得 ${gold} 金币。选择一件遗物，并选择一张牌加入牌组。</p>
+      ${relicHtml}
       <div class="card-pick" id="boss-cards"></div>
       <div class="modal-actions">
+        <button class="btn ghost btn-peek-map">🗺 查看地图</button>
         <button class="btn ghost" id="m-skip-boss">跳过卡牌</button>
       </div>`);
+    injectPeekBtn($('modal'));
+
+    let chosenRelic = null;
+
+    // 遗物选项点击
+    document.querySelectorAll('.boss-relic-opt').forEach(el => {
+      el.onmouseenter = () => { el.style.background = '#2a2a1a'; };
+      el.onmouseleave = () => { el.style.background = chosenRelic === el ? '#2a2a1a' : '#1a1a0e'; };
+      el.onclick = () => {
+        document.querySelectorAll('.boss-relic-opt').forEach(e => {
+          e.style.background = '#1a1a0e';
+          e.style.borderColor = 'var(--amber)';
+        });
+        el.style.background = '#2a2a1a';
+        el.style.borderColor = '#fff';
+        chosenRelic = relicPicks[+el.dataset.ri];
+      };
+    });
+
+    // 如果只有 1 个遗物，自动选中
+    if (relicPicks.length === 1) {
+      chosenRelic = relicPicks[0];
+      const firstEl = document.querySelector('.boss-relic-opt');
+      if (firstEl) { firstEl.style.borderColor = '#fff'; firstEl.style.background = '#2a2a1a'; }
+    }
+
     const finish = () => {
-      if (relic) grantRelic(relic.id);
+      if (chosenRelic) {
+        grantRelic(chosenRelic.id);
+        toast(`获得遗物：${chosenRelic.icon} ${chosenRelic.name}`);
+      } else if (relicPicks.length) {
+        toast('未选择遗物');
+      }
       hideModal();
       onDone();
     };
+
     const box = $('boss-cards');
     picks.forEach(c => {
       const el = cardEl(c);
       el.onclick = () => {
+        if (relicPicks.length && !chosenRelic) {
+          toast('请先选择一件遗物！');
+          return;
+        }
         addCardToDeck(c.baseId);
         toast(`获得：${c.name}`);
         finish();
       };
       box.appendChild(el);
     });
-    $('m-skip-boss').onclick = finish;
+    $('m-skip-boss').onclick = () => {
+      if (relicPicks.length && !chosenRelic) {
+        toast('请先选择一件遗物！');
+        return;
+      }
+      finish();
+    };
   }
 
   function beginNextAct() {
@@ -10187,6 +11065,11 @@
       gamblerChipOffer();
       return true;
     }
+    // 战斗开局存档（hand 为空、draw 有牌）：重新触发第一回合摸牌而非直接渲染空手
+    if (combat.hand.length === 0 && combat.draw.length > 0 && combat.turn === 1) {
+      startPlayerTurn(true);
+      return true;
+    }
     renderCombat();
     return true;
   }
@@ -10194,18 +11077,18 @@
   function showHowTo() {
     showModal(`
       <h2>玩法说明</h2>
-      <p style="text-align:left;line-height:1.7;max-width:520px;margin:0 auto 16px">
-        · <b style="color:var(--amber2)">货手</b>：力量 / 消耗 / 易伤。<br>
-        · <b style="color:var(--teal2)">女员工</b>：黑料 / 弃牌 / 回形针。<br>
-        · <b style="color:#8fd4f0">豆包</b>：能球（电球/冰球/黑球/离子球）旁显示数值；集中 / 激发。<br>
-        · <b style="color:#d4b0ff">天后</b>：静姿（离场+2 能量）/ 怒姿（攻击与受伤×2）/ 神姿（攻击×3，真言满 10 进入）。<br>
-        · <b>地图</b>：共三层；第 9 层宝箱；Boss 前可休息。<br>
-        · <b>❓ 事件</b>：货箱奖励可选择不拿。<br>
-        · <b>药水</b>：最多持有 3 瓶；战斗中掉落，商店也有售。<br>
-        · <b>牌组</b>：地图、战斗、弹窗时均可点「牌组」查看；战斗中可点抽牌堆/弃牌堆。<br>
-        · <b>重来</b>：进战斗/火堆/商店/事件/货箱自动存点，L 键回到刚进门。<br>
-        · 刷新页面即重开。<br>
-        · E 结束回合 · L 重来 · Esc 取消选目标。
+      <p style="text-align:left;line-height:1.8;max-width:520px;margin:0 auto 16px;font-size:13px">
+        · <b style="color:var(--amber2)">货手</b>：力量 / 消耗 / 易伤<br>
+        · <b style="color:var(--teal2)">女员工</b>：黑料 / 弃牌 / 回形针<br>
+        · <b style="color:#8fd4f0">豆包</b>：能球（电/冰/黑/离子）· 集中 / 激发<br>
+        · <b style="color:#d4b0ff">天后</b>：静姿（离场+2能量）· 怒姿（攻击受伤×2）· 神姿（真言满10进入，攻击×3）<br>
+        · <b style="color:#ffc840">赫神</b>：5能量 7摸牌 · 遗物「根权限」开战选权限牌（DELETE/PATCH/OVERRIDE）· 每打出技能/能力牌获得1点<b style="color:#e8a030">权限积分</b>，满5触发权限升级：能量回满+全场10伤害<br>
+      </p>
+      <p style="text-align:left;line-height:1.7;max-width:520px;margin:0 auto 16px;font-size:13px;border-top:1px solid var(--line);padding-top:12px">
+        · <b>权限值说明</b>：<span style="color:#ffc840">DELETE</span> 单体60伤，<span style="color:#4ec9a0">PATCH</span> 格挡30+回能2，<span style="color:#b07be8">OVERRIDE</span> 本回合所有牌费用-1 · 均0费消耗<br>
+        · <b>地图</b>：三层 · 第9层宝箱 · Boss前必有火堆<br>
+        · <b>重来</b>：进房间自动存档，L 键回到刚进门那一刻<br>
+        · E 结束回合 · L 重来 · Esc 取消选目标 · 刷新页面重开
       </p>
       <div class="modal-actions"><button class="btn" id="m-close">知道了</button></div>`);
     $('m-close').onclick = hideModal;
@@ -10319,8 +11202,10 @@
       </div>
       <div class="modal-actions">
         <button class="btn" id="m-quick-shop" style="background:linear-gradient(180deg,#3a2814,#221808)">重来</button>
+        <button class="btn ghost btn-peek-map">🗺 查看地图</button>
         <button class="btn teal" id="m-leave">离开商店</button>
       </div>`);
+    injectPeekBtn($('modal'));
     if (shopJustOpened) writeCheckpoint('shop');
 
     // ── 遗物区域 ──
@@ -10664,30 +11549,23 @@
     });
   }
 
-  function refreshDeckFab() {
-    const fab = $('btn-deck-fab');
-    if (!fab) return;
-    const onTitle = $('screen-title') && $('screen-title').classList.contains('active');
-    fab.classList.toggle('show', !!G && !onTitle);
-  }
-
   function beginRun(charId) {
     clearQuickSave();
     newRun(charId);
     showScreen('map');
     renderMap();
-    refreshDeckFab();
   }
 
   if ($('pick-loader')) $('pick-loader').onclick = () => beginRun('loader');
   if ($('pick-clerk')) $('pick-clerk').onclick = () => beginRun('clerk');
   if ($('pick-doubao')) $('pick-doubao').onclick = () => beginRun('doubao');
   if ($('pick-tianhou')) $('pick-tianhou').onclick = () => beginRun('tianhou');
+  if ($('pick-heshen')) $('pick-heshen').onclick = () => beginRun('heshen');
   $('btn-howto').onclick = showHowTo;
   $('btn-end-turn').onclick = endTurn;
   $('btn-view-deck').onclick = viewDeck;
+  if ($('btn-peek-back')) $('btn-peek-back').onclick = peekMapBack;
   if ($('btn-combat-deck')) $('btn-combat-deck').onclick = viewDeck;
-  if ($('btn-deck-fab')) $('btn-deck-fab').onclick = viewDeck;
   if ($('btn-view-draw')) $('btn-view-draw').onclick = () => viewCombatPile('draw');
   if ($('btn-view-discard')) $('btn-view-discard').onclick = () => viewCombatPile('discard');
   if ($('btn-map-load')) $('btn-map-load').onclick = () => {
@@ -10707,7 +11585,6 @@
     setTimeout(() => { hideModal(); showScreen('map'); renderMap(); }, 400);
   };
   refreshLoadButton();
-  refreshDeckFab();
 
   document.addEventListener('keydown', (e) => {
     if (e.ctrlKey || e.metaKey || e.altKey) return;
