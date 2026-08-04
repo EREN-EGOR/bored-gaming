@@ -1,0 +1,5066 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+<meta charset="UTF-8">
+<title>守望先锋：智械危机</title>
+<style>
+/* ── 全局 ── */
+*{margin:0;padding:0;box-sizing:border-box}
+body{background:#000;overflow:hidden;font-family:'Courier New',monospace;user-select:none}
+#c{display:block;width:100vw;height:100vh;cursor:none}
+#ui{position:fixed;inset:0;pointer-events:none;color:#fff}
+
+/* ══════════════════════════════════════
+   准心
+══════════════════════════════════════ */
+#xhair{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);width:24px;height:24px;display:none}
+.xh{position:absolute;background:#fff;opacity:.9;transition:all .06s}
+#xh-t{width:2px;height:8px;top:0;left:11px}
+#xh-b{width:2px;height:8px;bottom:0;left:11px}
+#xh-l{width:8px;height:2px;left:0;top:11px}
+#xh-r{width:8px;height:2px;right:0;top:11px}
+#xh-dot{width:3px;height:3px;top:10.5px;left:10.5px;border-radius:50%;background:#f99e1a;opacity:.9;position:absolute}
+/* 扩散时准心张开 */
+.spread #xh-t{top:-5px}.spread #xh-b{bottom:-5px}.spread #xh-l{left:-5px}.spread #xh-r{right:-5px}
+/* 命中闪烁：普通=橙 */
+#xhair.hit .xh{background:#f99e1a;opacity:1;box-shadow:0 0 5px #f99e1a}
+#xhair.hit #xh-dot{background:#fff}
+/* Tactical Visor激活：蓝色准心 */
+#xhair.visor .xh{background:#7ec8e3;box-shadow:0 0 8px #7ec8e3}
+#xhair.visor #xh-dot{background:#7ec8e3}
+
+/* ── 击杀骷髅头（叠在准心上方）── */
+#xhair-skull{
+  position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  font-size:22px;line-height:1;pointer-events:none;
+  display:none;color:#e94560;
+  text-shadow:0 0 8px #e94560;
+  animation:skullpop .55s ease-out forwards}
+@keyframes skullpop{
+  0%  {opacity:0;transform:translate(-50%,-50%) scale(.5)}
+  20% {opacity:1;transform:translate(-50%,-50%) scale(1.25)}
+  60% {opacity:1;transform:translate(-50%,-50%) scale(1)}
+  100%{opacity:0;transform:translate(-50%,-50%) scale(1)}
+}
+
+/* ── 爆头×标记（SVG四条斜线，从中心向四角射出）── */
+#xhair-crit{
+  position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+  width:60px;height:60px;pointer-events:none;display:none;
+  filter:drop-shadow(0 0 3px #e94560)}
+
+/* ══════════════════════════════════════
+   受伤 / 低血量
+══════════════════════════════════════ */
+#pain{position:absolute;inset:0;pointer-events:none;background:rgba(233,69,96,0);transition:background .08s}
+#lowblood{position:absolute;inset:0;pointer-events:none;box-shadow:inset 0 0 0 #e94560;transition:box-shadow .3s}
+/* Biotic Field治疗：绿色内发光 */
+#heal-flash{position:absolute;inset:0;pointer-events:none;box-shadow:inset 0 0 0 #4fc842;transition:box-shadow .4s}
+
+/* ── 竜神剣剑光 ── */
+.blade-slash {
+  position:absolute;pointer-events:none;
+  top:50%;left:50%;
+  width:420px;height:6px;
+  background:linear-gradient(90deg,transparent 0%,#88ffcc 30%,#ffffff 50%,#88ffcc 70%,transparent 100%);
+  box-shadow:0 0 18px 4px #44ff88, 0 0 40px 8px #44ff8866;
+  border-radius:3px;
+  transform-origin:center center;
+  animation:slashFade 0.38s ease-out forwards;
+}
+@keyframes slashFade{
+  0%  {opacity:1;transform:translate(-50%,-50%) scaleX(0.2) rotate(var(--slash-angle));}
+  30% {opacity:1;transform:translate(-50%,-50%) scaleX(1.0) rotate(var(--slash-angle));}
+  100%{opacity:0;transform:translate(-50%,-50%) scaleX(1.1) rotate(var(--slash-angle));}
+}
+
+/* ══════════════════════════════════════
+   左上 — 命数（推车模式：永久隐藏）
+══════════════════════════════════════ */
+#lives{display:none !important}
+
+/* ══════════════════════════════════════
+   上中 — 波次
+══════════════════════════════════════ */
+#wave-hud{position:absolute;top:20px;left:50%;transform:translateX(-50%);text-align:center;display:none}
+#wave-label{font-size:11px;color:#aaa;letter-spacing:4px}
+#wave-num{font-size:30px;font-weight:900;color:#f99e1a;letter-spacing:4px;line-height:1}
+#wave-prog-bg{width:140px;height:4px;background:rgba(255,255,255,.12);border-radius:2px;margin:5px auto 3px}
+#wave-prog-fill{height:4px;background:#f99e1a;border-radius:2px;transition:width .3s;width:0%}
+#wave-kills{font-size:10px;color:#666;letter-spacing:1px}
+#wave-timer{font-size:12px;color:#888;letter-spacing:2px;margin-top:2px}
+#wave-timer.urgent{color:#e94560;animation:pulse .5s infinite}
+
+/* ══════════════════════════════════════
+   上右 — 推车进度
+══════════════════════════════════════ */
+#obj-wrap{position:absolute;top:20px;right:30px;text-align:right;display:none}
+#obj-label{font-size:10px;color:#f99e1a;letter-spacing:3px;margin-bottom:4px}
+#obj-bar{width:200px;height:10px;background:#1a1a1a;border:1px solid #f99e1a44;border-radius:2px;position:relative}
+#obj-fill{height:100%;background:#7ec8e3;width:0%;transition:width .15s;border-radius:2px}
+#obj-cp-b{position:absolute;left:40%;top:0;width:2px;height:100%;background:#fff;opacity:.6}
+#obj-num{font-size:10px;color:#aaa;margin-top:3px;letter-spacing:1px}
+#obj-status{font-size:9px;color:#e94560;letter-spacing:2px;margin-top:2px;display:none;animation:pulse .6s infinite}
+
+/* ══════════════════════════════════════
+   左下 — HP
+══════════════════════════════════════ */
+#hp-wrap{position:absolute;bottom:40px;left:40px;display:none}
+#hp-icon{font-size:22px;margin-bottom:3px}
+#hp-bg{width:180px;height:10px;background:rgba(255,255,255,.1);border-radius:2px}
+#hp-fill{height:10px;background:#4fc842;border-radius:2px;transition:width .12s}
+#hp-num{font-size:13px;color:#aaa;margin-top:3px;letter-spacing:1px}
+
+/* ══════════════════════════════════════
+   右下 — 弹药
+══════════════════════════════════════ */
+#ammo-wrap{position:absolute;bottom:40px;right:40px;text-align:right;display:none}
+#ammo-main{font-size:42px;font-weight:bold;line-height:1}
+#ammo-sep{color:#555;font-size:28px;margin:0 3px}
+#ammo-res{font-size:26px;color:#888}
+#ammo-label{font-size:10px;color:#555;letter-spacing:2px;margin-top:2px}
+#reload-bar{width:0;height:3px;background:#f99e1a;border-radius:2px;margin-top:4px;transition:none}
+#reload-txt{font-size:11px;color:#f99e1a;letter-spacing:3px;margin-top:3px;display:none}
+
+/* ══════════════════════════════════════
+   右中 — 技能（Helix + Biotic）
+══════════════════════════════════════ */
+#skills{position:absolute;bottom:130px;right:40px;display:none;flex-direction:column;gap:10px;align-items:flex-end}
+.sk-row{display:flex;align-items:center;gap:10px}
+.sk-key{font-size:10px;color:#555;letter-spacing:2px}
+.sk-box{
+  width:52px;height:52px;position:relative;
+  display:flex;align-items:center;justify-content:center;
+}
+.sk-box svg{position:absolute;top:0;left:0;transform:rotate(-90deg)}
+.sk-ring-bg{stroke:#222;fill:none;stroke-width:4}
+.sk-ring-fill{fill:none;stroke-width:4;stroke-linecap:round;transition:stroke-dashoffset .05s linear}
+.sk-icon{font-size:20px;position:relative;z-index:1}
+.sk-cd-txt{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+  font-size:10px;font-weight:bold;color:#fff;z-index:1}
+.sk-name{font-size:9px;color:#666;letter-spacing:2px;text-align:right}
+
+/* ══════════════════════════════════════
+   底部中央 — 终极技能（推车模式移到正中间）
+══════════════════════════════════════ */
+#ult-wrap{position:absolute;bottom:32px;left:50%;transform:translateX(-50%);display:none;text-align:center;min-width:120px}
+#ult-label{font-size:10px;color:#aaa;letter-spacing:3px;margin-bottom:6px}
+/* 圆圈容器 */
+#ult-circle{position:relative;width:72px;height:72px;margin:0 auto}
+#ult-circle svg{position:absolute;top:0;left:0;transform:rotate(-90deg)}
+#ult-ring-bg{fill:none;stroke:#1a2a3a;stroke-width:6}
+#ult-ring-fill{fill:none;stroke:#7ec8e3;stroke-width:6;stroke-linecap:round;
+  stroke-dasharray:188.5;stroke-dashoffset:188.5;
+  transition:stroke-dashoffset .12s linear,stroke .2s,filter .2s}
+#ult-ring-fill.ready{stroke:#7ec8e3;filter:drop-shadow(0 0 6px #7ec8e3) drop-shadow(0 0 12px #7ec8e388)}
+/* Q键 + 百分比叠在圆中央 */
+#ult-center{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px}
+#ult-q-key{font-size:11px;font-weight:bold;color:#7ec8e3aa;letter-spacing:1px}
+#ult-pct{font-size:13px;font-weight:bold;color:#7ec8e3;letter-spacing:0}
+/* 充满时闪烁 Q键和百分比 */
+#ult-wrap.ready #ult-q-key{color:#7ec8e3;animation:ultpulse .9s infinite}
+#ult-wrap.ready #ult-pct{color:#fff;text-shadow:0 0 8px #7ec8e3;animation:ultpulse .9s infinite}
+#ult-ready-txt{font-size:10px;color:#7ec8e3;font-weight:bold;letter-spacing:3px;margin-top:6px;display:none;
+  animation:ultpulse .9s infinite}
+@keyframes ultpulse{0%,100%{opacity:1;text-shadow:0 0 8px #7ec8e3}50%{opacity:.4;text-shadow:none}}
+/* 旧的 bar（隐藏，保留 id 防 JS 报错）*/
+#ult-bar-bg,#ult-fill{display:none}
+/* 死亡界面：隐藏"还剩N命"行 */
+#scr-dead .dl{display:none}
+
+/* ══════════════════════════════════════
+   中央 — 技能激活横幅
+══════════════════════════════════════ */
+#skill-banner{position:absolute;top:32%;left:50%;transform:translateX(-50%);
+  font-size:18px;font-weight:bold;letter-spacing:4px;pointer-events:none;
+  opacity:0;transition:opacity .2s;text-shadow:0 0 12px currentColor}
+
+/* ══════════════════════════════════════
+   战术目镜全屏 HUD
+══════════════════════════════════════ */
+
+/* 激活/关闭过渡：整个 visor overlay */
+#visor-overlay{
+  position:absolute;inset:0;pointer-events:none;
+  display:none;opacity:0;
+  transition:opacity .18s ease-out;
+}
+#visor-overlay.active{ opacity:1; }
+
+/* 蓝色扫描线底层 */
+#visor-scanlines{
+  position:absolute;inset:0;
+  background:repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 3px,
+    rgba(30,160,220,.045) 3px,
+    rgba(30,160,220,.045) 4px
+  );
+}
+
+/* 全屏蓝色色调叠加 */
+#visor-tint{
+  position:absolute;inset:0;
+  background:rgba(20,90,160,.13);
+}
+
+/* 滚动扫描光带 */
+#visor-sweep{
+  position:absolute;left:0;right:0;height:3px;
+  background:linear-gradient(90deg,transparent,rgba(126,200,227,.55),transparent);
+  animation:vsweep 2.2s linear infinite;
+  top:0;
+}
+@keyframes vsweep{
+  0%  { top:0;    opacity:0 }
+  5%  { opacity:1 }
+  95% { opacity:1 }
+  100%{ top:100%; opacity:0 }
+}
+
+/* 四角边框装饰 */
+#visor-corners{position:absolute;inset:0;}
+.vc{position:absolute;width:44px;height:44px;}
+.vc::before,.vc::after{
+  content:'';position:absolute;
+  background:#7ec8e3;
+  box-shadow:0 0 6px #7ec8e3;
+}
+/* 横线 */
+.vc::before{height:2px;width:32px;top:0;left:0;}
+/* 竖线 */
+.vc::after {width:2px;height:32px;top:0;left:0;}
+/* 右上 */
+.vc.tr{top:18px;right:18px;transform:rotate(90deg);}
+/* 左下 */
+.vc.bl{bottom:18px;left:18px;transform:rotate(270deg);}
+/* 右下 */
+.vc.br{bottom:18px;right:18px;transform:rotate(180deg);}
+/* 左上默认不旋转 */
+.vc.tl{top:18px;left:18px;}
+
+/* 上方状态栏 */
+#visor-topbar{
+  position:absolute;top:24px;left:50%;transform:translateX(-50%);
+  display:flex;align-items:center;gap:22px;
+  font-size:11px;letter-spacing:3px;color:#7ec8e3cc;
+  text-shadow:0 0 8px #7ec8e3;
+  border:1px solid #7ec8e344;
+  padding:6px 24px;
+  background:rgba(10,30,60,.45);
+}
+#visor-topbar .vt-title{
+  font-size:13px;font-weight:900;color:#7ec8e3;letter-spacing:5px;
+}
+#visor-topbar .vt-timer{
+  font-size:18px;font-weight:bold;color:#fff;
+  text-shadow:0 0 14px #7ec8e3;
+  letter-spacing:2px;
+}
+#visor-topbar .vt-sep{color:#7ec8e344;font-size:16px;}
+
+/* 底部状态栏 */
+#visor-botbar{
+  position:absolute;bottom:24px;left:50%;transform:translateX(-50%);
+  font-size:10px;letter-spacing:5px;color:#7ec8e388;
+  text-shadow:0 0 6px #7ec8e3;
+  border-top:1px solid #7ec8e322;
+  padding-top:5px;
+  display:flex;gap:30px;
+}
+#visor-botbar span{ color:#7ec8e3bb; }
+
+/* 目镜准心（激活时替换普通准心） */
+#visor-reticle{
+  position:absolute;top:50%;left:50%;
+  transform:translate(-50%,-50%);
+  width:64px;height:64px;pointer-events:none;
+}
+#visor-reticle svg{ overflow:visible; }
+
+/* 目标锁定框（每个敌人一个，JS 动态创建） */
+.visor-tgt{
+  position:absolute;pointer-events:none;
+  border:2px solid #e94560;
+  box-shadow:0 0 8px #e9456088,inset 0 0 6px #e9456022;
+  transform:translate(-50%,-50%);
+  transition:border-color .12s,box-shadow .12s;
+}
+/* 四角小标记 */
+.visor-tgt::before,.visor-tgt::after{
+  content:'';position:absolute;
+  width:7px;height:7px;
+  border-color:#e94560;border-style:solid;
+  box-shadow:0 0 4px #e94560;
+}
+.visor-tgt::before{top:-2px;left:-2px;border-width:2px 0 0 2px;}
+.visor-tgt::after {bottom:-2px;right:-2px;border-width:0 2px 2px 0;}
+/* 锁定完成后变橙色 */
+.visor-tgt.locked{
+  border-color:#f99e1a;
+  box-shadow:0 0 12px #f99e1a88,inset 0 0 8px #f99e1a22;
+}
+.visor-tgt.locked::before,.visor-tgt.locked::after{
+  border-color:#f99e1a;box-shadow:0 0 4px #f99e1a;
+}
+/* 距离/名称标签 */
+.visor-tgt-label{
+  position:absolute;top:calc(100% + 3px);left:50%;transform:translateX(-50%);
+  font-size:9px;letter-spacing:2px;color:#e94560cc;
+  white-space:nowrap;text-shadow:0 0 6px #e94560;
+  font-family:'Courier New',monospace;
+}
+.visor-tgt.locked .visor-tgt-label{ color:#f99e1acc;text-shadow:0 0 6px #f99e1a; }
+
+/* 锁定框收缩入场动画 */
+@keyframes tgtIn{
+  0%  { transform:translate(-50%,-50%) scale(1.8); opacity:0 }
+  100%{ transform:translate(-50%,-50%) scale(1);   opacity:1 }
+}
+.visor-tgt{ animation:tgtIn .18s ease-out forwards; }
+
+/* Tactical Visor激活提示（已被新 HUD 取代，隐藏旧元素） */
+#visor-active{display:none !important;}
+#visor-timer{display:none;}
+
+/* Biotic Field提示 */
+#biotic-banner{position:absolute;top:56%;left:50%;transform:translateX(-50%);
+  color:#4fc842;font-size:13px;font-weight:bold;letter-spacing:3px;
+  text-shadow:0 0 12px #4fc842;display:none;pointer-events:none}
+
+/* 疾跑提示 */
+#sprint-banner{position:absolute;bottom:160px;left:40px;
+  color:#7ec8e3;font-size:11px;font-weight:bold;letter-spacing:3px;display:none;pointer-events:none}
+
+/* ══════════════════════════════════════
+   波次公告（大字居中）
+══════════════════════════════════════ */
+#wave-ann{position:absolute;top:36%;left:50%;transform:translate(-50%,-50%);
+  text-align:center;pointer-events:none;opacity:0;transition:opacity .15s}
+#wave-ann .wl{font-size:13px;color:#7ec8e3;letter-spacing:8px;text-transform:uppercase}
+#wave-ann .wn{font-size:80px;font-weight:900;color:#fff;text-shadow:0 0 40px #7ec8e344;line-height:1}
+
+/* ══════════════════════════════════════
+   伤害数字飘字
+══════════════════════════════════════ */
+.dmgnum{position:absolute;font-size:18px;font-weight:bold;color:#ff6644;
+  pointer-events:none;text-shadow:1px 1px 2px #000;
+  animation:floatup .8s ease-out forwards}
+.dmgnum.crit{color:#ffd700;font-size:22px;text-shadow:0 0 8px #ffd700,1px 1px 2px #000}
+@keyframes floatup{0%{opacity:1;transform:translateY(0)}100%{opacity:0;transform:translateY(-52px)}}
+
+/* 击杀横幅 */
+.kill-banner{position:absolute;top:38%;left:50%;transform:translateX(-50%);
+  font-size:18px;font-weight:bold;color:#f99e1a;letter-spacing:3px;
+  text-shadow:0 0 12px #f99e1a;pointer-events:none;
+  animation:killpop .9s ease-out forwards}
+@keyframes killpop{
+  0%{opacity:0;transform:translateX(-50%) scale(.7)}
+  18%{opacity:1;transform:translateX(-50%) scale(1.05)}
+  72%{opacity:1;transform:translateX(-50%) scale(1)}
+  100%{opacity:0;transform:translateX(-50%) translateY(-16px)}
+}
+
+/* ══════════════════════════════════════
+   OVERLAYS（标题 / 选角 / 暂停 / 死亡 / 结束）
+══════════════════════════════════════ */
+.ov{position:absolute;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;z-index:30;pointer-events:all}
+
+/* ── 标题 ── */
+#scr-title{background:linear-gradient(180deg,#060912 0%,#0d1420 60%,#111827 100%)}
+#scr-title .logo{
+  font-family:'Courier New',monospace;
+  font-size:58px;font-weight:900;letter-spacing:8px;color:#f99e1a;
+  text-shadow:0 0 60px #f99e1a88,0 0 20px #f99e1a44;
+  text-transform:uppercase;margin-bottom:4px}
+#scr-title .sub{
+  font-size:20px;letter-spacing:14px;color:#7ec8e3;
+  text-transform:uppercase;margin-bottom:10px;opacity:.85}
+#scr-title .tagline{font-size:12px;color:#444;letter-spacing:4px;margin-bottom:60px}
+/* 标题装饰线 */
+#scr-title .deco{
+  width:280px;height:1px;background:linear-gradient(90deg,transparent,#f99e1a,transparent);
+  margin:12px auto 48px}
+
+/* ── 选角 ── */
+#scr-hero{background:#060912}
+#scr-hero h2{color:#f99e1a;font-size:22px;letter-spacing:8px;text-transform:uppercase;margin-bottom:8px}
+#scr-hero .hero-sub{font-size:11px;color:#444;letter-spacing:4px;margin-bottom:32px}
+/* 角色卡片网格 */
+#hero-grid{display:flex;gap:14px;flex-wrap:wrap;justify-content:center;max-width:900px;margin-bottom:28px}
+.hcard{
+  width:136px;height:176px;border:2px solid #1e2330;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;justify-content:flex-end;
+  padding-bottom:14px;position:relative;overflow:hidden;
+  transition:border-color .18s,transform .18s,box-shadow .18s;
+  background:#0a0e18}
+.hcard.locked{opacity:.28;cursor:not-allowed;filter:grayscale(1)}
+.hcard:not(.locked):hover{border-color:#f99e1a;transform:translateY(-5px);box-shadow:0 10px 28px #f99e1a33}
+.hcard.sel{border-color:#f99e1a;box-shadow:0 0 24px #f99e1a66}
+.hcard canvas{position:absolute;top:0;left:0}
+.hcard .hname{color:#fff;font-size:11px;font-weight:700;letter-spacing:1px;text-align:center;position:relative;z-index:1}
+.hcard .hrole{font-size:9px;margin-top:2px;position:relative;z-index:1;letter-spacing:1px}
+.hrole.damage{color:#e94560}.hrole.support{color:#4fc842}.hrole.tank{color:#7ec8e3}
+.hcard .hlock{position:absolute;top:7px;right:7px;font-size:14px;color:#333}
+.hcard .hsel-mark{position:absolute;bottom:0;left:0;right:0;height:2px;background:#f99e1a;
+  transform:scaleX(0);transition:transform .18s}
+.hcard.sel .hsel-mark{transform:scaleX(1)}
+/* 英雄描述 */
+#hero-desc{height:28px;color:#666;font-size:12px;letter-spacing:2px;
+  margin-bottom:20px;font-style:italic;text-align:center;transition:opacity .2s}
+/* 确认按钮 */
+#confirm-btn{
+  padding:13px 64px;background:#f99e1a;color:#000;border:none;
+  font-size:15px;font-weight:700;letter-spacing:5px;cursor:pointer;
+  font-family:'Courier New',monospace;
+  clip-path:polygon(8px 0,100% 0,calc(100% - 8px) 100%,0 100%);
+  transition:background .15s,transform .1s}
+#confirm-btn:hover{background:#fff;transform:scale(1.04)}
+#confirm-btn:disabled{background:#222;color:#444;cursor:default;transform:none}
+
+/* ── 暂停 ── */
+#scr-pause{background:rgba(0,0,0,.82);display:none}
+#scr-pause h1{font-size:40px;letter-spacing:8px;color:#f99e1a;margin-bottom:28px}
+#pause-stats{color:#aaa;font-size:15px;line-height:2.4;text-align:center;margin-bottom:28px}
+#pause-stats span{color:#fff;font-weight:bold}
+#pause-stats .plbl{color:#444;font-size:10px;letter-spacing:2px;display:block}
+.pause-btns{display:flex;gap:14px}
+.pause-btns button{
+  padding:11px 32px;border:none;font-size:14px;letter-spacing:3px;cursor:pointer;
+  font-family:'Courier New',monospace}
+#resumeBtn{background:#f99e1a;color:#000}
+#resumeBtn:hover{background:#fff}
+#pause-restartBtn{background:#222;color:#aaa}
+#pause-restartBtn:hover{background:#333;color:#fff}
+
+/* ── 死亡 ── */
+#scr-dead{background:rgba(0,0,0,.85);display:none}
+#scr-dead .dt{color:#e94560;font-size:52px;font-weight:900;letter-spacing:5px;
+  text-shadow:0 0 40px #e94560;animation:pulse 1s infinite}
+#scr-dead .ds{color:#666;font-size:14px;letter-spacing:4px;margin-top:12px}
+#scr-dead .dc{color:#fff;font-size:56px;font-weight:700;margin-top:10px;letter-spacing:2px}
+#scr-dead .dl{color:#444;font-size:12px;letter-spacing:3px;margin-top:6px}
+
+/* ── 游戏结束 ── */
+#scr-end{background:rgba(0,0,0,.9);display:none}
+#scr-end h2{font-size:52px;font-weight:900;letter-spacing:4px;margin-bottom:10px}
+#scr-end.win h2{color:#f99e1a;text-shadow:0 0 40px #f99e1a66}
+#scr-end.lose h2{color:#e94560;text-shadow:0 0 40px #e9456066}
+#scr-end .esub{color:#666;font-size:15px;margin-bottom:10px;letter-spacing:2px}
+#end-stats{color:#aaa;font-size:14px;line-height:2.2;text-align:center;margin-bottom:36px}
+#end-stats span{color:#fff;font-weight:bold}
+
+/* ── 通用按钮 ── */
+.ow-btn{
+  background:#f99e1a;color:#000;font-size:15px;font-weight:700;
+  padding:12px 48px;border:none;cursor:pointer;
+  letter-spacing:4px;text-transform:uppercase;
+  font-family:'Courier New',monospace;
+  clip-path:polygon(8px 0,100% 0,calc(100% - 8px) 100%,0 100%);
+  transition:background .15s,transform .1s}
+.ow-btn:hover{background:#fff;transform:scale(1.04)}
+
+/* ══════════════════════════════════════
+   动画
+══════════════════════════════════════ */
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.4}}
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+
+<!-- ══ UI 层 ══ -->
+<div id="ui">
+
+  <!-- 受伤 / 低血 / 治疗 -->
+  <div id="pain"></div>
+  <div id="lowblood"></div>
+  <div id="heal-flash"></div>
+
+  <!-- ── 左上：命数 ── -->
+  <div id="lives" style="display:none;position:absolute;top:20px;left:30px;display:flex;gap:8px">
+    <div class="life" id="lf0"></div>
+    <div class="life" id="lf1"></div>
+    <div class="life" id="lf2"></div>
+  </div>
+
+  <!-- ── 上中：波次 ── -->
+  <div id="wave-hud">
+    <div id="wave-label">WAVE</div>
+    <div id="wave-num">—</div>
+    <div id="wave-prog-bg"><div id="wave-prog-fill"></div></div>
+    <div id="wave-kills">0 / 0 killed</div>
+    <div id="wave-timer"></div>
+  </div>
+
+  <!-- ── 上右：目标点 ── -->
+  <div id="obj-wrap">
+    <div id="obj-label">PAYLOAD</div>
+    <div id="obj-bar">
+      <div id="obj-fill"></div>
+      <div id="obj-cp-b"></div>
+    </div>
+    <div id="obj-num">A ──── B ──── C</div>
+    <div id="obj-status">⛔ CONTESTED</div>
+  </div>
+
+  <!-- ── 左下：HP ── -->
+  <div id="hp-wrap">
+    <div id="hp-icon">❤️</div>
+    <div id="hp-bg"><div id="hp-fill" style="width:100%"></div></div>
+    <div id="hp-num">250 / 250</div>
+  </div>
+
+  <!-- ── 右下：弹药 ── -->
+  <div id="ammo-wrap">
+    <div>
+      <span id="ammo-main">30</span>
+      <span id="ammo-sep">/</span>
+      <span id="ammo-res">120</span>
+    </div>
+    <div id="ammo-label">AMMO</div>
+    <div id="reload-bar"></div>
+    <div id="reload-txt">RELOADING</div>
+  </div>
+
+  <!-- ── 右中：技能冷却 ── -->
+  <div id="skills" style="display:none">
+    <!-- Helix 火箭弹 -->
+    <div class="sk-row">
+      <div>
+        <div class="sk-name">HELIX ROCKETS</div>
+        <div class="sk-name" style="color:#555">[RMB]</div>
+      </div>
+      <div class="sk-box">
+        <svg width="52" height="52" viewBox="0 0 52 52">
+          <circle class="sk-ring-bg" cx="26" cy="26" r="22"/>
+          <circle id="helix-ring" class="sk-ring-fill" cx="26" cy="26" r="22"
+            stroke="#f99e1a" stroke-dasharray="138.2" stroke-dashoffset="0"/>
+        </svg>
+        <div class="sk-icon">🚀</div>
+        <div class="sk-cd-txt" id="helix-cd"></div>
+      </div>
+    </div>
+    <!-- Biotic Field -->
+    <div class="sk-row">
+      <div>
+        <div class="sk-name">BIOTIC FIELD</div>
+        <div class="sk-name" style="color:#555">[E]</div>
+      </div>
+      <div class="sk-box">
+        <svg width="52" height="52" viewBox="0 0 52 52">
+          <circle class="sk-ring-bg" cx="26" cy="26" r="22"/>
+          <circle id="biotic-ring" class="sk-ring-fill" cx="26" cy="26" r="22"
+            stroke="#4fc842" stroke-dasharray="138.2" stroke-dashoffset="0"/>
+        </svg>
+        <div class="sk-icon">➕</div>
+        <div class="sk-cd-txt" id="biotic-cd"></div>
+      </div>
+    </div>
+    <!-- 近战 -->
+    <div class="sk-row">
+      <div>
+        <div class="sk-name">MELEE</div>
+        <div class="sk-name" style="color:#555">[M4 / F]</div>
+      </div>
+      <div class="sk-box">
+        <svg width="52" height="52" viewBox="0 0 52 52">
+          <circle class="sk-ring-bg" cx="26" cy="26" r="22"/>
+          <circle id="melee-ring" class="sk-ring-fill" cx="26" cy="26" r="22"
+            stroke="#e94560" stroke-dasharray="138.2" stroke-dashoffset="0"/>
+        </svg>
+        <div class="sk-icon">👊</div>
+        <div class="sk-cd-txt" id="melee-cd"></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ── 左中下：终极技能 ── -->
+  <div id="ult-wrap">
+    <div id="ult-label">TACTICAL VISOR</div>
+    <!-- 圆圈进度 -->
+    <div id="ult-circle">
+      <svg width="72" height="72" viewBox="0 0 72 72">
+        <circle id="ult-ring-bg"   cx="36" cy="36" r="30"/>
+        <circle id="ult-ring-fill" cx="36" cy="36" r="30"/>
+      </svg>
+      <div id="ult-center">
+        <div id="ult-q-key">Q</div>
+        <div id="ult-pct">0%</div>
+      </div>
+    </div>
+    <div id="ult-ready-txt">READY</div>
+    <!-- 旧 bar（隐藏，保留 id 防 JS 访问报错）-->
+    <div id="ult-bar-bg"><div id="ult-fill"></div></div>
+  </div>
+
+  <!-- ── 准心 ── -->
+  <div id="xhair">
+    <div class="xh" id="xh-t"></div>
+    <div class="xh" id="xh-b"></div>
+    <div class="xh" id="xh-l"></div>
+    <div class="xh" id="xh-r"></div>
+    <div id="xh-dot"></div>
+  </div>
+
+  <!-- ── 击杀骷髅头 ── -->
+  <div id="xhair-skull">💀</div>
+
+  <!-- ── 爆头斜线×（SVG，四条线从中心向四角射出）── -->
+  <!-- center=30,30；从距中心8px处开始，延伸到27px，线宽3 -->
+  <div id="xhair-crit">
+    <svg width="60" height="60" viewBox="0 0 60 60">
+      <!-- 右下 -->
+      <line x1="35" y1="35" x2="50" y2="50" stroke="#e94560" stroke-width="3" stroke-linecap="round"/>
+      <!-- 左上 -->
+      <line x1="25" y1="25" x2="10" y2="10" stroke="#e94560" stroke-width="3" stroke-linecap="round"/>
+      <!-- 右上 -->
+      <line x1="35" y1="25" x2="50" y2="10" stroke="#e94560" stroke-width="3" stroke-linecap="round"/>
+      <!-- 左下 -->
+      <line x1="25" y1="35" x2="10" y2="50" stroke="#e94560" stroke-width="3" stroke-linecap="round"/>
+    </svg>
+  </div>
+
+  <!-- ── 波次公告 ── -->
+  <div id="wave-ann">
+    <div class="wl">WAVE</div>
+    <div class="wn" id="wann-num">1</div>
+  </div>
+
+  <!-- ── 技能激活横幅 ── -->
+  <div id="skill-banner"></div>
+
+  <!-- ── Tactical Visor激活提示（旧，保留防报错） ── -->
+  <div id="visor-active" style="display:none">
+    <div id="visor-timer"></div>
+  </div>
+
+  <!-- ══ 战术目镜全屏 HUD ══ -->
+  <div id="visor-overlay">
+    <!-- 扫描线底层 -->
+    <div id="visor-scanlines"></div>
+    <!-- 蓝色色调 -->
+    <div id="visor-tint"></div>
+    <!-- 滚动光带 -->
+    <div id="visor-sweep"></div>
+
+    <!-- 四角边框 -->
+    <div id="visor-corners">
+      <div class="vc tl"></div>
+      <div class="vc tr"></div>
+      <div class="vc bl"></div>
+      <div class="vc br"></div>
+    </div>
+
+    <!-- 上方状态栏 -->
+    <div id="visor-topbar">
+      <div class="vt-title">⬡ TACTICAL VISOR</div>
+      <div class="vt-sep">|</div>
+      <div>AUTO-AIM <span id="vt-aim-status" style="color:#4fc842">ACTIVE</span></div>
+      <div class="vt-sep">|</div>
+      <div>TIME <span class="vt-timer" id="vt-timer-val">6s</span></div>
+    </div>
+
+    <!-- 目标锁定框容器（JS 在这里动态插入 .visor-tgt） -->
+    <div id="visor-tgt-layer"></div>
+
+    <!-- 目镜分划准心（替换普通准心） -->
+    <div id="visor-reticle">
+      <svg width="64" height="64" viewBox="-32 -32 64 64">
+        <!-- 外圆 -->
+        <circle cx="0" cy="0" r="22" fill="none" stroke="#7ec8e3" stroke-width="1" opacity="0.5"/>
+        <!-- 四条刻度线 -->
+        <line x1="0" y1="-28" x2="0" y2="-23" stroke="#7ec8e3" stroke-width="1.5"/>
+        <line x1="0" y1="28"  x2="0" y2="23"  stroke="#7ec8e3" stroke-width="1.5"/>
+        <line x1="-28" y1="0" x2="-23" y2="0" stroke="#7ec8e3" stroke-width="1.5"/>
+        <line x1="28"  y1="0" x2="23"  y2="0" stroke="#7ec8e3" stroke-width="1.5"/>
+        <!-- 中心点 -->
+        <circle cx="0" cy="0" r="2" fill="#7ec8e3" opacity="0.9"/>
+        <!-- 斜角刻度 -->
+        <line x1="-18" y1="-18" x2="-14" y2="-14" stroke="#7ec8e344" stroke-width="1"/>
+        <line x1="18"  y1="-18" x2="14"  y2="-14" stroke="#7ec8e344" stroke-width="1"/>
+        <line x1="-18" y1="18"  x2="-14" y2="14"  stroke="#7ec8e344" stroke-width="1"/>
+        <line x1="18"  y1="18"  x2="14"  y2="14"  stroke="#7ec8e344" stroke-width="1"/>
+      </svg>
+    </div>
+
+    <!-- 底部状态栏 -->
+    <div id="visor-botbar">
+      <div>TGT <span id="vt-tgt-count">0</span></div>
+      <div>KILL <span id="vt-kill-count">0</span></div>
+      <div>◈ S:76 · TACTICAL VISOR</div>
+    </div>
+  </div>
+
+  <!-- ── Biotic Field提示 ── -->
+  <div id="biotic-banner">➕ BIOTIC FIELD ACTIVE</div>
+
+  <!-- ── 疾跑提示 ── -->
+  <div id="sprint-banner">▶ SPRINTING ◀</div>
+
+</div><!-- /#ui -->
+
+<!-- ══ OVERLAY 层 ══ -->
+
+<!-- 标题界面 -->
+<div id="scr-title" class="ov">
+  <div class="logo">OVERWATCH</div>
+  <div class="sub">UPRISING</div>
+  <div class="deco"></div>
+  <div class="tagline">DEFEND KING'S ROW — STOP THE OMNIC UPRISING</div>
+  <button class="ow-btn" id="btn-start" style="margin-top:40px">PLAY</button>
+  <div style="margin-top:18px;font-size:10px;color:#333;letter-spacing:3px">
+    WASD移动 &nbsp;|&nbsp; 鼠标瞄准射击 &nbsp;|&nbsp; RMB 火箭弹 &nbsp;|&nbsp; E 生物力场 &nbsp;|&nbsp; Q 终极技能 &nbsp;|&nbsp; M4/F 近战 &nbsp;|&nbsp; SHIFT 疾跑 &nbsp;|&nbsp; R 装弹
+  </div>
+</div>
+
+<!-- 角色选择 -->
+<div id="scr-hero" class="ov" style="display:none">
+  <h2>SELECT YOUR HERO</h2>
+  <div class="hero-sub">智械危机 · 2019年国王大道</div>
+  <div id="hero-grid"></div>
+  <div id="hero-desc">选择一名英雄</div>
+  <button id="confirm-btn" disabled>SELECT A HERO</button>
+</div>
+
+<!-- 暂停 -->
+<div id="scr-pause" class="ov">
+  <h1>⏸ PAUSED</h1>
+  <div id="pause-stats"></div>
+  <div class="pause-btns">
+    <button id="resumeBtn">RESUME</button>
+    <button id="pause-restartBtn">RESTART</button>
+  </div>
+</div>
+
+<!-- 死亡重生 -->
+<div id="scr-dead" class="ov">
+  <div class="dt">ELIMINATED</div>
+  <div class="ds">RESPAWNING IN</div>
+  <div class="dc" id="resp-num">3</div>
+  <div class="dl" id="lives-left"></div>
+</div>
+
+<!-- 游戏结束 -->
+<div id="scr-end" class="ov">
+  <h2 id="end-title">MISSION COMPLETE</h2>
+  <div class="esub" id="end-sub"></div>
+  <div id="end-stats"></div>
+  <button class="ow-btn" id="btn-retry">PLAY AGAIN</button>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+'use strict';
+// ══════════════════════════════════════════════════════════════════
+// 第2步：Three.js 渲染器 / 场景 / 相机 / 纹理 / 地图 / 灯光 / 碰撞
+// ══════════════════════════════════════════════════════════════════
+
+// ── 渲染器 ──────────────────────────────────────────────────────
+const canvas = document.getElementById('c');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = false;
+
+const scene = new THREE.Scene();
+scene.fog = new THREE.FogExp2(0x0d111e, 0.022);
+scene.background = new THREE.Color(0x0d111e);
+
+const camera = new THREE.PerspectiveCamera(80, 1, 0.05, 120);
+camera.position.set(0, 1.7, 0);
+
+function onResize() {
+  renderer.setSize(innerWidth, innerHeight);
+  camera.aspect = innerWidth / innerHeight;
+  camera.updateProjectionMatrix();
+}
+onResize();
+window.addEventListener('resize', onResize);
+
+// ── 纹理生成器 ──────────────────────────────────────────────────
+function makeTex(fn, s) {
+  s = s || 256;
+  const cv = document.createElement('canvas');
+  cv.width = cv.height = s;
+  fn(cv.getContext('2d'), s);
+  const t = new THREE.CanvasTexture(cv);
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  return t;
+}
+
+// 守望先锋风格：工业砖墙（深蓝灰+橙色金属条纹）
+const wallTex = makeTex((ctx, s) => {
+  // 底色：深蓝灰
+  ctx.fillStyle = '#2a3040';
+  ctx.fillRect(0, 0, s, s);
+  // 砖块噪点
+  for (let i = 0; i < 2000; i++) {
+    const v = Math.floor(Math.random() * 25 + 30);
+    ctx.fillStyle = `rgb(${v + 10},${v + 14},${v + 22})`;
+    ctx.fillRect(Math.random() * s, Math.random() * s, 2, 2);
+  }
+  // 砖缝
+  ctx.strokeStyle = '#1a2030';
+  ctx.lineWidth = 2;
+  const bw = 64, bh = 32;
+  for (let row = 0; row * bh < s + bh; row++) {
+    const off = row % 2 === 0 ? 0 : bw / 2;
+    for (let col = -1; col * bw < s + bw; col++) {
+      ctx.strokeRect(col * bw + off + 1, row * bh + 1, bw - 2, bh - 2);
+    }
+  }
+  // 橙色金属装饰线（守望先锋特色）
+  ctx.fillStyle = '#f99e1a44';
+  ctx.fillRect(0, s * 0.38, s, 3);
+  ctx.fillRect(0, s * 0.62, s, 3);
+});
+wallTex.repeat.set(2, 1);
+
+// 地板：工业地面（深灰+格线）
+const floorTex = makeTex((ctx, s) => {
+  ctx.fillStyle = '#1e2230';
+  ctx.fillRect(0, 0, s, s);
+  for (let i = 0; i < 1500; i++) {
+    const v = Math.floor(Math.random() * 20 + 28);
+    ctx.fillStyle = `rgb(${v},${v + 2},${v + 6})`;
+    ctx.fillRect(Math.random() * s, Math.random() * s, 3, 3);
+  }
+  // 格线
+  ctx.strokeStyle = '#141824';
+  ctx.lineWidth = 1;
+  for (let i = 0; i <= s / 64; i++) {
+    ctx.beginPath(); ctx.moveTo(i * 64, 0); ctx.lineTo(i * 64, s); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0, i * 64); ctx.lineTo(s, i * 64); ctx.stroke();
+  }
+  // 橙色路标线（守望先锋检查点常见）
+  ctx.fillStyle = '#f99e1a33';
+  ctx.fillRect(s * 0.1, s * 0.48, s * 0.8, 4);
+});
+floorTex.repeat.set(8, 8);
+
+// 天花板：工业顶棚（更暗）
+const ceilTex = makeTex((ctx, s) => {
+  ctx.fillStyle = '#141820';
+  ctx.fillRect(0, 0, s, s);
+  for (let i = 0; i < 800; i++) {
+    const v = Math.floor(Math.random() * 15 + 18);
+    ctx.fillStyle = `rgb(${v},${v},${v + 5})`;
+    ctx.fillRect(Math.random() * s, Math.random() * s, 2, 2);
+  }
+  // 工字梁
+  ctx.fillStyle = '#0d1018';
+  ctx.fillRect(0, s * 0.45, s, s * 0.1);
+});
+ceilTex.repeat.set(4, 4);
+
+// ── 地图定义 ────────────────────────────────────────────────────
+// 0=走廊, 1=墙（无悬崖，推车路径全是0保证不卡）
+// Z形推车地图 16×16，CELL=5，OX=OZ=40
+//
+// 路径：col7 row14→row7（南直道）→ row6横穿col7→col13 → col13 row6→row1（北直道）
+//
+//  col: 0  1  2  3  4  5  6  7  8  9 10 11 12 13 14 15
+// row0: ■  ■  ■  ■  ■  ■  ■  ■  ■  ■  ■  ■  ■  ■  ■  ■
+// row1: ■  □  □  □  □  □  □  □  □  □  □  □  □  C  □  ■   ← 终点C=col13
+// row2: ■  □  ■  □  □  ■  □  □  □  □  □  ■  □  □  □  ■
+// row3: ■  □  ■  □  □  ■  □  □  ■  □  □  □  □  □  □  ■
+// row4: ■  □  □  □  □  □  □  □  ■  □  □  □  □  □  □  ■
+// row5: ■  ■  ■  ■  ■  □  □  □  □  □  □  □  □  □  ■  ■   ← 北段走廊（col13通行）
+// row6: ■  □  □  □  □  □  □  →  →  →  →  →  →  □  ■  ■   ← 横道（车走col7→col13）
+// row7: ■  ■  ■  ■  ■  □  □  □  □  □  □  □  □  □  ■  ■   ← 南段走廊（col7通行）
+// row8: ■  □  □  □  □  □  □  □  □  □  ■  □  □  □  ■  ■
+// row9: ■  □  ■  □  □  □  □  □  □  □  ■  □  □  □  ■  ■
+// row10:■  □  ■  □  □  ■  □  □  □  □  □  □  ■  □  ■  ■
+// row11:■  □  □  □  □  ■  □  □  □  □  □  □  ■  □  ■  ■
+// row12:■  □  □  ■  □  □  □  □  □  □  □  □  □  □  ■  ■
+// row13:■  □  □  ■  □  □  □  □  □  □  □  □  □  □  ■  ■
+// row14:■  ■  ■  ■  □  □  □  A  □  □  □  □  ■  ■  ■  ■   ← 起点A=col7
+// row15:■  ■  ■  ■  ■  ■  ■  ■  ■  ■  ■  ■  ■  ■  ■  ■
+const MAP = [
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1], // row 0  北墙
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1], // row 1  终点区（col13=C终点）
+  [1,0,1,0,0,1,0,0,0,0,0,1,0,0,0,1], // row 2  掩体
+  [1,0,1,0,0,1,0,0,1,0,0,0,0,0,0,1], // row 3  掩体
+  [1,0,0,0,0,0,0,0,1,0,0,0,0,0,0,1], // row 4  开阔
+  [1,1,1,1,1,0,0,0,0,0,0,0,0,0,1,1], // row 5  北侧走廊（col4~col13通行）
+  [1,0,0,0,0,0,0,0,0,0,0,0,0,0,0,1], // row 6  横道（全通，车从col7走到col13）
+  [1,1,1,1,1,0,0,0,0,0,0,0,0,0,1,1], // row 7  南侧走廊（col4~col13通行）
+  [1,0,0,0,0,0,0,0,0,0,1,0,0,0,1,1], // row 8  掩体
+  [1,0,1,0,0,0,0,0,0,0,1,0,0,0,1,1], // row 9  掩体
+  [1,0,1,0,0,1,0,0,0,0,0,0,1,0,1,1], // row 10 掩体
+  [1,0,0,0,0,1,0,0,0,0,0,0,1,0,1,1], // row 11 开阔
+  [1,0,0,1,0,0,0,0,0,0,0,0,0,0,1,1], // row 12 掩体
+  [1,0,0,1,0,0,0,0,0,0,0,0,0,0,1,1], // row 13 掩体
+  [1,1,1,1,0,0,0,0,0,0,0,0,1,1,1,1], // row 14 出生区（col4~col11通行，col7=A起点）
+  [1,1,1,1,1,1,1,1,1,1,1,1,1,1,1,1], // row 15 南墙
+];
+const MAP_ROWS = MAP.length;      // 16
+const MAP_COLS = MAP[0].length;   // 16
+const CELL = 5;                   // 每格5个Three.js单位
+const OX = (MAP_COLS * CELL) / 2; // = 40
+const OZ = (MAP_ROWS * CELL) / 2; // = 40
+
+// 推车路径（世界坐标，公式 x=col*5-40+2.5, z=row*5-40+2.5）
+// A(col7,row14) → 北直道 → B弯道(col7,row6) → 横道 → (col13,row6) → 北直道 → C(col13,row1)
+const CART_PATH = [
+  { x: -2.5, z: 32.5 }, // [0]  A 起点 col7,row14
+  { x: -2.5, z: 27.5 }, // [1]  col7,row13
+  { x: -2.5, z: 22.5 }, // [2]  col7,row12
+  { x: -2.5, z: 17.5 }, // [3]  col7,row11
+  { x: -2.5, z: 12.5 }, // [4]  col7,row10
+  { x: -2.5, z:  7.5 }, // [5]  col7,row9 — 检查点B附近
+  { x: -2.5, z:  2.5 }, // [6]  col7,row8
+  { x: -2.5, z: -2.5 }, // [7]  col7,row7→进入弯道
+  { x: -2.5, z: -7.5 }, // [8]  col7,row6 — 弯道
+  { x:  7.5, z: -7.5 }, // [9]  col9,row6 — 横道中段  ← CHECKPOINT_B_IDX
+  { x: 17.5, z: -7.5 }, // [10] col11,row6
+  { x: 22.5, z: -7.5 }, // [11] col12,row6
+  { x: 27.5, z: -7.5 }, // [12] col13,row6 — 弯道转北
+  { x: 27.5, z:-12.5 }, // [13] col13,row5
+  { x: 27.5, z:-17.5 }, // [14] col13,row4
+  { x: 27.5, z:-22.5 }, // [15] col13,row3
+  { x: 27.5, z:-27.5 }, // [16] col13,row2
+  { x: 27.5, z:-32.5 }, // [17] col13,row1 — C 终点
+];
+const CHECKPOINT_B_IDX = 9; // 横道中段作为B检查点
+
+// 推车状态对象（buildPayload中初始化mesh）
+const cart = {
+  mesh: null,
+  light: null,
+  waypointIdx: 1,
+  pos: new THREE.Vector3(-2.5, 0, 32.5), // A 起点 col7,row14
+  pathProgress: 0,
+  forwardSpeed: 2.2,
+  backwardSpeed: 0.35,
+  contested: false,
+  lastCheckpoint: 0,
+  reachedB: false,
+};
+
+// 血包（新地图走廊合适位置）
+// 公式 x=col*5-40+2.5, z=row*5-40+2.5
+const HEALTH_PACKS = [
+  // 原有4个（调整离推车路线稍远，放在侧道）
+  { x:-12.5, z: 22.5, hp:50, cooldown:15, timer:0, active:true, mesh:null }, // col5,row12 南段西侧
+  { x:-12.5, z:  2.5, hp:50, cooldown:15, timer:0, active:true, mesh:null }, // col5,row8  中段西侧
+  { x: 12.5, z: -7.5, hp:50, cooldown:15, timer:0, active:true, mesh:null }, // col10,row6 横道中段
+  { x: 27.5, z:-22.5, hp:50, cooldown:15, timer:0, active:true, mesh:null }, // col13,row3 北段
+  // 新增4个
+  { x:-12.5, z: 12.5, hp:50, cooldown:15, timer:0, active:true, mesh:null }, // col5,row10 南段中段
+  { x:  2.5, z:  2.5, hp:50, cooldown:15, timer:0, active:true, mesh:null }, // col8,row8  弯道入口旁
+  { x: 22.5, z:-12.5, hp:50, cooldown:15, timer:0, active:true, mesh:null }, // col12,row5 横道转北侧
+  { x: 12.5, z:-27.5, hp:50, cooldown:15, timer:0, active:true, mesh:null }, // col10,row2 北终点区侧
+];
+
+
+// ── 碰撞查询 ────────────────────────────────────────────────────
+function cellAt(col, row) {
+  if (col < 0 || row < 0 || col >= MAP_COLS || row >= MAP_ROWS) return 1;
+  return MAP[row][col];
+}
+function isWall(wx, wz) {
+  const col = Math.floor((wx + OX) / CELL);
+  const row = Math.floor((wz + OZ) / CELL);
+  return cellAt(col, row) === 1;
+}
+
+// 掩体碰撞体列表（buildCoverObjects 填充）
+// 每项：{ cx, cz, ry, hw, hd }  hw/hd = 半宽/半深（世界轴，旋转前）
+const _coverColliders = [];
+
+// 检测点 (px,pz) 是否在某个掩体的 OBB 内（带半径 r）
+function insideCover(px, pz, r) {
+  for (const c of _coverColliders) {
+    const dx = px - c.cx, dz = pz - c.cz;
+    const cos = Math.cos(-c.ry), sin = Math.sin(-c.ry);
+    const lx = cos * dx - sin * dz;
+    const lz = sin * dx + cos * dz;
+    if (Math.abs(lx) < c.hw + r && Math.abs(lz) < c.hd + r) return true;
+  }
+  return false;
+}
+
+const PR = 0.35; // 玩家碰撞半径
+function canMove(wx, wz, r) {
+  const rad = r !== undefined ? r : PR;
+  if (isWall(wx - rad, wz - rad)) return false;
+  if (isWall(wx + rad, wz - rad)) return false;
+  if (isWall(wx - rad, wz + rad)) return false;
+  if (isWall(wx + rad, wz + rad)) return false;
+  if (insideCover(wx, wz, rad))   return false;
+  return true;
+}
+function moveEntity(pos, dx, dz, spd, dt, r) {
+  const len = Math.sqrt(dx * dx + dz * dz);
+  if (len < 0.0001) return;
+  const rad = r !== undefined ? r : PR;
+  const nx = pos.x + (dx / len) * spd * dt;
+  const nz = pos.z + (dz / len) * spd * dt;
+  if (canMove(nx, nz, rad))         { pos.x = nx; pos.z = nz; }
+  else if (canMove(nx, pos.z, rad)) { pos.x = nx; }
+  else if (canMove(pos.x, nz, rad)) { pos.z = nz; }
+}
+// ── 地图网格构建 ────────────────────────────────────────────────
+const matWall  = new THREE.MeshLambertMaterial({ map: wallTex });
+const matFloor = new THREE.MeshLambertMaterial({ map: floorTex });
+const matCeil  = new THREE.MeshLambertMaterial({ map: ceilTex });
+// 悬崖/虚空底部（深黑色）
+const matVoid  = new THREE.MeshBasicMaterial({ color: 0x000000 });
+
+const wallMeshes = []; // 用于射线检测碰撞
+
+MAP.forEach((row, rz) => {
+  row.forEach((cell, cx) => {
+    const cx2 = cx * CELL - OX + CELL / 2;
+    const cz2 = rz * CELL - OZ + CELL / 2;
+
+    // 悬崖格（值2）：不铺地板/天花板，只放黑色深坑底部做视觉
+    if (cell === 2) {
+      const abyss = new THREE.Mesh(
+        new THREE.PlaneGeometry(CELL, CELL), matVoid
+      );
+      abyss.rotation.x = -Math.PI / 2;
+      abyss.position.set(cx2, -3, cz2);
+      scene.add(abyss);
+      return; // 跳过地板/天花板/墙体
+    }
+
+    // 地板（走廊格）
+    const fm = new THREE.Mesh(new THREE.PlaneGeometry(CELL, CELL), matFloor);
+    fm.rotation.x = -Math.PI / 2;
+    fm.position.set(cx2, 0, cz2);
+    scene.add(fm);
+
+    // 天花板
+    const cm = new THREE.Mesh(new THREE.PlaneGeometry(CELL, CELL), matCeil);
+    cm.rotation.x = Math.PI / 2;
+    cm.position.set(cx2, 4, cz2);
+    scene.add(cm);
+
+    // 墙体
+    if (cell === 1) {
+      const wm = new THREE.Mesh(new THREE.BoxGeometry(CELL, 4, CELL), matWall);
+      wm.position.set(cx2, 2, cz2);
+      scene.add(wm);
+      wallMeshes.push(wm);
+    }
+  });
+});
+
+
+// buildPayload() 和 buildHealthPacks() 在 startGame() 时调用，此处不构建静态目标点
+
+// ── 灯光 ────────────────────────────────────────────────────────
+// 环境光（偏蓝，工业厂房感）
+scene.add(new THREE.AmbientLight(0x8899cc, 0.55));
+
+// 走廊点光（橙黄色工业灯）覆盖整条28行地图
+const lightPositions = [
+  // 中心轴 z从-60到60，每20单位一盏
+  [ 0, 3.5,  60], [ 0, 3.5,  40], [ 0, 3.5,  20], [ 0, 3.5,   0],
+  [ 0, 3.5, -20], [ 0, 3.5, -40], [ 0, 3.5, -60],
+  // 左侧走廊
+  [-15, 3.5,  50], [-15, 3.5,  30], [-15, 3.5,  10],
+  [-15, 3.5, -10], [-15, 3.5, -30], [-15, 3.5, -50],
+  // 右侧走廊
+  [ 15, 3.5,  50], [ 15, 3.5,  30], [ 15, 3.5,  10],
+  [ 15, 3.5, -10], [ 15, 3.5, -30], [ 15, 3.5, -50],
+];
+lightPositions.forEach(([x, y, z]) => {
+  const pl = new THREE.PointLight(0xffe8c0, 1.6, 22);
+  pl.position.set(x, y, z);
+  scene.add(pl);
+  // 灯泡小球（视觉装饰）
+  const lb = new THREE.Mesh(
+    new THREE.SphereGeometry(0.07, 6, 4),
+    new THREE.MeshBasicMaterial({ color: 0xffffff })
+  );
+  lb.position.set(x, y, z);
+  scene.add(lb);
+});
+
+
+// ── 复用向量（性能优化，避免每帧 new）──────────────────────────
+const tmp = {
+  ray: new THREE.Raycaster(),
+  v3a: new THREE.Vector3(),
+  v3b: new THREE.Vector3(),
+  v3c: new THREE.Vector3(),
+};
+
+// ══════════════════════════════════════════════════════════════════
+// 第3步：枪模型 / 枪口火焰 / 粒子特效 / 弹孔 / Helix 火箭弹飞行体
+// ══════════════════════════════════════════════════════════════════
+
+// ── 枪模型（挂在相机上）─────────────────────────────────────────
+const gunPivot = new THREE.Group();
+camera.add(gunPivot);
+scene.add(camera); // 把相机加入场景，gunPivot 才能随相机走
+
+const gunGroup = new THREE.Group();
+gunGroup.position.set(0.22, -0.22, -0.38);
+gunGroup.rotation.y = 0.04;
+gunPivot.add(gunGroup);
+
+function mat(col) { return new THREE.MeshLambertMaterial({ color: col }); }
+
+// ── Soldier:76 重型脉冲步枪 ────────────────────────────────────
+// 参考 fps.html 的拼接方式，用 BoxGeometry 组合
+(function buildSoldierRifle() {
+  // 枪托
+  const stock = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.10, 0.32), mat(0x2a2a2a));
+  stock.position.set(0, -0.01, 0.22);
+  gunGroup.add(stock);
+
+  // 机匣主体
+  const body = new THREE.Mesh(new THREE.BoxGeometry(0.13, 0.11, 0.42), mat(0x1e2a3a));
+  body.position.set(0, 0.01, -0.04);
+  gunGroup.add(body);
+
+  // 机匣顶部蓝色高光（守望先锋科技感）
+  const bodyTop = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.03, 0.38), mat(0x2a4a6a));
+  bodyTop.position.set(0, 0.07, -0.03);
+  gunGroup.add(bodyTop);
+
+  // 橙色侧面装饰线（Soldier:76 经典配色）
+  const stripe = new THREE.Mesh(new THREE.BoxGeometry(0.005, 0.04, 0.38), mat(0xf99e1a));
+  stripe.position.set(0.065, 0.01, -0.03);
+  gunGroup.add(stripe);
+  const stripe2 = stripe.clone();
+  stripe2.position.x = -0.065;
+  gunGroup.add(stripe2);
+
+  // 弹夹
+  const mag = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.16, 0.09), mat(0x141e28));
+  mag.position.set(0, -0.13, 0.04);
+  mag.rotation.x = 0.1;
+  gunGroup.add(mag);
+
+  // 握把
+  const grip = new THREE.Mesh(new THREE.BoxGeometry(0.09, 0.18, 0.09), mat(0x111820));
+  grip.position.set(0, -0.16, 0.15);
+  grip.rotation.x = 0.18;
+  gunGroup.add(grip);
+
+  // 枪管
+  const barrel = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 0.52), mat(0x111111));
+  barrel.position.set(0, 0.02, -0.36);
+  gunGroup.add(barrel);
+
+  // 消焰器（末端）
+  const flash = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.06, 0.08), mat(0x0a0a0a));
+  flash.position.set(0, 0.02, -0.63);
+  gunGroup.add(flash);
+
+  // 瞄准镜
+  const scopeBase = new THREE.Mesh(new THREE.BoxGeometry(0.04, 0.02, 0.18), mat(0x333333));
+  scopeBase.position.set(0, 0.08, -0.10);
+  gunGroup.add(scopeBase);
+  const scopeTube = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.028, 0.028, 0.16, 8),
+    mat(0x222222)
+  );
+  scopeTube.rotation.x = Math.PI / 2;
+  scopeTube.position.set(0, 0.12, -0.10);
+  gunGroup.add(scopeTube);
+
+  // 左手护木（前握区）
+  const handguard = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.08, 0.22), mat(0x1a2030));
+  handguard.position.set(0, -0.01, -0.26);
+  gunGroup.add(handguard);
+
+  // 蓝色发光线（科技感）
+  const glowLine = new THREE.Mesh(new THREE.BoxGeometry(0.005, 0.005, 0.38), mat(0x7ec8e3));
+  glowLine.position.set(0, 0.06, -0.03);
+  gunGroup.add(glowLine);
+})();
+
+// ── 枪口光 & 火焰 Sprite ────────────────────────────────────────
+const muzzleLight = new THREE.PointLight(0xff8800, 0, 4);
+muzzleLight.position.set(0, 0.02, -0.68);
+gunGroup.add(muzzleLight);
+
+const muzzleSprite = new THREE.Mesh(
+  new THREE.PlaneGeometry(0.18, 0.18),
+  new THREE.MeshBasicMaterial({
+    color: 0xffaa33, transparent: true, opacity: 0,
+    depthWrite: false, side: THREE.DoubleSide,
+  })
+);
+muzzleSprite.position.set(0, 0.02, -0.70);
+gunGroup.add(muzzleSprite);
+
+let muzzleTimer = 0; // 倒计时（秒），>0 时枪口发光
+
+function triggerMuzzleFlash() {
+  muzzleLight.intensity = 6;
+  muzzleSprite.material.opacity = 1.0;
+  muzzleTimer = 0.06;
+}
+
+// ── 弹孔系统 ─────────────────────────────────────────────────────
+const bulletHoles = [];
+function spawnBulletHole(pos, normal) {
+  const m = new THREE.Mesh(
+    new THREE.CircleGeometry(0.055, 6),
+    new THREE.MeshBasicMaterial({
+      color: 0x060608, depthWrite: false,
+      polygonOffset: true, polygonOffsetFactor: -1,
+    })
+  );
+  m.position.copy(pos).addScaledVector(normal, 0.01);
+  // 让圆面朝向法线
+  tmp.v3c.copy(pos).add(normal);
+  m.lookAt(tmp.v3c);
+  scene.add(m);
+  bulletHoles.push(m);
+  if (bulletHoles.length > 50) scene.remove(bulletHoles.shift());
+}
+
+// ── 粒子系统（血花 / 火花）──────────────────────────────────────
+const particles = [];
+const _pGeo = new THREE.SphereGeometry(0.045, 4, 3);
+
+function spawnBlood(pos) {
+  for (let i = 0; i < 10; i++) {
+    const m = new THREE.Mesh(
+      _pGeo,
+      new THREE.MeshBasicMaterial({ color: 0xcc0000, transparent: true, opacity: 1, depthWrite: false })
+    );
+    m.position.copy(pos);
+    const spd = 1.8 + Math.random() * 5;
+    const th = Math.random() * Math.PI * 2;
+    const ph = (Math.random() * 0.8 + 0.1) * Math.PI;
+    m._vx = Math.sin(ph) * Math.cos(th) * spd;
+    m._vy = Math.abs(Math.cos(ph)) * spd * 0.7 + Math.random() * 1.5;
+    m._vz = Math.sin(ph) * Math.sin(th) * spd;
+    m._life = 0.3 + Math.random() * 0.25;
+    m._age  = 0;
+    m._grav = 12;
+    scene.add(m);
+    particles.push(m);
+  }
+}
+
+function spawnSpark(pos, count) {
+  // Helix 爆炸 / 护盾击中时的橙色火花
+  const n = count || 8;
+  for (let i = 0; i < n; i++) {
+    const c = Math.random() < 0.5 ? 0xf99e1a : 0xff4400;
+    const m = new THREE.Mesh(
+      _pGeo,
+      new THREE.MeshBasicMaterial({ color: c, transparent: true, opacity: 0.95, depthWrite: false })
+    );
+    m.position.copy(pos);
+    m.scale.setScalar(0.5 + Math.random() * 0.7);
+    const th = Math.random() * Math.PI * 2;
+    const spd = 2.5 + Math.random() * 4;
+    m._vx = Math.cos(th) * spd;
+    m._vy = 1.5 + Math.random() * 3;
+    m._vz = Math.sin(th) * spd;
+    m._life = 0.18 + Math.random() * 0.18;
+    m._age  = 0;
+    m._grav = 10;
+    scene.add(m);
+    particles.push(m);
+  }
+}
+
+function spawnShieldSpark(pos) {
+  // 精英护盾被击中：蓝色电弧
+  for (let i = 0; i < 7; i++) {
+    const m = new THREE.Mesh(
+      _pGeo,
+      new THREE.MeshBasicMaterial({ color: 0x88ccff, transparent: true, opacity: 0.9, depthWrite: false })
+    );
+    m.position.copy(pos);
+    m.scale.setScalar(0.4 + Math.random() * 0.4);
+    const th = Math.random() * Math.PI * 2;
+    const spd = 2 + Math.random() * 3;
+    m._vx = Math.cos(th) * spd;
+    m._vy = (Math.random() - 0.3) * 2.5;
+    m._vz = Math.sin(th) * spd;
+    m._life = 0.12 + Math.random() * 0.1;
+    m._age  = 0;
+    m._grav = 2;
+    scene.add(m);
+    particles.push(m);
+  }
+}
+
+function updateParticles(dt) {
+  for (let i = particles.length - 1; i >= 0; i--) {
+    const p = particles[i];
+    p._age += dt;
+    if (p._age >= p._life) {
+      scene.remove(p);
+      p.material.dispose();
+      particles.splice(i, 1);
+      continue;
+    }
+    p._vy -= (p._grav || 12) * dt;
+    p.position.x += p._vx * dt;
+    p.position.y += p._vy * dt;
+    p.position.z += p._vz * dt;
+    p.material.opacity = Math.max(0, 1 - p._age / p._life);
+  }
+}
+
+// ── Helix 火箭弹飞行体（使用时动态创建）────────────────────────
+const helixProjectiles = []; // 当前飞行中的火箭弹列表
+
+function spawnHelixRocket(startPos, dir) {
+  const g = new THREE.Group();
+
+  // 弹体
+  const body = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.06, 0.06, 0.38, 8),
+    new THREE.MeshLambertMaterial({ color: 0xf99e1a, emissive: 0xaa4400, emissiveIntensity: 0.6 })
+  );
+  body.rotation.x = Math.PI / 2;
+  g.add(body);
+
+  // 弹头（橙色锥体）
+  const nose = new THREE.Mesh(
+    new THREE.ConeGeometry(0.06, 0.16, 8),
+    new THREE.MeshLambertMaterial({ color: 0xff6600 })
+  );
+  nose.rotation.x = -Math.PI / 2;
+  nose.position.z = -0.27;
+  g.add(nose);
+
+  // 尾翼
+  [-1, 1].forEach(s => {
+    const fin = new THREE.Mesh(
+      new THREE.BoxGeometry(0.16, 0.04, 0.12),
+      mat(0x888888)
+    );
+    fin.position.set(s * 0.10, 0, 0.15);
+    g.add(fin);
+    const fin2 = new THREE.Mesh(
+      new THREE.BoxGeometry(0.04, 0.16, 0.12),
+      mat(0x888888)
+    );
+    fin2.position.set(0, s * 0.10, 0.15);
+    g.add(fin2);
+  });
+
+  // 推进光
+  const thrustLight = new THREE.PointLight(0xff6600, 1.5, 3);
+  thrustLight.position.z = 0.22;
+  g.add(thrustLight);
+
+  g.position.copy(startPos);
+  // 让弹体朝向飞行方向
+  const target = new THREE.Vector3().copy(startPos).addScaledVector(dir, 1);
+  g.lookAt(target);
+
+  scene.add(g);
+
+  helixProjectiles.push({
+    group: g,
+    dir: dir.clone().normalize(),
+    speed: 28,
+    life: 3.5,    // 最长飞行秒数
+    age: 0,
+    dmg: 120,
+    splashR: 3.5, // 爆炸半径
+  });
+}
+
+function helixExplode(pos, dmg, splashR) {
+  // 爆炸闪光
+  const flash = new THREE.PointLight(0xff8800, 10, splashR * 2.5);
+  flash.position.copy(pos);
+  scene.add(flash);
+  setTimeout(() => scene.remove(flash), 180);
+
+  // 火花粒子
+  spawnSpark(pos, 18);
+
+  // 提示横幅
+  showSkillBanner('💥 HELIX IMPACT', '#f99e1a', 700);
+
+  // 伤害在第4步（玩家+敌人系统）里注册，这里只做视觉
+  // 返回爆炸中心供外部使用
+  return pos;
+}
+
+function updateHelixProjectiles(dt, onHit) {
+  for (let i = helixProjectiles.length - 1; i >= 0; i--) {
+    const p = helixProjectiles[i];
+    p.age += dt;
+
+    const nx = p.group.position.x + p.dir.x * p.speed * dt;
+    const ny = p.group.position.y + p.dir.y * p.speed * dt;
+    const nz = p.group.position.z + p.dir.z * p.speed * dt;
+
+    const hitWall = isWall(nx, nz) || ny <= 0.05 || ny >= 3.9;
+    const expired = p.age >= p.life;
+
+    // ── 实体碰撞：检测是否飞进了某个敌人的碰撞体积 ──
+    let hitEnemy = false;
+    if (!hitWall && !expired) {
+      for (const e of enemies) {
+        if (e.dying) continue;
+        const ex = e.group.position.x;
+        const ez = e.group.position.z;
+        const ey = e.group.position.y;
+        const dx = nx - ex;
+        const dz = nz - ez;
+        const dy = ny - (ey + e.def.sz * 1.1); // 以敌人身体中心为基准
+        const r  = e.def.sz * 1.0;              // 碰撞半径 ≈ 体型
+        if (dx*dx + dz*dz < r*r && Math.abs(dy) < e.def.sz * 1.6) {
+          hitEnemy = true;
+          break;
+        }
+      }
+    }
+
+    if (hitWall || expired || hitEnemy) {
+      const boom = hitEnemy
+        ? new THREE.Vector3(nx, ny, nz)
+        : p.group.position.clone();
+      helixExplode(boom, p.dmg, p.splashR);
+      scene.remove(p.group);
+      helixProjectiles.splice(i, 1);
+      if (onHit) onHit(boom, p.dmg, p.splashR);
+      continue;
+    }
+
+    p.group.position.set(nx, ny, nz);
+  }
+}
+
+// ── 浮动伤害数字 ──────────────────────────────────────────────────
+function showDmgNum(worldPos, dmg, crit) {
+  const v = worldPos.clone().project(camera);
+  if (v.z > 1) return;
+  const el = document.createElement('div');
+  el.className = 'dmgnum' + (crit ? ' crit' : '');
+  el.textContent = crit ? dmg + ' ★' : dmg;
+  el.style.left = ((v.x * 0.5 + 0.5) * innerWidth) + 'px';
+  el.style.top  = ((-v.y * 0.5 + 0.5) * innerHeight) + 'px';
+  document.getElementById('ui').appendChild(el);
+  setTimeout(() => el.remove(), 800);
+}
+
+// ── 击杀横幅 ──────────────────────────────────────────────────────
+function showKillBanner(kindName) {
+  const el = document.createElement('div');
+  el.className = 'kill-banner';
+  el.textContent = '击杀 · ' + kindName;
+  document.getElementById('ui').appendChild(el);
+  setTimeout(() => el.remove(), 900);
+}
+
+// ── 技能横幅 ──────────────────────────────────────────────────────
+function showSkillBanner(text, color, ms) {
+  const el = document.getElementById('skill-banner');
+  el.textContent = text;
+  el.style.color = color || '#f99e1a';
+  el.style.opacity = 1;
+  clearTimeout(el._t);
+  el._t = setTimeout(() => { el.style.opacity = 0; }, ms || 1400);
+}
+
+// ── 枪械 bob & recoil 状态（供主循环调用）────────────────────────
+let gunBobT    = 0;   // 行走摆动计时
+let gunRecoil  = 0;   // 后坐力（0~1，射击时置1，每帧衰减）
+
+function updateGunAnim(dt, isMoving, isSprinting) {
+  // Bob
+  if (isMoving) gunBobT += dt * (isSprinting ? 9 : 5.5);
+  const bobY  = Math.sin(gunBobT) * (isSprinting ? 0.012 : 0.006);
+  const bobX  = Math.cos(gunBobT * 0.5) * (isSprinting ? 0.006 : 0.003);
+
+  // 后坐力衰减
+  gunRecoil = Math.max(0, gunRecoil - dt * 7);
+
+  gunGroup.position.set(
+    0.22 + bobX,
+    -0.22 + bobY - gunRecoil * 0.04,
+    -0.38 + gunRecoil * 0.06
+  );
+  gunGroup.rotation.x = -gunRecoil * 0.12;
+
+  // 枪口火焰衰减
+  if (muzzleTimer > 0) {
+    muzzleTimer -= dt;
+    if (muzzleTimer <= 0) {
+      muzzleLight.intensity = 0;
+      muzzleSprite.material.opacity = 0;
+    }
+  }
+}
+
+// 按钮事件已由第7/8步统一注册，此处占位移除
+
+// ══════════════════════════════════════════════════════════════════
+// 第4步：敌人系统 — 模型 / HP条 / AI(巡逻→追击→攻击) / 伤害判定
+// ══════════════════════════════════════════════════════════════════
+
+// ── 敌人数值配置 ─────────────────────────────────────────────────
+const EDEF = {
+  trooper: { hp:225, spd:3.8, dmg:8,  atkR:1.8, atkCD:1.2, score:100,
+             bodyCol:0x883300, legCol:0x552200, headCol:0xaa4400, sz:0.38, name:'突击兵' },
+  ranged:  { hp:250, spd:2.5, dmg:14, atkR:0.0, atkCD:2.2, score:150,
+             bodyCol:0x1a3a8a, legCol:0x112266, headCol:0x2244aa, sz:0.32, name:'远程兵',
+             shootR:12, shootCD:2.2 },
+  heavy:   { hp:300, spd:2.0, dmg:18, atkR:2.0, atkCD:1.6, score:200,
+             bodyCol:0x445566, legCol:0x2a3a44, headCol:0x556677, sz:0.55, name:'重甲兵',
+             shootR:8, shootCD:2.8 },
+  elite:   { hp:450, spd:3.2, dmg:12, atkR:1.9, atkCD:1.1, score:250,
+             bodyCol:0x887700, legCol:0x554400, headCol:0xaaaa00, sz:0.42, name:'精英兵',
+             shootR:13, shootCD:1.6 },
+  boss:    { hp:2000,spd:2.2, dmg:28, atkR:2.2, atkCD:1.8, score:1000,
+             bodyCol:0x880011, legCol:0x550008, headCol:0xcc0022, sz:0.85, name:'BOSS',
+             shootR:18, shootCD:2.5 },
+};
+
+// ── 刷怪点（新地图走廊格）────────────────────────────────────────
+function cellCenter(col, row) {
+  return { x: col * CELL - OX + CELL / 2, z: row * CELL - OZ + CELL / 2 };
+}
+const SPAWN_POINTS = [
+  // 终点区北段（col13附近，row1-4）
+  cellCenter(13, 1), cellCenter(13, 3), cellCenter(13, 4),
+  // 横道两侧（row6）
+  cellCenter(9,  6), cellCenter(11, 6),
+  // 南段直道两侧（col7，row8-13）
+  cellCenter(7,  8), cellCenter(7, 10), cellCenter(7, 12),
+  // 南侧出生区附近（row13-14 侧边）
+  cellCenter(5, 13), cellCenter(5, 11),
+];
+
+// 根据推车位置选择合适刷怪点（优先在推车前方）
+function pickSpawnPoint() {
+  const cartZ = cart.pos.z;
+  const ahead = SPAWN_POINTS.filter(sp => sp.z < cartZ - 5 && sp.z > cartZ - 50);
+  const pool  = ahead.length > 0 ? ahead : SPAWN_POINTS;
+  return pool[Math.floor(Math.random() * pool.length)];
+}
+
+// 持续骚扰刷怪（与主刷怪系统并行，专门从推车前方刷小怪）
+let _harassTimer = 0;
+function tickHarassSpawn(dt) {
+  if (!_gameActive || _paused) return;
+  _harassTimer -= dt;
+  if (_harassTimer > 0) return;
+  // 间隔随进度从 14 秒缩短至 8 秒
+  _harassTimer = Math.max(8, 14 - cart.pathProgress * 7) + Math.random() * 3;
+
+  // 场上怪太多就跳过这次骚扰
+  const alive = enemies.filter(e => !e.dying).length;
+  if (alive >= 6) return;
+
+  const sp = pickSpawnPoint();
+  let wx = sp.x, wz = sp.z, tries = 0;
+  do {
+    wx = sp.x + (Math.random()-0.5)*3;
+    wz = sp.z + (Math.random()-0.5)*3;
+    tries++;
+  } while (!canMove(wx, wz) && tries < 20);
+  if (!canMove(wx, wz)) { wx = sp.x; wz = sp.z; }
+  // 骚扰单位随进度升级：早期重甲，中期精英，后期精英
+  const type = cart.pathProgress > 0.4 ? 'elite' : 'heavy';
+  // 借用 spawnEnemy 的核心逻辑，但用已有的位置
+  const parts = buildEnemyMesh(EDEF[type]);
+  parts.group.position.set(wx, 0.35, wz);
+  scene.add(parts.group);
+  const def = EDEF[type];
+  const hpBarY = (def.sz * 2.2) + (def.sz * 0.65) + 0.5;
+  const refreshHp = makeHpBar(parts.group, hpBarY);
+  refreshHp(def.hp, def.hp, def.shieldHp || 0, def.shieldHp || 0);
+  const e = {
+    id: _eid++, type, def, ...parts,
+    hp: def.hp, maxHp: def.hp,
+    sh: def.shieldHp || 0, maxSh: def.shieldHp || 0,
+    refreshHp, spd: def.spd, atkCd: 0, shootCd: 0, stunT: 0, flashT: 0,
+    state: 'patrol', patrolTarget: null, patrolTimer: 0,
+    legAnim: Math.random()*Math.PI*2, dying: false, dyingT: 0, phase: 1,
+  };
+  enemies.push(e);
+}
+
+
+// ── 敌人数组 ─────────────────────────────────────────────────────
+const enemies = [];
+let _eid = 0;
+
+// ── HP条 Sprite 工厂 ─────────────────────────────────────────────
+function makeHpBar(group, yOffset) {
+  const cv  = document.createElement('canvas');
+  cv.width  = 80; cv.height = 10;
+  const ctx = cv.getContext('2d');
+  const tex = new THREE.CanvasTexture(cv);
+  const spr = new THREE.Sprite(
+    new THREE.SpriteMaterial({ map: tex, depthTest: false })
+  );
+  spr.scale.set(1.6, 0.18, 1);
+  spr.position.y = yOffset;
+  group.add(spr);
+
+  return function refreshHp(hp, maxHp, shHp, maxSh) {
+    ctx.clearRect(0, 0, 80, 10);
+    // 背景
+    ctx.fillStyle = '#222';
+    ctx.fillRect(0, 0, 80, 10);
+    // HP 条
+    const hpPct = Math.max(0, hp / maxHp);
+    ctx.fillStyle = hpPct > 0.5 ? '#4fc842' : hpPct > 0.25 ? '#f99e1a' : '#e94560';
+    ctx.fillRect(0, 0, 80 * hpPct, 6);
+    // 护盾条（精英/boss）
+    if (maxSh > 0) {
+      ctx.fillStyle = '#1a2a55';
+      ctx.fillRect(0, 6, 80, 4);
+      ctx.fillStyle = '#7ec8e3';
+      ctx.fillRect(0, 6, 80 * Math.max(0, shHp / maxSh), 4);
+    }
+    tex.needsUpdate = true;
+  };
+}
+
+// ── 敌人 3D 模型工厂（参考 fps.html 的人形拼法）────────────────
+function m3(col) { return new THREE.MeshLambertMaterial({ color: col }); }
+
+function buildEnemyMesh(def) {
+  const g    = new THREE.Group();
+  const bw   = def.sz * 1.4;
+  const bh   = def.sz * 2.2;
+  const boss = def === EDEF.boss;
+
+  // 身体
+  const body = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, bw * 0.7), m3(def.bodyCol));
+  body.position.y = bh / 2;
+  g.add(body);
+
+  // 头部
+  const hSz  = def.sz * 0.65;
+  const head = new THREE.Mesh(new THREE.BoxGeometry(hSz, hSz, hSz), m3(def.headCol));
+  head.position.y = bh + hSz * 0.5;
+  g.add(head);
+
+  // 眼睛（发光）
+  const eyeCol = def === EDEF.ranged  ? 0x00ffff :
+                 def === EDEF.elite   ? 0xffff00 :
+                 def === EDEF.boss    ? 0xff0000 : 0xff2200;
+  [-1, 1].forEach(s => {
+    const eye = new THREE.Mesh(
+      new THREE.BoxGeometry(hSz * 0.18, hSz * 0.12, 0.02),
+      new THREE.MeshBasicMaterial({ color: eyeCol })
+    );
+    eye.position.set(s * hSz * 0.22, bh + hSz * 0.55, hSz * 0.5);
+    g.add(eye);
+  });
+
+  // 腿
+  const lw = bw * 0.36, lh = bh * 0.55;
+  const legL = new THREE.Mesh(new THREE.BoxGeometry(lw, lh, lw * 0.9), m3(def.legCol));
+  legL.position.set(-bw * 0.22, -lh / 2 + 0.05, 0);
+  g.add(legL);
+  const legR = legL.clone();
+  legR.position.x = bw * 0.22;
+  g.add(legR);
+
+  // 手臂
+  const aw = bw * 0.28, ah = bh * 0.55;
+  const armL = new THREE.Mesh(new THREE.BoxGeometry(aw, ah, aw * 0.9), m3(def.bodyCol));
+  armL.position.set(-(bw / 2 + aw * 0.4), bh * 0.28, 0);
+  g.add(armL);
+  const armR = armL.clone();
+  armR.position.x = bw / 2 + aw * 0.4;
+  g.add(armR);
+
+  // Boss 额外装甲板 & 红色光环
+  if (boss) {
+    const plate = new THREE.Mesh(
+      new THREE.BoxGeometry(bw * 1.3, bh * 0.4, bw * 0.2),
+      m3(0x440000)
+    );
+    plate.position.y = bh * 0.7;
+    g.add(plate);
+    const ring = new THREE.Mesh(
+      new THREE.TorusGeometry(def.sz * 0.9, 0.06, 8, 24),
+      new THREE.MeshBasicMaterial({ color: 0xff0000 })
+    );
+    ring.rotation.x = Math.PI / 2;
+    ring.position.y = 0.12;
+    g.add(ring);
+  }
+
+  // 精英护盾光（半透明盒）
+  let shieldMesh = null;
+  if (def.shieldHp) {
+    shieldMesh = new THREE.Mesh(
+      new THREE.BoxGeometry(bw * 1.3, bh * 1.5, bw * 1.1),
+      new THREE.MeshBasicMaterial({
+        color: 0x88ccff, transparent: true, opacity: 0.14,
+        side: THREE.DoubleSide, depthWrite: false,
+      })
+    );
+    shieldMesh.position.y = bh * 0.5;
+    g.add(shieldMesh);
+  }
+
+  // 远程兵：举着枪
+  if (def === EDEF.ranged) {
+    const gun = new THREE.Mesh(
+      new THREE.BoxGeometry(0.06, 0.06, 0.38), m3(0x1a1a2a)
+    );
+    gun.position.set(bw * 0.5 + aw * 0.4, bh * 0.5, -bw * 0.3);
+    g.add(gun);
+  }
+
+  // 重甲兵：肩甲
+  if (def === EDEF.heavy) {
+    [-1, 1].forEach(s => {
+      const pad = new THREE.Mesh(
+        new THREE.BoxGeometry(bw * 0.5, bh * 0.2, bw * 0.5), m3(0x334455)
+      );
+      pad.position.set(s * (bw / 2 + aw * 0.3 + 0.1), bh * 0.85, 0);
+      g.add(pad);
+    });
+  }
+
+  return { group: g, head, legL, legR, armL, armR, shieldMesh,
+           meshes: [body, head, legL, legR, armL, armR] };
+}
+
+// ── 敌人出生 ─────────────────────────────────────────────────────
+function spawnEnemy(type, spawnIdx) {
+  const def  = EDEF[type];
+  const sp   = SPAWN_POINTS[spawnIdx % SPAWN_POINTS.length];
+
+  // 在刷怪点附近随机偏移，避免叠在一起
+  let wx = sp.x, wz = sp.z, tries = 0;
+  do {
+    wx = sp.x + (Math.random() - 0.5) * 3;
+    wz = sp.z + (Math.random() - 0.5) * 3;
+    tries++;
+  } while (!canMove(wx, wz) && tries < 30);
+  // 偏移全失败时退回格子中心（保证是走廊）
+  if (!canMove(wx, wz)) { wx = sp.x; wz = sp.z; }
+
+  const parts = buildEnemyMesh(def);
+  parts.group.position.set(wx, 0.35, wz);
+  scene.add(parts.group);
+
+  const hpBarY = (def.sz * 2.2) + (def.sz * 0.65) + 0.5;
+  const refreshHp = makeHpBar(parts.group, hpBarY);
+  refreshHp(def.hp, def.hp, def.shieldHp || 0, def.shieldHp || 0);
+
+  const e = {
+    id: _eid++,
+    type, def,
+    ...parts,
+    hp: def.hp,   maxHp: def.hp,
+    sh: def.shieldHp || 0,  maxSh: def.shieldHp || 0,
+    refreshHp,
+    spd: def.spd,
+    atkCd: 0,
+    shootCd: 0,
+    stunT: 0,
+    flashT: 0,
+    state: 'patrol',          // patrol | chase | attack
+    patrolTarget: null,
+    patrolTimer: 0,
+    legAnim: Math.random() * Math.PI * 2,
+    dying: false, dyingT: 0,
+    phase: 1,                 // boss 阶段
+  };
+  enemies.push(e);
+  return e;
+}
+
+// ── 敌人受伤 ─────────────────────────────────────────────────────
+function damageEnemy(e, dmg, pos) {
+  if (e.dying) return false;
+
+  // 护盾先挡（精英）
+  if (e.sh > 0) {
+    const sd = Math.min(e.sh, dmg);
+    e.sh  -= sd;
+    dmg   -= sd;
+    spawnShieldSpark(pos || e.group.position.clone().add(tmp.v3a.set(0,1,0)));
+    if (e.shieldMesh) e.shieldMesh.material.opacity = 0.14 * (e.sh / e.maxSh);
+  }
+  if (dmg > 0) e.hp -= dmg;
+  e.refreshHp(Math.max(0, e.hp), e.maxHp, e.sh, e.maxSh);
+  e.flashT = 0.1;
+
+  if (e.hp <= 0) {
+    killEnemy(e);
+    return true; // 击杀
+  }
+  return false;
+}
+
+// ── 敌人死亡 ─────────────────────────────────────────────────────
+function killEnemy(e) {
+  if (e.dying) return;
+  e.dying  = true;
+  e.dyingT = 0.55;
+  e.meshes = []; // 清空可命中网格，防止二次判定
+  // 积分 & 终极充能由第6步玩家系统处理
+  if (typeof onEnemyKilled === 'function') onEnemyKilled(e);
+  // 击杀音效（第8步注册）
+  if (typeof sndKill === 'function') sndKill();
+  // 源氏：任何方式击杀都刷新迅捷斩CD
+  if (_currentHero === 'genji') {
+    P.helixCd = 0;
+    P._dashOn = false;
+    P._dashProgress = 0;
+    P._dashHit = null;
+    showSkillBanner('⚡ 迅捷斩重置！', '#44ff88', 700);
+  }
+}
+
+// ── 敌人 AI 主循环 ───────────────────────────────────────────────
+function updateEnemies(dt, playerPos, objPos) {
+  for (let i = enemies.length - 1; i >= 0; i--) {
+    const e = enemies[i];
+
+    // ── 死亡动画：向下沉，然后移除 ──
+    if (e.dying) {
+      e.dyingT -= dt;
+      e.group.position.y -= dt * 1.4;
+      e.group.rotation.z += dt * 1.2;
+      if (e.dyingT <= 0) {
+        scene.remove(e.group);
+        enemies.splice(i, 1);
+      }
+      continue;
+    }
+
+    // 闪白（受伤反馈）
+    if (e.flashT > 0) {
+      e.flashT -= dt;
+      const fl = e.flashT > 0;
+      e.meshes.forEach(m => {
+        if (m.material) m.material.emissive = fl
+          ? new THREE.Color(0.8, 0.8, 0.8)
+          : new THREE.Color(0, 0, 0);
+      });
+    }
+
+    // 眩晕
+    if (e.stunT > 0) { e.stunT -= dt; continue; }
+
+    // Boss 阶段判定
+    if (e.type === 'boss') {
+      const hpFrac = e.hp / e.maxHp;
+      if (hpFrac < 0.6 && e.phase === 1) { e.phase = 2; e.spd *= 1.35; }
+      if (hpFrac < 0.3 && e.phase === 2) { e.phase = 3; e.spd *= 1.25; }
+    }
+
+    const ep = e.group.position;
+
+    // ── 选目标：离目标点近 or 离玩家近 ──
+    const dpSq = (ep.x-playerPos.x)**2 + (ep.z-playerPos.z)**2;
+    const doSq = (ep.x-objPos.x)**2    + (ep.z-objPos.z)**2;
+    const tgt  = (e.type==='heavy'||e.type==='boss')
+      ? (dpSq < 100 ? playerPos : objPos)       // 重甲/boss 优先近战玩家
+      : (doSq < dpSq * 0.6 ? objPos : playerPos); // 其他敌人优先目标点
+
+    const tdx = tgt.x - ep.x;
+    const tdz = tgt.z - ep.z;
+    const td  = Math.sqrt(tdx*tdx + tdz*tdz);
+
+    // 朝目标旋转
+    if (td > 0.1) {
+      const targetAngle = Math.atan2(tdx, tdz);
+      let da = targetAngle - e.group.rotation.y;
+      while (da >  Math.PI) da -= Math.PI * 2;
+      while (da < -Math.PI) da += Math.PI * 2;
+      e.group.rotation.y += da * Math.min(1, dt * 6);
+    }
+
+    // 腿部行走动画
+    e.legAnim += dt * e.spd * 2.5;
+    if (e.legL) e.legL.rotation.x =  Math.sin(e.legAnim) * 0.4;
+    if (e.legR) e.legR.rotation.x = -Math.sin(e.legAnim) * 0.4;
+
+    // ── 近战攻击 ──
+    if (e.atkCd > 0) e.atkCd -= dt;
+
+    if (td <= e.def.atkR && e.atkCd <= 0) {
+      e.atkCd = e.def.atkCD;
+      if (tgt === playerPos) {
+        // 打玩家 —— 第6步 damagePlayer() 会被注册
+        if (typeof damagePlayer === 'function') damagePlayer(e.def.dmg);
+      } else {
+        // 打目标点
+        if (typeof damageObjective === 'function') damageObjective(e.def.dmg * 0.5);
+      }
+    }
+
+    // ── 移动（追击 / 巡逻）──
+    const moveSpd = e.spd;
+    const eSz = e.def.sz; // 敌人碰撞半径，用自身体积而非固定 PR
+    if (td > e.def.atkR + 0.3) {
+      // 远程兵：距离太近时后退
+      if (e.type === 'ranged' && td < 4) {
+        moveEntity(ep, -tdx, -tdz, moveSpd * 0.7, dt, eSz);
+      } else {
+        moveEntity(ep, tdx, tdz, moveSpd, dt, eSz);
+      }
+    }
+
+    // ── 远程射击（ranged/boss/elite/heavy 均可）──
+    if (e.def.shootR) {
+      if (e.shootCd > 0) e.shootCd -= dt;
+      if (dpSq <= e.def.shootR ** 2 && e.shootCd <= 0) {
+        e.shootCd = e.def.shootCD;
+        fireEnemyProjectile(e, playerPos);
+      }
+    }
+
+    // 保持在地面（防止浮空/下陷）
+    ep.y = Math.max(0.35, ep.y);
+  }
+
+  // ── 敌人间实体分离（防止穿模堆叠）──
+  // 多次迭代让分离在高密度时更彻底
+  for (let iter = 0; iter < 3; iter++) {
+    for (let i = 0; i < enemies.length; i++) {
+      for (let j = i + 1; j < enemies.length; j++) {
+        const a = enemies[i], b = enemies[j];
+        if (a.dying || b.dying) continue;
+        const dx = a.group.position.x - b.group.position.x;
+        const dz = a.group.position.z - b.group.position.z;
+        const d2 = dx*dx + dz*dz;
+        const mn = (a.def.sz + b.def.sz) * 0.88;
+        if (d2 < mn*mn && d2 > 0.0001) {
+          const d = Math.sqrt(d2);
+          const push = (mn - d) / d * 0.55; // 加强推开力度
+          const ax = dx * push, az = dz * push;
+          // 推开后校验不进墙
+          const nax = a.group.position.x + ax;
+          const naz = a.group.position.z + az;
+          const nbx = b.group.position.x - ax;
+          const nbz = b.group.position.z - az;
+          if (canMove(nax, naz, a.def.sz)) { a.group.position.x = nax; a.group.position.z = naz; }
+          if (canMove(nbx, nbz, b.def.sz)) { b.group.position.x = nbx; b.group.position.z = nbz; }
+        }
+      }
+    }
+  }
+}
+
+// ── 敌人远程投射物 ───────────────────────────────────────────────
+const enemyProjectiles = [];
+
+function fireEnemyProjectile(e, targetPos) {
+  const from = e.group.position.clone().add(tmp.v3a.set(0, 1.2, 0));
+  const dx   = targetPos.x - from.x;
+  const dz   = targetPos.z - from.z;
+  const len  = Math.sqrt(dx*dx + dz*dz) || 1;
+
+  // 子弹颜色按兵种区分
+  const bulletCol = e.type === 'boss'   ? 0xff2200
+                  : e.type === 'elite'  ? 0xddcc00
+                  : e.type === 'heavy'  ? 0x6699bb
+                  :                       0x2255ff; // ranged
+
+  const mesh = new THREE.Mesh(
+    new THREE.SphereGeometry(0.10, 6, 4),
+    new THREE.MeshBasicMaterial({ color: bulletCol })
+  );
+  const pl = new THREE.PointLight(bulletCol, 1.5, 2.5);
+  const grp = new THREE.Group();
+  grp.add(mesh); grp.add(pl);
+  grp.position.copy(from);
+  scene.add(grp);
+
+  enemyProjectiles.push({
+    group: grp,
+    vx: (dx/len) * 9,
+    vz: (dz/len) * 9,
+    dmg: e.def.dmg,
+    life: 3.0, age: 0,
+  });
+}
+
+function updateEnemyProjectiles(dt, playerPos) {
+  for (let i = enemyProjectiles.length - 1; i >= 0; i--) {
+    const p = enemyProjectiles[i];
+    p.age += dt;
+    if (p.age >= p.life) {
+      scene.remove(p.group); enemyProjectiles.splice(i, 1); continue;
+    }
+    const nx = p.group.position.x + p.vx * dt;
+    const nz = p.group.position.z + p.vz * dt;
+
+    // 命中墙体（已反弹的子弹碰墙消失）
+    if (isWall(nx, nz)) {
+      scene.remove(p.group); enemyProjectiles.splice(i, 1); continue;
+    }
+
+    // 偏转后：检测是否命中敌人
+    if (p._deflected) {
+      let hitEnemy = false;
+      for (const e of enemies) {
+        if (e.dying) continue;
+        const ex = e.group.position.x - nx;
+        const ez = e.group.position.z - nz;
+        if (ex*ex + ez*ez < 1.2) {
+          const hp = e.group.position.clone().add(tmp.v3a.set(0,1.2,0));
+          spawnBlood(hp);
+          showDmgNum(hp, p.dmg, false);
+          const killed = damageEnemy(e, p.dmg, hp);
+          if (killed) { showKillMarker(); } else { showHitMarker(false); }
+          gainUlt(p.dmg * 1.2);
+          scene.remove(p.group); enemyProjectiles.splice(i, 1);
+          hitEnemy = true;
+          break;
+        }
+      }
+      if (hitEnemy) continue;
+    }
+
+    // 命中推车车身（AABB 检测，车高 ≤1.3 才能被车身挡）
+    if (cart.mesh) {
+      const cdx = nx - cart.pos.x;
+      const cdz = nz - cart.pos.z;
+      if (Math.abs(cdx) < 1.2 && Math.abs(cdz) < 1.6 && p.group.position.y < 1.35) {
+        spawnBulletHole(p.group.position.clone(), new THREE.Vector3(0, 0, 1));
+        scene.remove(p.group); enemyProjectiles.splice(i, 1); continue;
+      }
+    }
+
+    // 命中掩体
+    if (_coverMeshList.length > 0) {
+      const tmpRay2 = new THREE.Raycaster(
+        p.group.position.clone(),
+        new THREE.Vector3(p.vx, 0, p.vz).normalize(),
+        0, Math.sqrt(p.vx*p.vx + p.vz*p.vz) * dt * 2
+      );
+      const cHits = tmpRay2.intersectObjects(_coverMeshList, false);
+      if (cHits.length > 0) {
+        spawnBulletHole(cHits[0].point, cHits[0].face ? cHits[0].face.normal : new THREE.Vector3(0,1,0));
+        scene.remove(p.group); enemyProjectiles.splice(i, 1); continue;
+      }
+    }
+    p.group.position.x = nx;
+    p.group.position.z = nz;
+
+    // 命中玩家（已反弹的子弹不伤害自己）
+    const dx = p.group.position.x - playerPos.x;
+    const dz = p.group.position.z - playerPos.z;
+    if (!p._deflected && dx*dx + dz*dz < 0.5) {
+      scene.remove(p.group); enemyProjectiles.splice(i, 1);
+      if (typeof damagePlayer === 'function') damagePlayer(p.dmg);
+    }
+  }
+}
+
+// ── 射线命中敌人（玩家开枪时调用）──────────────────────────────
+function raycastEnemies(baseDmg) {
+  tmp.ray.setFromCamera({ x: 0, y: 0 }, camera);
+  const eMeshes = enemies.filter(e => !e.dying).flatMap(e => e.meshes);
+  const eHits   = tmp.ray.intersectObjects(eMeshes, false);
+
+  // 合并遮挡物：墙 + 掩体 + 推车子mesh
+  const blockers = [...wallMeshes, ..._coverMeshList];
+  if (cart.mesh) cart.mesh.traverse(c => { if (c.isMesh) blockers.push(c); });
+
+  if (eHits.length === 0) {
+    // 没打到敌人——检查打到掩体/车/墙
+    const bHits = tmp.ray.intersectObjects(blockers, false);
+    if (bHits.length > 0) spawnBulletHole(bHits[0].point, bHits[0].face ? bHits[0].face.normal : new THREE.Vector3(0,1,0));
+    return null;
+  }
+
+  // 检查遮挡（墙/掩体/车优先于敌人）
+  const bHits2 = tmp.ray.intersectObjects(blockers, false);
+  if (bHits2.length > 0 && bHits2[0].distance < eHits[0].distance) {
+    spawnBulletHole(bHits2[0].point, bHits2[0].face ? bHits2[0].face.normal : new THREE.Vector3(0,1,0));
+    return null;
+  }
+
+  // 找到被击中的敌人
+  for (const e of enemies) {
+    if (e.dying) continue;
+    if (e.meshes.includes(eHits[0].object)) {
+      const isHead  = eHits[0].object === e.head;
+      const dmg     = Math.round(baseDmg * (isHead ? 2.0 : 1));
+      spawnBlood(eHits[0].point);
+      showDmgNum(eHits[0].point, dmg, isHead);
+      const killed  = damageEnemy(e, dmg, eHits[0].point);
+      if (killed) {
+        showKillMarker();          // 击杀骷髅头 + ding-ding
+      } else {
+        showHitMarker(isHead);     // 命中/爆头 ding + ×
+      }
+      return { enemy: e, dmg, headshot: isHead };
+    }
+  }
+  return null;
+}
+
+// ── Helix 爆炸对敌人造成范围伤害 ────────────────────────────────
+function helixAoeDamage(boomPos, dmg, radius) {
+  const r2 = radius * radius;
+  let anyKill = false;
+  enemies.forEach(e => {
+    if (e.dying) return;
+    const dx = e.group.position.x - boomPos.x;
+    const dz = e.group.position.z - boomPos.z;
+    const d2 = dx*dx + dz*dz;
+    if (d2 <= r2) {
+      const falloff = 1 - Math.sqrt(d2) / radius;
+      const ad = Math.round(dmg * Math.max(0.3, falloff));
+      const hp = e.group.position.clone().add(tmp.v3a.set(0,1,0));
+      spawnBlood(hp);
+      showDmgNum(hp, ad, false);
+      const killed = damageEnemy(e, ad, hp);
+      if (killed) anyKill = true;
+    }
+  });
+  if (anyKill) showKillMarker();
+}
+
+// ══════════════════════════════════════════════════════════════════
+// 第5步：推车系统 / 血包 / 悬崖 / 波次系统 / 结束判定
+// ══════════════════════════════════════════════════════════════════
+
+// ── 悬崖检测 ─────────────────────────────────────────────────────
+function isVoid(wx, wz) {
+  const col = Math.floor((wx + OX) / CELL);
+  const row = Math.floor((wz + OZ) / CELL);
+  if (col < 0 || row < 0 || col >= MAP_COLS || row >= MAP_ROWS) return false;
+  return MAP[row][col] === 2;
+}
+
+let _voidDeadCooldown = 0; // 防止悬崖连续触发死亡
+function tickVoid(dt) {
+  if (_voidDeadCooldown > 0) { _voidDeadCooldown -= dt; return; }
+  // 空中不触发（跳跃越过悬崖格时不算死）；Y足够低才算掉下去
+  if (!P.onGround) return;
+  if (isVoid(camera.position.x, camera.position.z)) {
+    _voidDeadCooldown = 6.0;
+    playerDead();
+  }
+}
+
+// ── 推车3D模型构建 ────────────────────────────────────────────────
+function buildPayload() {
+  const g = new THREE.Group();
+
+  // 车身（木箱棕色）
+  const body = new THREE.Mesh(
+    new THREE.BoxGeometry(2.2, 1.0, 3.0),
+    new THREE.MeshLambertMaterial({ color: 0x7a4a1e })
+  );
+  body.position.y = 0.7;
+  g.add(body);
+
+  // 金属底盘
+  const frame = new THREE.Mesh(
+    new THREE.BoxGeometry(2.5, 0.18, 3.3),
+    new THREE.MeshLambertMaterial({ color: 0x333333 })
+  );
+  frame.position.y = 0.09;
+  g.add(frame);
+
+  // 顶部发光信标（橙色，守望先锋风格）
+  const beacon = new THREE.Mesh(
+    new THREE.SphereGeometry(0.28, 12, 8),
+    new THREE.MeshBasicMaterial({ color: 0xf99e1a })
+  );
+  beacon.position.y = 1.48;
+  g.add(beacon);
+
+  // 信标光柱（半透明橙色圆柱）
+  const beam = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.06, 0.06, 4, 8, 1, true),
+    new THREE.MeshBasicMaterial({ color: 0xf99e1a, transparent: true, opacity: 0.25, side: THREE.DoubleSide, depthWrite: false })
+  );
+  beam.position.y = 3.2;
+  g.add(beam);
+  g._beacon = beacon;
+  g._beam   = beam;
+
+  // 点光（随车移动）
+  const cartLight = new THREE.PointLight(0xf99e1a, 2.5, 9);
+  cartLight.position.y = 1.5;
+  g.add(cartLight);
+  cart.light = cartLight;
+
+  // 四个轮子
+  [[-0.95, -1.1], [0.95, -1.1], [-0.95, 1.1], [0.95, 1.1]].forEach(([wx, wz]) => {
+    const wheel = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.32, 0.32, 0.22, 10),
+      new THREE.MeshLambertMaterial({ color: 0x111111 })
+    );
+    wheel.rotation.z = Math.PI / 2;
+    wheel.position.set(wx, 0.32, wz);
+    g.add(wheel);
+  });
+
+  // 侧面橙色条纹装饰
+  [-1, 1].forEach(s => {
+    const stripe = new THREE.Mesh(
+      new THREE.BoxGeometry(0.05, 0.14, 2.6),
+      new THREE.MeshLambertMaterial({ color: 0xf99e1a })
+    );
+    stripe.position.set(s * 1.13, 0.72, 0);
+    g.add(stripe);
+  });
+
+  g.position.set(cart.pos.x, 0, cart.pos.z);
+  scene.add(g);
+  cart.mesh = g;
+}
+
+// ── 血包构建 ─────────────────────────────────────────────────────
+function buildHealthPacks() {
+  HEALTH_PACKS.forEach(pack => {
+    const g = new THREE.Group();
+
+    const sphere = new THREE.Mesh(
+      new THREE.SphereGeometry(0.38, 10, 7),
+      new THREE.MeshBasicMaterial({ color: 0x44ff88 })
+    );
+    sphere.position.y = 0.5;
+    g.add(sphere);
+
+    // 十字标记
+    const h = new THREE.Mesh(
+      new THREE.BoxGeometry(0.52, 0.10, 0.14),
+      new THREE.MeshBasicMaterial({ color: 0xffffff })
+    );
+    h.position.y = 0.5;
+    g.add(h);
+    const v = new THREE.Mesh(
+      new THREE.BoxGeometry(0.14, 0.10, 0.52),
+      new THREE.MeshBasicMaterial({ color: 0xffffff })
+    );
+    v.position.y = 0.5;
+    g.add(v);
+
+    const pl = new THREE.PointLight(0x44ff88, 1.5, 4);
+    pl.position.y = 0.6;
+    g.add(pl);
+
+    g.position.set(pack.x, 0, pack.z);
+    scene.add(g);
+    pack.mesh = g;
+  });
+}
+
+// ── 掩体构建 ─────────────────────────────────────────────────────
+// 低矮木箱/板材，放在推车路线两侧，可以挡子弹（加入 _coverMeshList）
+// _coverColliders 提供移动碰撞（OBB），让玩家/敌人无法穿过
+const _coverMeshList = [];
+
+function buildCoverObjects() {
+  // [x, z, rotY, w, h, d]  rotY=旋转角度(弧度), w/h/d=宽/高/深
+  const covers = [
+    // ── 南段直道两侧 (col7直道 z=32→-2) ──
+    [ -9.5, 27,   0,        1.8, 1.1, 1.0 ], // 西侧箱子
+    [  4.0, 22,   0,        2.0, 1.0, 0.9 ], // 东侧板材
+    [ -9.5, 17,   0,        1.8, 1.2, 1.0 ], // 西侧箱子
+    [  4.0, 12,   Math.PI/4, 1.6, 1.0, 1.0 ], // 东侧斜放箱
+    [ -9.5, 7,    0,        2.0, 1.1, 0.9 ], // 西侧长板
+    [  4.0, 2,    0,        1.6, 1.0, 1.0 ], // 东侧箱子
+    // ── 弯道区 (z=-2~-7) ──
+    [ -9.0, -2,   0,        1.8, 1.2, 1.0 ], // 弯道西侧
+    [  4.0, -7,   Math.PI/2, 1.6, 1.0, 1.0 ], // 弯道东侧
+    // ── 横道 (z=-7, x从-2.5到27.5) ──
+    [  2.5, -13,  0,        1.8, 1.1, 1.0 ], // 横道南侧
+    [ 12.5, -2,   0,        1.8, 1.1, 1.0 ], // 横道北侧
+    [ 17.5, -13,  0,        2.0, 1.0, 0.9 ], // 横道南侧中段
+    // ── 北段直道 (col13, z=-7~-32) ──
+    [ 22.0, -17,  0,        1.8, 1.2, 1.0 ], // 西侧掩体
+    [ 33.0, -22,  0,        1.6, 1.0, 1.0 ], // 东侧箱子（如果可达）
+    [ 22.0, -27,  Math.PI/4, 2.0, 1.1, 0.9 ], // 西侧斜放
+    [ 22.0, -12,  0,        1.8, 1.0, 1.0 ], // 转角掩体
+  ];
+
+  const matCover = new THREE.MeshLambertMaterial({ color: 0x5a3a1a }); // 深棕木箱
+  const matCover2 = new THREE.MeshLambertMaterial({ color: 0x444444 }); // 灰色金属板
+
+  covers.forEach(([cx, cz, ry, w, h, d], i) => {
+    // 检查位置是否在可行走格（防止掩体放进墙里）
+    if (isWall(cx, cz)) return;
+
+    const mat = i % 3 === 0 ? matCover2 : matCover;
+    const box = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), mat);
+    box.position.set(cx, h / 2, cz);
+    box.rotation.y = ry;
+    scene.add(box);
+    _coverMeshList.push(box);
+
+    // 加一点细节：顶部金属条
+    const strip = new THREE.Mesh(
+      new THREE.BoxGeometry(w + 0.05, 0.06, d + 0.05),
+      new THREE.MeshLambertMaterial({ color: 0x888888 })
+    );
+    strip.position.set(cx, h + 0.03, cz);
+    strip.rotation.y = ry;
+    scene.add(strip);
+    _coverMeshList.push(strip);
+
+    // 注册 OBB 碰撞体（移动碰撞，让玩家/敌人不能穿过）
+    _coverColliders.push({ cx, cz, ry, hw: w / 2, hd: d / 2 });
+  });
+}
+function tickPayload(dt) {
+  if (!_gameActive || _paused) return;
+
+  const cp = camera.position;
+  const ep = cart.pos;
+  const playerDist = Math.sqrt((cp.x - ep.x)**2 + (cp.z - ep.z)**2);
+  const playerNear = playerDist < 3.2;
+
+  // 检查任何存活敌人是否在推车5单位内（争夺状态）
+  // 注意：只计算 dying===false 且 dyingT<=0 的敌人，避免"临死"怪干扰
+  let enemyNear = false;
+  for (const e of enemies) {
+    if (e.dying || e.dyingT > 0) continue;
+    const dx = e.group.position.x - ep.x;
+    const dz = e.group.position.z - ep.z;
+    if (dx*dx + dz*dz < 25) { enemyNear = true; break; }
+  }
+  cart.contested = enemyNear;
+
+  let delta = 0;
+  if (enemyNear && !playerNear) {
+    // 有敌人且玩家不在车旁：车倒退（争夺）
+    delta = -cart.backwardSpeed * dt;
+  } else if (enemyNear && playerNear) {
+    // 玩家和敌人都在：僵持，不动
+    delta = 0;
+  } else if (playerNear) {
+    // 只有玩家在旁边：正常前进
+    delta = cart.forwardSpeed * dt;
+  } else {
+    // 无人在旁：缓慢倒退（起点处会自动停住）
+    delta = -cart.backwardSpeed * dt;
+  }
+
+  if (delta !== 0) advanceCart(delta);
+
+  // 同步3D模型位置
+  if (cart.mesh) {
+    cart.mesh.position.set(ep.x, 0, ep.z);
+    // 信标自转动画
+    if (cart.mesh._beacon) cart.mesh._beacon.rotation.y += dt * 1.8;
+    if (cart.mesh._beam)   cart.mesh._beam.rotation.y   += dt * 0.6;
+  }
+
+  cart.pathProgress = getCartProgress();
+  updatePayloadHUD();
+
+  // 兜底：进度达到终点（waypointIdx 到头 或 进度 ≥ 1）触发胜利
+  if (!cart._won && (cart.pathProgress >= 1 || cart.waypointIdx >= CART_PATH.length)) {
+    cart._won = true;
+    onCartReachDestination();
+  }
+}
+
+function advanceCart(delta) {
+  // 倒退时：如果已在起点（waypointIdx<=1 且接近CART_PATH[0]），直接不动
+  if (delta < 0 && cart.waypointIdx <= 1) {
+    const s = CART_PATH[0];
+    const d2 = (cart.pos.x-s.x)**2 + (cart.pos.z-s.z)**2;
+    if (d2 < 0.1) return; // 已在起点，停住
+  }
+
+  let remaining = Math.abs(delta);
+  const dir = delta > 0 ? 1 : -1;
+
+  while (remaining > 0.0001) {
+    const nextIdx = cart.waypointIdx;
+    if (nextIdx < 0 || nextIdx >= CART_PATH.length) break;
+
+    const target = CART_PATH[nextIdx];
+    const dx = target.x - cart.pos.x;
+    const dz = target.z - cart.pos.z;
+    const distToNext = Math.sqrt(dx*dx + dz*dz);
+
+    if (distToNext < 0.05) {
+      cart.pos.x = target.x;
+      cart.pos.z = target.z;
+
+      if (dir > 0) {
+        if (nextIdx === CHECKPOINT_B_IDX && !cart.reachedB) {
+          cart.reachedB = true;
+          cart.lastCheckpoint = 1;
+          onCheckpointReached('B');
+        }
+        if (nextIdx >= CART_PATH.length - 1) {
+          onCartReachDestination();
+          return;
+        }
+        cart.waypointIdx++;
+      } else {
+        // 退到起点路点就停
+        if (nextIdx <= 1) { remaining = 0; break; }
+        cart.waypointIdx--;
+      }
+      remaining = Math.max(0, remaining - distToNext);
+      continue;
+    }
+
+    const step = Math.min(remaining, distToNext);
+    cart.pos.x += (dx / distToNext) * step * dir;
+    cart.pos.z += (dz / distToNext) * step * dir;
+    remaining -= step;
+    break;
+  }
+}
+
+function getCartProgress() {
+  const totalSegs = CART_PATH.length - 1; // 12
+  const segDone = Math.max(0, cart.waypointIdx - 1);
+  if (cart.waypointIdx <= 0) return 0;
+  if (cart.waypointIdx >= CART_PATH.length) return 1;
+  const target = CART_PATH[cart.waypointIdx];
+  const prev   = CART_PATH[cart.waypointIdx - 1];
+  const totalSegLen = Math.sqrt((target.x-prev.x)**2 + (target.z-prev.z)**2);
+  const currLen     = Math.sqrt((cart.pos.x-prev.x)**2 + (cart.pos.z-prev.z)**2);
+  const segFrac = totalSegLen > 0 ? Math.min(1, currLen / totalSegLen) : 0;
+  return Math.min(1, (segDone + segFrac) / totalSegs);
+}
+
+function onCheckpointReached(name) {
+  showSkillBanner('✓ CHECKPOINT ' + name + ' REACHED', '#f99e1a', 2500);
+  showWaveAnn('CP-' + name);
+}
+
+function onCartReachDestination() {
+  cart.pathProgress = 1;
+  updatePayloadHUD();
+  endGame(true);
+}
+
+function updatePayloadHUD() {
+  const pct = Math.round(cart.pathProgress * 100);
+  const fill = document.getElementById('obj-fill');
+  fill.style.width = pct + '%';
+  fill.style.background = cart.contested ? '#e94560' : pct >= 40 ? '#f99e1a' : '#7ec8e3';
+
+  const cp = camera.position;
+  const playerNear = (cp.x-cart.pos.x)**2 + (cp.z-cart.pos.z)**2 < 10.24;
+  let statusTxt = pct + '%';
+  if (cart.contested && playerNear)  statusTxt += '  ⚔ CONTESTED';
+  else if (cart.contested)           statusTxt += '  ⛔ LOSING GROUND';
+  else if (playerNear)               statusTxt += '  ▶ PUSHING';
+  else if (cart.pathProgress > 0)    statusTxt += '  ◀ ROLLING BACK';
+  document.getElementById('obj-num').textContent = statusTxt;
+
+  const statusEl = document.getElementById('obj-status');
+  if (statusEl) statusEl.style.display = cart.contested ? 'block' : 'none';
+}
+
+// ── 血包 Tick ─────────────────────────────────────────────────────
+function tickHealthPacks(dt) {
+  const t = performance.now() * 0.003;
+  HEALTH_PACKS.forEach(pack => {
+    if (!pack.active) {
+      pack.timer -= dt;
+      if (pack.timer <= 0) {
+        pack.active = true;
+        if (pack.mesh) pack.mesh.visible = true;
+      }
+      return;
+    }
+    // 上下浮动动画
+    if (pack.mesh) pack.mesh.position.y = Math.sin(t + pack.x) * 0.1;
+
+    // 拾取检测（1.5单位半径）
+    const dx = camera.position.x - pack.x;
+    const dz = camera.position.z - pack.z;
+    if (dx*dx + dz*dz < 2.25 && P.hp < P.maxHp) {
+      // 源氏 Flanker Perk：血包回复量更大
+      const heal = _currentHero === 'genji' ? 150 : pack.hp;
+      P.hp = Math.min(P.maxHp, P.hp + heal);
+      pack.active = false;
+      pack.timer  = pack.cooldown;
+      if (pack.mesh) pack.mesh.visible = false;
+      updateHpHUD();
+      showSkillBanner('❤ +' + heal + ' HEALTH PACK', _currentHero === 'genji' ? '#44ff88' : '#44ff88', 1000);
+      // 治疗音效（复用biotic音）
+      if (typeof sndBiotic === 'function') sndBiotic();
+    }
+  });
+}
+
+// damageObjective 已废弃（推车不能被摧毁），保留空函数避免旧代码报错
+function damageObjective() {}
+function updateObjHUD() { updatePayloadHUD(); }
+
+// ── 10波配置（循环，无限刷新）────────────────────────────────────
+const WAVE_DEFS = [
+  { groups: [{ t:'trooper', n:3 }],                                  gap:0.4  },
+  { groups: [{ t:'trooper', n:4 }, { t:'trooper', n:2 }],            gap:0.35 },
+  { groups: [{ t:'trooper', n:5 }, { t:'ranged',  n:2 }],            gap:0.3  },
+  { groups: [{ t:'trooper', n:4 }, { t:'heavy',   n:2 }],            gap:0.3  },
+  { groups: [{ t:'trooper', n:3 }, { t:'ranged',  n:2 }, { t:'heavy', n:2 }], gap:0.28 },
+  { groups: [{ t:'trooper', n:4 }, { t:'elite',   n:2 }],            gap:0.28 },
+  { groups: [{ t:'trooper', n:3 }, { t:'heavy',   n:3 }, { t:'elite', n:2 }], gap:0.25 },
+  { groups: [{ t:'ranged',  n:3 }, { t:'elite',   n:4 }],            gap:0.22 },
+  { groups: [{ t:'heavy',   n:3 }, { t:'elite',   n:5 }],            gap:0.20 },
+  { groups: [{ t:'boss', n:1 }, { t:'trooper', n:4 }, { t:'elite', n:2 }], gap:0.5 },
+];
+
+// 根据推车进度获取敌人数量倍率（进度越高敌越多）
+function densityMultiplier() {
+  return 1.0 + cart.pathProgress * 1.5;
+}
+
+
+// ── 波次状态 ─────────────────────────────────────────────────────
+const WAVE = {
+  idx:      -1,        // 当前波次索引（0-based），-1表示未开始
+  state:    'idle',    // idle | countdown | active | between | finished
+  timer:    0,         // 倒计时（波间休息 or 刷怪间隔用）
+  spawnQ:   [],        // 待刷怪队列 [{t, delay}]
+  spawnT:   0,         // 刷怪计时器
+  total:    0,         // 本波计划总数
+  killed:   0,         // 本波已击杀数
+  between:  3.5,       // 波间休息秒数（第8波后缩短）
+};
+
+// ── 开始某波 ─────────────────────────────────────────────────────
+function startWave(idx) {
+  WAVE.idx   = idx;
+  WAVE.state = 'active';
+  WAVE.killed = 0;
+
+  // 构建刷怪队列（根据推车进度加密度）
+  const def  = WAVE_DEFS[idx];
+  const mult = densityMultiplier();
+  WAVE.spawnQ = [];
+  let delay = 0;
+  for (const g of def.groups) {
+    const count = Math.round(g.n * mult);
+    for (let k = 0; k < count; k++) {
+      WAVE.spawnQ.push({ t: g.t, delay });
+      delay += def.gap + Math.random() * 0.2;
+    }
+  }
+  WAVE.total  = WAVE.spawnQ.length;
+  WAVE.spawnT = 0;
+
+  showWaveAnn(idx + 1);
+  updateWaveHUD();
+}
+
+function showWaveAnn(num) {
+  const el  = document.getElementById('wave-ann');
+  document.getElementById('wann-num').textContent = num;
+  el.style.opacity = '1';
+  setTimeout(() => {
+    el.style.transition = 'opacity .7s';
+    el.style.opacity    = '0';
+    setTimeout(() => { el.style.transition = ''; }, 750);
+  }, 2000);
+}
+
+// ── 每帧波次驱动 ─────────────────────────────────────────────────
+function tickWave(dt) {
+
+  // ── 等待阶段（波间休息倒计时）──
+  if (WAVE.state === 'between') {
+    WAVE.timer -= dt;
+    updateWaveTimerUI('下一波 ' + Math.ceil(Math.max(0, WAVE.timer)) + 's', WAVE.timer < 3);
+    if (WAVE.timer <= 0) {
+      const next = WAVE.idx + 1;
+      // 波次循环（不再触发endGame，胜利只能由推到终点触发）
+      startWave(next >= WAVE_DEFS.length ? 0 : next);
+    }
+    return;
+  }
+
+  // ── 活跃阶段 ──
+  if (WAVE.state === 'active') {
+
+    // 分批刷怪（用推车感知的刷怪点）
+    WAVE.spawnT += dt;
+    while (WAVE.spawnQ.length > 0 && WAVE.spawnT >= WAVE.spawnQ[0].delay) {
+      const q  = WAVE.spawnQ.shift();
+      const sp = pickSpawnPoint();
+      let wx = sp.x, wz = sp.z, tries = 0;
+      do { wx = sp.x+(Math.random()-.5)*3; wz = sp.z+(Math.random()-.5)*3; tries++; }
+      while (!canMove(wx,wz) && tries < 20);
+      if (!canMove(wx,wz)) { wx=sp.x; wz=sp.z; }
+      // 用 spawnEnemy 的索引方式兼容现有函数
+      const si = SPAWN_POINTS.indexOf(sp);
+      spawnEnemy(q.t, si >= 0 ? si : 0);
+    }
+
+    // 判断本波是否结束：队列空 + 场上没有活着的敌人
+    const alive = enemies.filter(e => !e.dying).length;
+    if (WAVE.spawnQ.length === 0 && alive === 0) {
+      WAVE.state   = 'between';
+      // 越后面的波次休息越短
+      WAVE.timer   = WAVE.idx >= 7 ? 2.0 : WAVE.between;
+      updateWaveTimerUI('WAVE CLEAR!', false);
+      showSkillBanner('✓ WAVE ' + (WAVE.idx + 1) + ' CLEAR', '#4fc842', 2000);
+    }
+
+    updateWaveHUD();
+  }
+}
+
+// ── 击杀计数（第4步 killEnemy 会调用）───────────────────────────
+function onEnemyKilled(e) {
+  WAVE.killed++;
+  // 终极充能 & 积分在第6步玩家系统里注入
+  if (typeof onKillScore === 'function') onKillScore(e.def.score);
+  updateWaveHUD();
+}
+
+// ── 波次 HUD 更新 ─────────────────────────────────────────────────
+function updateWaveHUD() {
+  document.getElementById('wave-num').textContent =
+    WAVE.idx >= 0 ? (WAVE.idx + 1) : '—';
+
+  const total  = WAVE.total || 1;
+  const killed = WAVE.killed;
+  const pct    = Math.min(1, killed / total) * 100;
+  document.getElementById('wave-prog-fill').style.width = pct + '%';
+  document.getElementById('wave-kills').textContent =
+    killed + ' / ' + total + ' killed';
+}
+
+function updateWaveTimerUI(text, urgent) {
+  const el = document.getElementById('wave-timer');
+  el.textContent  = text || '';
+  el.className    = urgent ? 'urgent' : '';
+}
+
+// ── 随机刷精英/Boss（取代波次系统）─────────────────────────────
+let _spawnTimer = 5;
+
+function tickEnemySpawn(dt) {
+  if (!_gameActive || _paused) return;
+  _spawnTimer -= dt;
+  if (_spawnTimer > 0) return;
+
+  // 推车进度越高刷怪越频繁，场上最多同时 6 个
+  const alive = enemies.filter(e => !e.dying).length;
+  if (alive >= 6) { _spawnTimer = 3; return; }
+
+  // 基础间隔：早期 10s → 后期 6s，加随机抖动（两套系统合计不超过一个合理密度）
+  _spawnTimer = Math.max(6, 10 - cart.pathProgress * 4) + Math.random() * 2;
+
+  // Boss：进度>0.8 且场上无 Boss 时有 10% 概率刷一个
+  let type;
+  const r = Math.random();
+  const bossAlive = enemies.filter(e => !e.dying && e.type === 'boss').length;
+  if (cart.pathProgress > 0.8 && bossAlive === 0) {
+    type = r < 0.10 ? 'boss' : r < 0.55 ? 'elite' : 'heavy';
+  } else if (cart.pathProgress > 0.4) {
+    type = r < 0.6 ? 'elite' : 'heavy';
+  } else {
+    type = r < 0.65 ? 'elite' : 'heavy';
+  }
+
+  const sp = pickSpawnPoint();
+  let wx = sp.x, wz = sp.z, tries = 0;
+  do {
+    wx = sp.x + (Math.random() - 0.5) * 4;
+    wz = sp.z + (Math.random() - 0.5) * 4;
+    tries++;
+  } while (!canMove(wx, wz) && tries < 25);
+  if (!canMove(wx, wz)) { wx = sp.x; wz = sp.z; }
+
+  const si = SPAWN_POINTS.indexOf(sp);
+  spawnEnemy(type, si >= 0 ? si : 0);
+}
+
+// ── 游戏结束 ─────────────────────────────────────────────────────
+// win=true 推车到达终点C，win=false 保留接口但推车模式不调用
+function endGame(win) {
+  if (typeof _gameActive !== 'undefined') _gameActive = false;
+  document.exitPointerLock();
+
+  const scr = document.getElementById('scr-end');
+  scr.className = 'ov ' + (win ? 'win' : 'lose');
+  scr.style.display = 'flex';
+
+  document.getElementById('end-title').textContent =
+    win ? 'PAYLOAD DELIVERED' : 'MISSION FAILED';
+  document.getElementById('end-sub').textContent = win
+    ? '推车已成功运抵终点 C！任务完成。'
+    : '推车未能到达目的地。';
+
+  // 统计数据
+  const kills = typeof P !== 'undefined' ? P.kills : 0;
+  const score = typeof P !== 'undefined' ? P.score : 0;
+  const wave  = WAVE.idx >= 0 ? WAVE.idx + 1 : 0;
+  document.getElementById('end-stats').innerHTML =
+    '击杀: <span>' + kills + '</span>&nbsp;&nbsp;|&nbsp;&nbsp;' +
+    '得分: <span>' + score + '</span>&nbsp;&nbsp;|&nbsp;&nbsp;' +
+    '到达波次: <span>' + wave + '</span>';
+}
+
+// ── 占位渲染（让标题页背景有 3D 场景）──────────────────────────
+camera.position.set(-2.5, 1.7, 30);
+camera.lookAt(-2.5, 1.7, -40); // 看向Z形地图北侧
+
+let _previewRunning = true;
+(function previewLoop(t) {
+  if (!_previewRunning) return;
+  requestAnimationFrame(previewLoop);
+  updateParticles(0.016);
+  renderer.render(scene, camera);
+})();
+
+// 按钮占位已由第7/8步完整实现，此处占位已移除
+// ══════════════════════════════════════════════════════════════════
+// 第6步：玩家战斗系统
+// 射击 / 装弹 / Helix / Biotic Field / Tactical Visor / 疾跑
+// 全套枪械动作：持枪姿态 / 疾跑托枪 / 激活目镜 / 维生力场左手
+// ══════════════════════════════════════════════════════════════════
+
+// ── 玩家状态 ─────────────────────────────────────────────────────
+const P = {
+  hp: 250, maxHp: 250,
+  lives: Infinity,          // 推车模式：无限复活
+  ammo: 30, maxAmmo: 30, reserve: 9999, // reserve不会耗尽，显示∞
+  kills: 0, score: 0,
+  yaw: 0, pitch: 0,
+  shooting: false, lastShot: 0,
+  fireRate: 95,          // 毫秒/发，约10发/秒
+  dmgMin: 16, dmgMax: 22,
+  reloading: false, reloadProgress: 0, reloadTime: 1.5,
+  sprinting: false,
+  inv: 0,                // 无敌帧（秒）
+  // 技能
+  helixCd: 0, helixMaxCd: 6,
+  bioticCd: 0, bioticMaxCd: 15,
+  meleeCd: 0, meleeMaxCd: 0.6,   // 近战冷却（通用，所有英雄）
+  bioticOn: false, bioticT: 0,
+  bioticX: 0, bioticZ: 0,
+  bioticHps: 40, bioticR: 6,
+  ultCharge: 0, ultMax: 2200,
+  ultOn: false, ultT: 0, ultDur: 6,
+  // 动作状态（用于枪械动画）
+  actionState: 'idle',   // idle | sprint | helix | biotic | visor
+  actionT: 0,            // 动作计时
+  // 跳跃
+  velY: 0, onGround: true,
+};
+
+// ── 左手副武器 Group（Biotic Field奶棒 / Helix装填动作用）──────
+const leftHandGroup = new THREE.Group();
+leftHandGroup.visible = false;
+gunPivot.add(leftHandGroup);
+
+// 维生力场奶棒模型（左手持）
+(function buildBioticRod() {
+  // 主体圆柱（青绿色）
+  const rod = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.025, 0.025, 0.32, 8),
+    new THREE.MeshLambertMaterial({ color: 0x00cc88, emissive: 0x004422, emissiveIntensity: 0.6 })
+  );
+  rod.rotation.x = Math.PI / 2;
+  rod.position.set(0, 0, -0.1);
+  leftHandGroup.add(rod);
+
+  // 顶部发光球
+  const orb = new THREE.Mesh(
+    new THREE.SphereGeometry(0.042, 8, 6),
+    new THREE.MeshBasicMaterial({ color: 0x44ffaa, transparent: true, opacity: 0.9 })
+  );
+  orb.position.set(0, 0, -0.27);
+  leftHandGroup.add(orb);
+
+  // 十字标（➕）
+  const h = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.012, 0.012), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+  h.position.set(0, 0, -0.27);
+  leftHandGroup.add(h);
+  const v = new THREE.Mesh(new THREE.BoxGeometry(0.012, 0.06, 0.012), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+  v.position.set(0, 0, -0.27);
+  leftHandGroup.add(v);
+
+  // 底部握把
+  const grip = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.03, 0.025, 0.12, 8),
+    new THREE.MeshLambertMaterial({ color: 0x1a2a1a })
+  );
+  grip.rotation.x = Math.PI / 2;
+  grip.position.set(0, 0, 0.08);
+  leftHandGroup.add(grip);
+
+  // 奶棒点光（放置时照亮周围）
+  const bioLight = new THREE.PointLight(0x00ffaa, 0, 5);
+  bioLight.position.set(0, 0, -0.27);
+  leftHandGroup.add(bioLight);
+  leftHandGroup._bioLight = bioLight;
+})();
+
+// 战术目镜覆盖层（贴到相机前方）
+// ── 战术目镜 3D 模型已由全屏 HUD overlay 取代，保留空 Group 防报错 ──
+const visorGroup = new THREE.Group(); // 空 group，不加任何子物件
+visorGroup.visible = false;
+gunPivot.add(visorGroup);
+// scanLight 占位（防止 tickVisor 里 visorGroup._scanLight 报错）
+visorGroup._scanLight = new THREE.PointLight(0x7ec8e3, 0, 0);
+scene.add(visorGroup._scanLight);
+
+// ── 枪械动画状态机 ────────────────────────────────────────────────
+// 在第3步的 updateGunAnim 基础上，增加专属动作姿态控制
+
+function applyGunPose(dt) {
+  const state = P.actionState;
+  const t     = P.actionT;
+
+  // 竜神剣激活时：隐藏手里剑 gunGroup，只显示左手龙刃
+  if (_currentHero === 'genji' && P._dragonbladeOn) {
+    gunGroup.visible = false;
+  } else {
+    gunGroup.visible = true;
+  }
+
+  // 目标位置/旋转（每帧平滑插值）
+  let tgtPx = 0.22, tgtPy = -0.22, tgtPz = -0.38;
+  let tgtRx = 0,    tgtRy = 0.04,  tgtRz = 0;
+  let tgtLhVis = false;
+  let tgtLhPx = -0.22, tgtLhPy = -0.16, tgtLhPz = -0.28;
+  let tgtLhRx = 0, tgtLhRy = 0, tgtLhRz = 0;
+  let visorVis = false;
+
+  // ── 疾跑：双手托枪贴胸 ──
+  if (state === 'sprint') {
+    tgtPx =  0.04;  tgtPy = -0.10; tgtPz = -0.28;
+    tgtRx = -0.28;  tgtRy =  0.22; tgtRz = -0.12;
+  }
+
+  // ── 装弹：枪向下倾，右手抽弹夹 ──
+  if (state === 'reload') {
+    const phase = Math.min(1, t / P.reloadTime);
+    const dip   = Math.sin(phase * Math.PI) * 0.08;
+    tgtPy = -0.22 - dip;
+    tgtRx =  0.18 * Math.sin(phase * Math.PI);
+    tgtRz = -0.12 * Math.sin(phase * Math.PI);
+  }
+
+  // ── 维生力场：左手举出奶棒，向左前方扔出 ──
+  if (state === 'biotic') {
+    tgtLhVis = true;
+    const phase = Math.min(1, t / 0.5);
+    tgtLhPx = -0.22 + (-0.05 - (-0.22)) * phase;
+    tgtLhPy = -0.16 + (0.02  - (-0.16)) * phase;
+    tgtLhPz = -0.28 + (-0.42 - (-0.28)) * phase;
+    tgtLhRx = -0.4 * phase;
+    tgtLhRz =  0.3 * phase;
+    if (leftHandGroup._bioLight) {
+      leftHandGroup._bioLight.intensity = P.bioticOn ? 1.8 * (P.bioticT / P.bioticMaxCd * 2) : 0;
+    }
+  }
+
+  // ── 战术目镜：左手点击头部左侧，然后目镜弹出 ──
+  if (state === 'visor') {
+    const phase = Math.min(1, t / 0.4);
+    tgtLhVis = phase < 0.6;
+    tgtLhPx =  0.04 - 0.26 * Math.sin(phase * Math.PI);
+    tgtLhPy =  0.10 + 0.08 * Math.sin(phase * Math.PI * 0.5);
+    tgtLhPz = -0.25;
+    tgtLhRz = -0.5 * Math.sin(phase * Math.PI);
+    visorVis = phase > 0.35 && P.ultOn;
+  }
+
+  // 目镜激活期间持续显示
+  if (P.ultOn && state !== 'visor') visorVis = true;
+
+  // ── 近战肘击：枪托从右侧横扫（76 / 源氏RMB 通用）──
+  if (state === 'melee') {
+    const phase = Math.min(1, t / 0.35);
+    const swing = phase < 0.45
+      ? phase / 0.45
+      : 1 - (phase - 0.45) / 0.55;
+    tgtPx =  0.22 - 0.28 * swing;
+    tgtPy = -0.22 + 0.05 * swing;
+    tgtPz = -0.38 - 0.06 * swing;
+    tgtRz = -1.15 * swing;
+    tgtRy =  0.04 + 0.35 * swing;
+    tgtRx = -0.12 * swing;
+  }
+
+  // ── 竜神剣 右上→左下 斩（第1、3、5...刀）──
+  if (state === 'swing_r2l') {
+    const phase = Math.min(1, t / (_SWING_CD * 0.7));
+    const swing = phase < 0.4 ? phase / 0.4 : 1 - (phase - 0.4) / 0.6;
+    // 龙刃从右上往左下扫：Z从+1.2到-1.2，Y轴从+0.3到-0.3
+    if (_dragonbladeGroup) {
+      _dragonbladeGroup.rotation.z = 0.08 + 1.2 * (phase < 0.4 ? phase / 0.4 : 1) - (phase >= 0.4 ? (phase - 0.4) / 0.6 * 1.2 : 0);
+      _dragonbladeGroup.position.y = -0.10 + 0.18 * swing;
+      _dragonbladeGroup.position.x = -0.26 - 0.12 * swing;
+    }
+  }
+
+  // ── 竜神剣 左上→右下 斩（第2、4、6...刀）──
+  if (state === 'swing_l2r') {
+    const phase = Math.min(1, t / (_SWING_CD * 0.7));
+    const swing = phase < 0.4 ? phase / 0.4 : 1 - (phase - 0.4) / 0.6;
+    if (_dragonbladeGroup) {
+      _dragonbladeGroup.rotation.z = 0.08 - 1.2 * (phase < 0.4 ? phase / 0.4 : 1) + (phase >= 0.4 ? (phase - 0.4) / 0.6 * 1.2 : 0);
+      _dragonbladeGroup.position.y = -0.10 + 0.18 * swing;
+      _dragonbladeGroup.position.x = -0.26 + 0.12 * swing;
+    }
+  }
+
+  // ── 平滑插值应用 ──
+  const lp = Math.min(1, dt * 14); // lerp速度
+  gunGroup.position.x  += (tgtPx - gunGroup.position.x)  * lp;
+  gunGroup.position.y  += (tgtPy - gunGroup.position.y)  * lp;
+  gunGroup.position.z  += (tgtPz - gunGroup.position.z)  * lp;
+  gunGroup.rotation.x  += (tgtRx - gunGroup.rotation.x)  * lp;
+  gunGroup.rotation.y  += (tgtRy - gunGroup.rotation.y)  * lp;
+  gunGroup.rotation.z  += (tgtRz - gunGroup.rotation.z)  * lp;
+
+  // 源氏手里剑：空闲时缓慢自旋（只旋 Z 轴让刃面可见）
+  if (_currentHero === 'genji' && state === 'idle') {
+    gunGroup.rotation.z += dt * 0.6;
+  }
+
+  // 左手
+  leftHandGroup.visible = tgtLhVis;
+  if (tgtLhVis) {
+    leftHandGroup.position.x += (tgtLhPx - leftHandGroup.position.x) * lp;
+    leftHandGroup.position.y += (tgtLhPy - leftHandGroup.position.y) * lp;
+    leftHandGroup.position.z += (tgtLhPz - leftHandGroup.position.z) * lp;
+    leftHandGroup.rotation.x += (tgtLhRx - leftHandGroup.rotation.x) * lp;
+    leftHandGroup.rotation.y += (tgtLhRy - leftHandGroup.rotation.y) * lp;
+    leftHandGroup.rotation.z += (tgtLhRz - leftHandGroup.rotation.z) * lp;
+  }
+
+  // 目镜
+  visorGroup.visible = visorVis;
+  if (visorGroup._scanLight) {
+    visorGroup._scanLight.intensity = P.ultOn ? 1.2 : 0;
+  }
+
+  // 动作计时
+  P.actionT += dt;
+}
+
+// ── 枪械完整更新（bob + recoil + pose）──────────────────────────
+function updateGunFull(dt, isMoving, isSprinting) {
+  // Bob
+  if (isMoving) gunBobT += dt * (isSprinting ? 9 : 5.5);
+  const bobY = Math.sin(gunBobT)     * (isSprinting ? 0.011 : 0.005);
+  const bobX = Math.cos(gunBobT*0.5) * (isSprinting ? 0.005 : 0.002);
+
+  // 后坐力衰减
+  gunRecoil = Math.max(0, gunRecoil - dt * 7);
+
+  // Bob 叠加到枪位（applyGunPose 会覆写基础位置，这里只加偏移）
+  gunGroup.position.x += bobX;
+  gunGroup.position.y += bobY - gunRecoil * 0.03;
+  gunGroup.rotation.x -= gunRecoil * 0.10;
+
+  // 枪口火焰衰减
+  if (muzzleTimer > 0) {
+    muzzleTimer -= dt;
+    if (muzzleTimer <= 0) {
+      muzzleLight.intensity          = 0;
+      muzzleSprite.material.opacity  = 0;
+    }
+  }
+
+  applyGunPose(dt);
+}
+
+// ── 音效（Web Audio 合成）────────────────────────────────────────
+let _ac = null;
+function getAC() {
+  if (!_ac) _ac = new (window.AudioContext || window.webkitAudioContext)();
+  if (_ac.state === 'suspended') _ac.resume();
+  return _ac;
+}
+
+function sndShoot() {
+  const ac = getAC(), sr = ac.sampleRate;
+  const buf = ac.createBuffer(1, sr * 0.20, sr);
+  const d   = buf.getChannelData(0);
+  for (let i = 0; i < d.length; i++) {
+    const t = i / sr;
+    d[i] = Math.max(-1, Math.min(1,
+      (Math.random()*2-1) * Math.exp(-t*32) * 0.9 +
+      Math.sin(2*Math.PI*160*t) * Math.exp(-t*20) * 0.25));
+  }
+  const src = ac.createBufferSource(); src.buffer = buf;
+  const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = 3800;
+  const g = ac.createGain(); g.gain.value = 0.9;
+  src.connect(f); f.connect(g); g.connect(ac.destination); src.start();
+}
+
+function sndReload() {
+  const ac = getAC();
+  [0, 0.38].forEach(delay => {
+    const buf = ac.createBuffer(1, ac.sampleRate * 0.1, ac.sampleRate);
+    const d   = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) {
+      const t = i / ac.sampleRate;
+      d[i] = (Math.random()*2-1) * Math.exp(-t*55) * 0.45;
+    }
+    const src = ac.createBufferSource(); src.buffer = buf;
+    const g = ac.createGain(); g.gain.value = 0.38;
+    src.connect(g); g.connect(ac.destination); src.start(ac.currentTime + delay);
+  });
+}
+
+function sndHelix() {
+  const ac = getAC(), now = ac.currentTime;
+  const o  = ac.createOscillator(), g = ac.createGain();
+  o.type = 'sawtooth'; o.frequency.setValueAtTime(220, now);
+  o.frequency.exponentialRampToValueAtTime(55, now + 0.28);
+  g.gain.setValueAtTime(0.22, now);
+  g.gain.exponentialRampToValueAtTime(0.001, now + 0.28);
+  o.connect(g); g.connect(ac.destination); o.start(now); o.stop(now + 0.28);
+}
+
+function sndBiotic() {
+  const ac = getAC(), now = ac.currentTime;
+  const o  = ac.createOscillator(), g = ac.createGain();
+  o.type = 'sine'; o.frequency.setValueAtTime(520, now);
+  o.frequency.exponentialRampToValueAtTime(880, now + 0.18);
+  g.gain.setValueAtTime(0.12, now); g.gain.exponentialRampToValueAtTime(0.001, now + 0.18);
+  o.connect(g); g.connect(ac.destination); o.start(now); o.stop(now + 0.18);
+}
+
+function sndVisor() {
+  const ac = getAC(), now = ac.currentTime;
+  [440, 660, 880].forEach((f, i) => {
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = 'sine'; o.frequency.value = f;
+    g.gain.setValueAtTime(0.10, now + i*0.07);
+    g.gain.exponentialRampToValueAtTime(0.001, now + i*0.07 + 0.15);
+    o.connect(g); g.connect(ac.destination);
+    o.start(now + i*0.07); o.stop(now + i*0.07 + 0.15);
+  });
+}
+
+function sndHit() {
+  const ac = getAC(), now = ac.currentTime;
+  const o  = ac.createOscillator(), g = ac.createGain();
+  o.type = 'sawtooth'; o.frequency.setValueAtTime(180, now);
+  o.frequency.exponentialRampToValueAtTime(55, now + 0.12);
+  g.gain.setValueAtTime(0.30, now); g.gain.exponentialRampToValueAtTime(0.001, now + 0.12);
+  o.connect(g); g.connect(ac.destination); o.start(now); o.stop(now + 0.12);
+}
+
+// ── 命中确认音 ding（清脆高频）────────────────────────────────────
+function sndHitConfirm(headshot) {
+  const ac = getAC(), now = ac.currentTime;
+  // 主 ding：高频正弦，快速衰减
+  const freq = headshot ? 1320 : 1100;
+  const o = ac.createOscillator(), g = ac.createGain();
+  o.type = 'sine';
+  o.frequency.setValueAtTime(freq, now);
+  o.frequency.exponentialRampToValueAtTime(freq * 0.85, now + 0.08);
+  g.gain.setValueAtTime(0.22, now);
+  g.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+  o.connect(g); g.connect(ac.destination);
+  o.start(now); o.stop(now + 0.14);
+  // 爆头多一个谐波叠加
+  if (headshot) {
+    const o2 = ac.createOscillator(), g2 = ac.createGain();
+    o2.type = 'sine'; o2.frequency.value = freq * 1.5;
+    g2.gain.setValueAtTime(0.10, now);
+    g2.gain.exponentialRampToValueAtTime(0.001, now + 0.10);
+    o2.connect(g2); g2.connect(ac.destination);
+    o2.start(now); o2.stop(now + 0.10);
+  }
+}
+
+// ── 击杀确认音 ding-ding（双音上扬）─────────────────────────────
+function sndKillConfirm() {
+  const ac = getAC(), now = ac.currentTime;
+  [0, 0.13].forEach((delay, i) => {
+    const freq = 1100 + i * 330;
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(freq, now + delay);
+    o.frequency.exponentialRampToValueAtTime(freq * 1.12, now + delay + 0.09);
+    g.gain.setValueAtTime(0.26, now + delay);
+    g.gain.exponentialRampToValueAtTime(0.001, now + delay + 0.16);
+    o.connect(g); g.connect(ac.destination);
+    o.start(now + delay); o.stop(now + delay + 0.16);
+  });
+}
+
+// ── 准心命中反馈（命中/爆头/击杀）──────────────────────────────
+let _hitFlashTimer = null;
+let _critFlashTimer = null;
+let _skullTimer = null;
+
+function showHitMarker(headshot) {
+  // 普通命中：准心橙色闪
+  const xh = document.getElementById('xhair');
+  xh.classList.add('hit');
+  clearTimeout(_hitFlashTimer);
+  _hitFlashTimer = setTimeout(() => xh.classList.remove('hit'), 120);
+
+  if (headshot) {
+    // 爆头：四条斜线×
+    const crit = document.getElementById('xhair-crit');
+    crit.style.display = 'block';
+    clearTimeout(_critFlashTimer);
+    _critFlashTimer = setTimeout(() => { crit.style.display = 'none'; }, 350);
+  }
+  sndHitConfirm(headshot);
+}
+
+function showKillMarker() {
+  // 骷髅头弹出（带 CSS animation，自动播完消失）
+  const skull = document.getElementById('xhair-skull');
+  skull.style.display = 'none';
+  // 强制重新触发 animation
+  void skull.offsetWidth;
+  skull.style.display = 'block';
+  clearTimeout(_skullTimer);
+  _skullTimer = setTimeout(() => { skull.style.display = 'none'; }, 580);
+  sndKillConfirm();
+}
+function doShoot() {
+  if (_currentHero === 'genji') { doGenjiShoot(false); return; }
+  // ── Soldier:76 射击逻辑 ──
+  if (P.reloading || P.ammo <= 0) return;
+  const now = performance.now();
+  if (now - P.lastShot < P.fireRate) return;
+  P.lastShot = now;
+  P.ammo--;
+  gunRecoil = 1.0;
+  triggerMuzzleFlash();
+  sndShoot();
+
+  // 扩散（疾跑时精度大幅下降）
+  const sp = P.sprinting ? 0.12 : 0.018;
+  const ox = (Math.random()-0.5) * sp;
+  const oy = (Math.random()-0.5) * sp;
+
+  // Tactical Visor：自动锁定最近敌人
+  if (P.ultOn) {
+    autoAimShoot();
+  } else {
+    const result = raycastEnemies(P.dmgMin + Math.floor(Math.random()*(P.dmgMax-P.dmgMin+1)));
+    if (result) gainUlt(result.dmg);
+  }
+
+  if (P.ammo === 0) startReload();
+  updateAmmoHUD();
+}
+
+// Tactical Visor 自动瞄准：锁定视野内最近敌人
+function autoAimShoot() {
+  let best = null, bestD = Infinity;
+  const fwdX = -Math.sin(P.yaw), fwdZ = -Math.cos(P.yaw);
+  enemies.forEach(e => {
+    if (e.dying) return;
+    const dx = e.group.position.x - camera.position.x;
+    const dz = e.group.position.z - camera.position.z;
+    const d2 = dx*dx + dz*dz;
+    if (d2 > 400) return; // 20格以内
+    const dist = Math.sqrt(d2);
+    const dot  = (dx/dist)*fwdX + (dz/dist)*fwdZ;
+    if (dot < 0.5) return; // 视野内60°
+    if (dist < bestD) { bestD = dist; best = e; }
+  });
+  if (!best) { raycastEnemies(P.dmgMin + Math.floor(Math.random()*(P.dmgMax-P.dmgMin+1))); return; }
+
+  // 对锁定目标直接造成伤害
+  const dmg = P.dmgMin + Math.floor(Math.random()*(P.dmgMax-P.dmgMin+1));
+  const hp  = best.group.position.clone().add(tmp.v3a.set(0,1.2,0));
+  spawnBlood(hp);
+  showDmgNum(hp, dmg, false);
+  const killed = damageEnemy(best, dmg, hp);
+  if (killed) { showKillMarker(); _visorKills++; } else showHitMarker(false);
+  // 轻微自动转向
+  const dx = best.group.position.x - camera.position.x;
+  const dz = best.group.position.z - camera.position.z;
+  const ta  = Math.atan2(-dx, -dz);
+  let   da  = ta - P.yaw;
+  while (da >  Math.PI) da -= Math.PI*2;
+  while (da < -Math.PI) da += Math.PI*2;
+  P.yaw += da * 0.18; // 自动补偿18%
+}
+
+// ── 装弹 ────────────────────────────────────────────────────────
+function startReload() {
+  // 推车模式：弹药无限，只有换弹时间限制
+  if (P.reloading || P.ammo === P.maxAmmo) return;
+  P.reloading = true;
+  P.reloadProgress = 0;
+  P.actionState = 'reload';
+  P.actionT     = 0;
+  document.getElementById('reload-txt').style.display = 'block';
+  sndReload();
+}
+
+function tickReload(dt) {
+  if (!P.reloading) return;
+  P.reloadProgress += dt / P.reloadTime;
+  // 进度条
+  document.getElementById('reload-bar').style.width =
+    (P.reloadProgress * 100) + '%';
+  if (P.reloadProgress >= 1) {
+    const take = Math.min(P.maxAmmo - P.ammo, P.reserve);
+    P.ammo    += take;
+    P.reserve -= take;
+    P.reloading = false;
+    P.reloadProgress = 0;
+    P.actionState = 'idle'; P.actionT = 0;
+    document.getElementById('reload-bar').style.width = '0';
+    document.getElementById('reload-txt').style.display = 'none';
+    updateAmmoHUD();
+  }
+}
+
+// ── 近战攻击（F 键，通用所有英雄）────────────────────────────────
+function doMelee() {
+  if (P.meleeCd > 0) return;
+  P.meleeCd = P.meleeMaxCd;
+
+  // 近战音效（枪托横扫撞击音，沉而短促）
+  (function sndMelee() {
+    const ac = getAC(), now = ac.currentTime;
+    // 低频冲击主体
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = 'sawtooth';
+    o.frequency.setValueAtTime(180, now);
+    o.frequency.exponentialRampToValueAtTime(45, now + 0.10);
+    g.gain.setValueAtTime(0.22, now);
+    g.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+    o.connect(g); g.connect(ac.destination);
+    o.start(now); o.stop(now + 0.15);
+    // 高频摩擦声（枪托划过空气感）
+    const buf = ac.createBuffer(1, ac.sampleRate * 0.06, ac.sampleRate);
+    const d = buf.getChannelData(0);
+    for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * 0.3;
+    const src = ac.createBufferSource(), gn = ac.createGain();
+    src.buffer = buf;
+    gn.gain.setValueAtTime(0.12, now);
+    gn.gain.exponentialRampToValueAtTime(0.001, now + 0.06);
+    src.connect(gn); gn.connect(ac.destination);
+    src.start(now);
+  })();
+
+  // 枪械挥击动画：gunPivot 向前猛冲一下
+  P.actionState = 'melee'; P.actionT = 0;
+
+  // 射线检测：正前方 2.5 单位内的敌人
+  const dir = new THREE.Vector3();
+  camera.getWorldDirection(dir);
+  const meleeRay = new THREE.Raycaster(camera.position.clone(), dir, 0, 2.5);
+  const eMeshes = enemies.filter(e => !e.dying).flatMap(e => e.meshes);
+  const hits = meleeRay.intersectObjects(eMeshes, false);
+
+  if (hits.length > 0) {
+    for (const e of enemies) {
+      if (e.dying) continue;
+      if (e.meshes.includes(hits[0].object)) {
+        const dmg = 40;
+        spawnBlood(hits[0].point);
+        showDmgNum(hits[0].point, dmg, false);
+        const killed = damageEnemy(e, dmg, hits[0].point);
+        if (killed) showKillMarker(); else showHitMarker(false);
+        gainUlt(dmg * 0.3);
+        break;
+      }
+    }
+    // 命中闪烁
+    document.getElementById('xhair').classList.add('hit');
+    setTimeout(() => document.getElementById('xhair').classList.remove('hit'), 100);
+  }
+
+  // 0.35s 后动作归位
+  setTimeout(() => {
+    if (P.actionState === 'melee') { P.actionState = 'idle'; P.actionT = 0; }
+  }, 350);
+}
+
+// ── Helix 火箭弹 ─────────────────────────────────────────────────
+function doHelix() {
+  if (_currentHero === 'genji') return; // 源氏不用此函数
+  if (P.helixCd > 0 || P.reloading) return;
+  P.helixCd = P.helixMaxCd;
+
+  // 从枪口方向发射
+  const dir = new THREE.Vector3();
+  camera.getWorldDirection(dir);
+  const startPos = camera.position.clone().addScaledVector(dir, 0.8);
+  startPos.y += 0.05;
+
+  spawnHelixRocket(startPos, dir);
+  sndHelix();
+  showSkillBanner('🚀 HELIX ROCKETS', '#f99e1a', 700);
+
+  // 注册爆炸回调（让第3步的 updateHelixProjectiles 知道如何处理伤害）
+  window._helixOnHit = (boomPos, dmg, r) => {
+    helixAoeDamage(boomPos, dmg, r);
+    gainUlt(dmg * 0.5);
+  };
+}
+
+// ── Biotic Field 维生力场 ────────────────────────────────────────
+// 奶棒放置状态（跟推车联动）
+let _bioticGroup = null;      // 场景中的奶棒+光圈 Group
+let _bioticOnCart = false;    // 是否放在了推车上
+let _bioticCartOffX = 0;      // 放置时相对推车的偏移
+let _bioticCartOffZ = 0;
+
+function doBiotic() {
+  if (_currentHero === 'genji') { doDeflect(); return; } // 源氏 E = 偏转
+  if (P.bioticCd > 0) return;
+  P.bioticCd = P.bioticMaxCd;
+  P.bioticOn = true;
+  P.bioticT  = 5.0; // 持续5秒
+
+  // 放置位置 = 玩家脚下（相机Y-1.7即地面/车顶）
+  P.bioticX  = camera.position.x;
+  P.bioticZ  = camera.position.z;
+
+  // 判断是否放在推车上
+  const dxCart = P.bioticX - cart.pos.x;
+  const dzCart = P.bioticZ - cart.pos.z;
+  _bioticOnCart = cart.mesh && Math.abs(dxCart) < 1.4 && Math.abs(dzCart) < 1.8;
+  _bioticCartOffX = dxCart;
+  _bioticCartOffZ = dzCart;
+
+  // 地板高度（在车上=车顶+少量偏移，否则贴地）
+  const floorY = _bioticOnCart ? 1.22 : 0.05;
+
+  // 切换到biotic动作姿态
+  P.actionState = 'biotic';
+  P.actionT     = 0;
+
+  document.getElementById('biotic-banner').style.display = 'block';
+  sndBiotic();
+  showSkillBanner('➕ BIOTIC FIELD', '#4fc842', 1200);
+
+  // 地面投射光圈 + 奶棒立体模型（组合到一个 Group，方便跟车移动）
+  const bioGroup = new THREE.Group();
+
+  const circle = new THREE.Mesh(
+    new THREE.RingGeometry(P.bioticR * 0.18, P.bioticR * 0.2, 32),
+    new THREE.MeshBasicMaterial({ color: 0x00ffaa, transparent: true, opacity: 0.6, side: THREE.DoubleSide })
+  );
+  circle.rotation.x = -Math.PI / 2;
+  circle.position.y = 0.01;
+  bioGroup.add(circle);
+
+  // 竖立的奶棒模型（插在地上/车上）
+  const rodMesh = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.03, 0.03, 0.55, 8),
+    new THREE.MeshLambertMaterial({ color: 0x00cc88, emissive: 0x004422, emissiveIntensity: 0.7 })
+  );
+  rodMesh.position.y = 0.28;
+  bioGroup.add(rodMesh);
+
+  const orbMesh = new THREE.Mesh(
+    new THREE.SphereGeometry(0.055, 8, 6),
+    new THREE.MeshBasicMaterial({ color: 0x44ffaa, transparent: true, opacity: 0.9 })
+  );
+  orbMesh.position.y = 0.60;
+  bioGroup.add(orbMesh);
+
+  const bioLight2 = new THREE.PointLight(0x00ffaa, 2.5, P.bioticR * 1.5);
+  bioLight2.position.y = 0.5;
+  bioGroup.add(bioLight2);
+
+  bioGroup.position.set(P.bioticX, floorY, P.bioticZ);
+  scene.add(bioGroup);
+  _bioticGroup = bioGroup;
+
+  // 5秒后消除
+  setTimeout(() => {
+    if (_bioticGroup) { scene.remove(_bioticGroup); _bioticGroup = null; }
+    P.bioticOn = false;
+    _bioticOnCart = false;
+    document.getElementById('biotic-banner').style.display = 'none';
+    if (P.actionState === 'biotic') { P.actionState = 'idle'; P.actionT = 0; }
+  }, 5000);
+}
+
+function tickBiotic(dt) {
+  if (!P.bioticOn) return;
+  P.bioticT -= dt;
+
+  // 如果奶棒在推车上，每帧同步位置
+  if (_bioticOnCart && _bioticGroup && cart.mesh) {
+    const newX = cart.pos.x + _bioticCartOffX;
+    const newZ = cart.pos.z + _bioticCartOffZ;
+    P.bioticX = newX;
+    P.bioticZ = newZ;
+    _bioticGroup.position.x = newX;
+    _bioticGroup.position.z = newZ;
+    _bioticGroup.position.y = 1.22; // 始终贴在车顶
+  }
+
+  // 在力场范围内持续回血（用水平距离判断）
+  const dx = camera.position.x - P.bioticX;
+  const dz = camera.position.z - P.bioticZ;
+  if (dx*dx + dz*dz < P.bioticR * P.bioticR) {
+    P.hp = Math.min(P.maxHp, P.hp + P.bioticHps * dt);
+    // 治疗绿光
+    const el = document.getElementById('heal-flash');
+    el.style.boxShadow = 'inset 0 0 30px #4fc84266';
+    updateHpHUD();
+  } else {
+    document.getElementById('heal-flash').style.boxShadow = '';
+  }
+  if (P.bioticT <= 0) P.bioticOn = false;
+}
+
+// ── Tactical Visor 终极技能 ─────────────────────────────────────
+
+// 目标框管理
+const _visorTgts = new Map(); // enemyId -> { el, lockT }
+let   _visorKills = 0;
+
+function _visorShowOverlay(show) {
+  const ov = document.getElementById('visor-overlay');
+  const xh = document.getElementById('xhair');
+  if (show) {
+    ov.style.display = 'block';
+    requestAnimationFrame(() => ov.classList.add('active'));
+    xh.style.display = 'none'; // 用 visor 准心替代
+  } else {
+    ov.classList.remove('active');
+    setTimeout(() => { ov.style.display = 'none'; }, 200);
+    xh.style.display = 'block';
+  }
+}
+
+function _visorClearTgts() {
+  const layer = document.getElementById('visor-tgt-layer');
+  _visorTgts.forEach(v => { if (v.el.parentNode) v.el.parentNode.removeChild(v.el); });
+  _visorTgts.clear();
+}
+
+function _visorUpdateTgts() {
+  const layer = document.getElementById('visor-tgt-layer');
+  const alive = new Set();
+
+  enemies.forEach(e => {
+    if (e.dying) return;
+    // 把敌人 3D 坐标投影到屏幕
+    const worldPos = e.group.position.clone().add(new THREE.Vector3(0, e.def.sz * 1.6, 0));
+    const v = worldPos.clone().project(camera);
+    if (v.z > 1 || v.z < -1) return; // 在背后或极远
+    const sx = ( v.x * 0.5 + 0.5) * innerWidth;
+    const sy = (-v.y * 0.5 + 0.5) * innerHeight;
+    if (sx < 0 || sx > innerWidth || sy < 0 || sy > innerHeight) return;
+
+    alive.add(e.id);
+    const dist3d = camera.position.distanceTo(e.group.position);
+    // 框大小随距离缩放，近大远小
+    const baseSize = Math.max(28, Math.min(80, 220 / dist3d));
+
+    if (!_visorTgts.has(e.id)) {
+      // 新建目标框
+      const el = document.createElement('div');
+      el.className = 'visor-tgt';
+      el.style.width  = baseSize + 'px';
+      el.style.height = baseSize + 'px';
+      const lbl = document.createElement('div');
+      lbl.className = 'visor-tgt-label';
+      el.appendChild(lbl);
+      layer.appendChild(el);
+      _visorTgts.set(e.id, { el, lockT: 0, lbl });
+    }
+
+    const t = _visorTgts.get(e.id);
+    t.lockT += 0.016; // 约每帧加，0.3秒后视为锁定
+    t.el.style.left   = sx + 'px';
+    t.el.style.top    = sy + 'px';
+    t.el.style.width  = baseSize + 'px';
+    t.el.style.height = baseSize + 'px';
+    t.lbl.textContent = e.def.name + ' ·' + Math.round(dist3d) + 'm';
+
+    if (t.lockT > 0.28 && !t.el.classList.contains('locked')) {
+      t.el.classList.add('locked');
+    }
+  });
+
+  // 移除已死亡的目标框
+  _visorTgts.forEach((v, id) => {
+    if (!alive.has(id)) {
+      if (v.el.parentNode) v.el.parentNode.removeChild(v.el);
+      _visorTgts.delete(id);
+    }
+  });
+
+  // 更新计数
+  const tgtEl = document.getElementById('vt-tgt-count');
+  if (tgtEl) tgtEl.textContent = alive.size;
+}
+
+function doVisor() {
+  if (_currentHero === 'genji') { doDragonblade(); return; } // 源氏 Q = 竜神剣
+  if (P.ultCharge < P.ultMax || P.ultOn) return;
+  P.ultCharge  = 0;
+  P.ultOn      = true;
+  P.ultT       = P.ultDur;
+  _visorKills  = 0;
+
+  // 激活目镜：自动回满弹药（原版机制）并取消换弹状态
+  P.ammo = P.maxAmmo;
+  P.reloading = false;
+  P.reloadProgress = 0;
+  document.getElementById('reload-bar').style.width = '0';
+  document.getElementById('reload-txt').style.display = 'none';
+  updateAmmoHUD();
+
+  // 激活动作：左手点击头部左侧
+  P.actionState = 'visor';
+  P.actionT     = 0;
+
+  P.fireRate = 55; // 射速翻倍
+
+  // 显示新 HUD overlay
+  _visorShowOverlay(true);
+  const killEl = document.getElementById('vt-kill-count');
+  if (killEl) killEl.textContent = '0';
+
+  sndVisor();
+  showSkillBanner('⚡ TACTICAL VISOR', '#7ec8e3', 1800);
+
+  // 准心变蓝（overlay里有专属准心，普通准心隐藏了，这行保留防旧代码报错）
+  document.getElementById('xhair').classList.add('visor');
+}
+
+function tickVisor(dt) {
+  if (_currentHero === 'genji') return; // 源氏无战术目镜
+  if (!P.ultOn) return;
+  P.ultT -= dt;
+
+  // 更新倒计时显示
+  const timerEl = document.getElementById('vt-timer-val');
+  if (timerEl) timerEl.textContent = Math.ceil(Math.max(0, P.ultT)) + 's';
+
+  // 更新目标框
+  _visorUpdateTgts();
+
+  // kill 计数同步（autoAimShoot 里击杀时 +1）
+  const killEl = document.getElementById('vt-kill-count');
+  if (killEl) killEl.textContent = _visorKills;
+
+  // 动作阶段结束后转为idle并保持visor显示
+  if (P.actionState === 'visor' && P.actionT > 0.5) {
+    P.actionState = 'idle'; P.actionT = 0;
+  }
+
+  if (P.ultT <= 0) {
+    P.ultOn   = false;
+    P.fireRate = 95;
+    _visorShowOverlay(false);
+    _visorClearTgts();
+    document.getElementById('xhair').classList.remove('visor');
+    visorGroup.visible = false;
+    showSkillBanner('TACTICAL VISOR ENDED', '#7ec8e3', 1000);
+    if (P.actionState === 'visor') { P.actionState = 'idle'; P.actionT = 0; }
+  }
+}
+
+function gainUlt(dmg) {
+  if (P.ultOn) return;
+  P.ultCharge = Math.min(P.ultMax, P.ultCharge + dmg);
+}
+
+// ── 玩家受伤 ────────────────────────────────────────────────────
+function damagePlayer(dmg) {
+  if (P.inv > 0) return;
+  P.hp  = Math.max(0, P.hp - dmg);
+  P.inv = 0.4;
+  sndHit();
+  // 红边闪烁
+  const pain = document.getElementById('pain');
+  pain.style.background = 'rgba(233,69,96,0.5)';
+  setTimeout(() => { pain.style.background = 'rgba(233,69,96,0)'; }, 130);
+  updateHpHUD();
+  if (P.hp <= 0) playerDead();
+}
+
+function playerDead() {
+  // 推车模式：无限复活，5秒冷却
+  if (P.inv > 0) return; // 防止复活无敌期内再次触发
+  P.hp  = 0;
+  P.inv = 8.0; // 长无敌期覆盖复活倒计时
+  document.exitPointerLock();
+  const scr = document.getElementById('scr-dead');
+  scr.style.display = 'flex';
+  document.getElementById('lives-left').textContent = ''; // 推车模式不显示命数
+  let t = 5; // 5秒复活倒计时
+  document.getElementById('resp-num').textContent = t;
+  const iv = setInterval(() => {
+    t--;
+    document.getElementById('resp-num').textContent = t;
+    if (t <= 0) {
+      clearInterval(iv);
+      scr.style.display = 'none';
+      canvas.requestPointerLock();
+      respawnPlayer();
+    }
+  }, 1000);
+}
+
+function respawnPlayer() {
+  P.hp        = P.maxHp;
+  P.ammo      = P.maxAmmo;
+  P.reloading = false;
+  P.inv       = 2.5; // 重生后2.5秒无敌
+  P.actionState = 'idle'; P.actionT = 0;
+  // 根据上次到达的检查点决定重生位置（新地图）
+  const spawnPos = [
+    { x:-17.5, z: 17.5, yaw: Math.PI },  // A段：col5,row12 南段走廊侧面，离车有距离
+    { x:  2.5, z: -2.5, yaw: Math.PI },  // B检查点：col8,row7 弯道口附近
+    { x: 22.5, z:-20,   yaw: Math.PI },  // C附近北段走廊
+  ];
+  const rp = spawnPos[cart.lastCheckpoint] || spawnPos[0];
+  camera.position.set(rp.x, 1.7, rp.z);
+  P.yaw   = rp.yaw;
+  P.pitch = 0;
+  updateHpHUD();
+  updateAmmoHUD();
+  document.getElementById('reload-bar').style.width = '0';
+  document.getElementById('reload-txt').style.display = 'none';
+  // 源氏重生：清除所有技能状态
+  if (_currentHero === 'genji') {
+    P._deflectOn = false; P._dashOn = false;
+    P._dragonbladeOn = false; P._doubleJumpUsed = false; P._wallClimbing = false;
+    if (_dragonbladeGroup) _dragonbladeGroup.visible = false;
+    document.getElementById('xhair').classList.remove('visor');
+    document.getElementById('heal-flash').style.boxShadow = '';
+  }
+}
+function tickCooldowns(dt) {
+  if (P.helixCd  > 0) P.helixCd  = Math.max(0, P.helixCd  - dt);
+  if (P.bioticCd > 0) P.bioticCd = Math.max(0, P.bioticCd - dt);
+  if (P.meleeCd  > 0) P.meleeCd  = Math.max(0, P.meleeCd  - dt);
+  if (P.inv      > 0) P.inv      = Math.max(0, P.inv       - dt);
+  // 疾跑时动作态（近战/装弹时不被 sprint 覆盖）
+  if (P.sprinting && P.actionState === 'idle') {
+    P.actionState = 'sprint';
+  } else if (!P.sprinting && P.actionState === 'sprint') {
+    P.actionState = 'idle'; P.actionT = 0;
+  }
+  // 源氏专属冷却（第9步注入）
+  if (_currentHero === 'genji') tickGenjiCooldowns(dt);
+}
+
+// ── 积分回调（第5步波次调用）────────────────────────────────────
+function onKillScore(pts) {
+  P.kills++;
+  P.score += pts;
+  gainUlt(pts * 0.8);
+  // 连杀加成（暂不显示，主循环HUD刷新）
+}
+
+// ── HUD 更新函数 ─────────────────────────────────────────────────
+function updateHpHUD() {
+  const frac = P.hp / P.maxHp;
+  document.getElementById('hp-fill').style.width    = (frac*100) + '%';
+  document.getElementById('hp-fill').style.background =
+    frac > 0.5 ? '#4fc842' : frac > 0.25 ? '#f99e1a' : '#e94560';
+  document.getElementById('hp-num').textContent =
+    Math.ceil(P.hp) + ' / ' + P.maxHp;
+  // 低血晕边
+  const lb = document.getElementById('lowblood');
+  lb.style.boxShadow = frac < 0.3
+    ? 'inset 0 0 ' + Math.round((0.3-frac)/0.3*50) + 'px #e94560'
+    : '';
+}
+
+function updateAmmoHUD() {
+  document.getElementById('ammo-main').textContent = P.ammo;
+  document.getElementById('ammo-main').style.color =
+    P.ammo <= 5 ? '#e94560' : P.ammo <= 10 ? '#f99e1a' : '#fff';
+  document.getElementById('ammo-res').textContent = '∞'; // 无限备用
+}
+
+function updateLivesHUD() { /* 推车模式：命数隐藏，无需更新 */ }
+
+function updateSkillHUD() {
+  const CIRC = 138.2; // 2π×22
+
+  // Helix
+  const hFrac = P.helixCd / P.helixMaxCd;
+  document.getElementById('helix-ring').style.strokeDashoffset = CIRC * hFrac;
+  document.getElementById('helix-cd').textContent =
+    P.helixCd > 0 ? Math.ceil(P.helixCd) + 's' : '';
+  document.getElementById('helix-ring').style.stroke =
+    P.helixCd > 0 ? '#555' : '#f99e1a';
+
+  // Biotic
+  const bFrac = P.bioticCd / P.bioticMaxCd;
+  document.getElementById('biotic-ring').style.strokeDashoffset = CIRC * bFrac;
+  document.getElementById('biotic-cd').textContent =
+    P.bioticCd > 0 ? Math.ceil(P.bioticCd) + 's' : '';
+  document.getElementById('biotic-ring').style.stroke =
+    P.bioticCd > 0 ? '#555' : '#4fc842';
+
+  // 近战
+  const mFrac = P.meleeCd / P.meleeMaxCd;
+  document.getElementById('melee-ring').style.strokeDashoffset = CIRC * mFrac;
+  document.getElementById('melee-cd').textContent = '';
+  document.getElementById('melee-ring').style.stroke =
+    P.meleeCd > 0 ? '#555' : '#e94560';
+
+  // Ult — 圆圈充能
+  const uFrac = Math.min(1, P.ultCharge / P.ultMax);
+  const OCIRC = 188.5; // 2π×30
+  const ultRing = document.getElementById('ult-ring-fill');
+  ultRing.style.strokeDashoffset = OCIRC * (1 - uFrac);
+  document.getElementById('ult-pct').textContent  = Math.round(uFrac * 100) + '%';
+  const isReady = uFrac >= 1 && !P.ultOn;
+  const ultWrap = document.getElementById('ult-wrap');
+  ultWrap.classList.toggle('ready', isReady);
+  if (isReady) {
+    ultRing.classList.add('ready');
+  } else {
+    ultRing.classList.remove('ready');
+  }
+  const readyEl = document.getElementById('ult-ready-txt');
+  readyEl.style.display = isReady ? 'block' : 'none';
+}
+
+// ══════════════════════════════════════════════════════════════════
+// 第7步：主游戏循环 / 输入系统 / 暂停 / 游戏状态管理
+// ══════════════════════════════════════════════════════════════════
+
+// ── 游戏状态标志 ─────────────────────────────────────────────────
+let _gameActive = false;
+let _paused     = false;
+let _lastT      = 0;
+let _lastCartX  = 0;   // 上一帧推车 X（跟车用）
+let _lastCartZ  = 0;   // 上一帧推车 Z
+
+// ── 输入状态 ─────────────────────────────────────────────────────
+const KEYS = {};
+let mouseX = 0, mouseY = 0;
+let mouseLocked = false;
+
+document.addEventListener('keydown', e => {
+  if (!_gameActive) return;
+  KEYS[e.code] = true;
+
+  // 暂停切换
+  if (e.code === 'Escape' || e.code === 'KeyP') {
+    togglePause();
+    return;
+  }
+  if (_paused) return;
+
+  // 技能键
+  if (e.code === 'KeyR') startReload();
+  if (e.code === 'KeyE') doBiotic();
+  if (e.code === 'KeyQ') doVisor();
+  if (e.code === 'KeyF') doMelee();  // 近战（通用所有英雄）
+  if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') {
+    if (_currentHero === 'genji') doSwiftStrike(); // 源氏 Shift = 迅捷斩
+    else P.sprinting = true;
+  }
+  // 跳跃（空格）
+  if (e.code === 'Space') {
+    if (P.onGround) {
+      P.velY = 8.5;
+      P.onGround = false;
+      if (_currentHero === 'genji') P._doubleJumpUsed = false;
+    } else if (_currentHero === 'genji' && !P._doubleJumpUsed) {
+      // 源氏双跳
+      P._doubleJumpUsed = true;
+      P._wallClimbing   = false;
+      P.velY = 7.5;
+      spawnDashTrail();
+    }
+  }
+});
+
+document.addEventListener('keyup', e => {
+  KEYS[e.code] = false;
+  if (e.code === 'ShiftLeft' || e.code === 'ShiftRight') {
+    P.sprinting = false;
+    if (P.actionState === 'sprint') { P.actionState = 'idle'; P.actionT = 0; }
+  }
+});
+
+// ── 鼠标锁定 & 移动 ──────────────────────────────────────────────
+document.addEventListener('pointerlockchange', () => {
+  mouseLocked = document.pointerLockElement === canvas;
+  document.getElementById('xhair').style.display = mouseLocked ? 'block' : 'none';
+  document.getElementById('sprint-banner').style.display = 'none';
+
+  // 游戏进行中但锁定意外丢失（按 Esc 暂停除外）→ 提示点击重新锁定
+  if (_gameActive && !mouseLocked && !_paused) {
+    // 清空所有按键，避免松开 Esc 时按键状态残留卡死移动
+    Object.keys(KEYS).forEach(k => { KEYS[k] = false; });
+    P.shooting = false; P.sprinting = false;
+  }
+});
+
+document.addEventListener('mousemove', e => {
+  if (!mouseLocked || _paused) return;
+  const sens = 0.0022;
+  P.yaw   -= e.movementX * sens;
+  P.pitch  = Math.max(-1.1, Math.min(1.1, P.pitch - e.movementY * sens));
+});
+
+// 鼠标点击：锁定指针 or 射击
+document.addEventListener('mousedown', e => {
+  if (!_gameActive || _paused) return;
+  if (!mouseLocked) {
+    // 未锁定时点击：先清空残留按键，再重新请求锁定
+    Object.keys(KEYS).forEach(k => { KEYS[k] = false; });
+    P.shooting = false; P.sprinting = false;
+    canvas.requestPointerLock();
+    // 同时允许左键触发射击（开局第一次点击既锁定又能开枪）
+    if (e.button === 0) P.shooting = true;
+    return;
+  }
+  if (e.button === 0) P.shooting = true;
+  if (e.button === 2) {
+    // 源氏：RMB = 有间隔连发3镖（扇形）；Soldier：RMB = Helix
+    if (_currentHero === 'genji') doGenjiFanBurst();
+    else doHelix();
+  }
+  if (e.button === 4) doMelee(); // 鼠标前侧键 Mouse4
+});
+
+document.addEventListener('mouseup', e => {
+  if (e.button === 0) P.shooting = false;
+});
+
+// 右键不弹出菜单
+document.addEventListener('contextmenu', e => e.preventDefault());
+
+// ── 相机旋转应用 ─────────────────────────────────────────────────
+function applyCameraRotation() {
+  camera.rotation.order = 'YXZ';
+  camera.rotation.y = P.yaw;
+  camera.rotation.x = P.pitch;
+}
+
+// ── 玩家移动 ─────────────────────────────────────────────────────
+function tickPlayerMove(dt) {
+  if (_currentHero === 'genji' && P._dashOn) {
+    // 迅捷斩冲刺中：跳过普通移动
+    document.getElementById('sprint-banner').style.display = 'none';
+    return true;
+  }
+  // 源氏竜神剣期间移速加成
+  const baseSpd = (_currentHero === 'genji' && P._dragonbladeOn) ? 7.0 : 6.0;
+  const spd = P.sprinting ? baseSpd * 1.58 : baseSpd;
+  let dx = 0, dz = 0;
+
+  if (KEYS['KeyW'] || KEYS['ArrowUp'])    { dx -= Math.sin(P.yaw); dz -= Math.cos(P.yaw); }
+  if (KEYS['KeyS'] || KEYS['ArrowDown'])  { dx += Math.sin(P.yaw); dz += Math.cos(P.yaw); }
+  if (KEYS['KeyA'] || KEYS['ArrowLeft'])  { dx -= Math.cos(P.yaw); dz += Math.sin(P.yaw); }
+  if (KEYS['KeyD'] || KEYS['ArrowRight']) { dx += Math.cos(P.yaw); dz -= Math.sin(P.yaw); }
+
+  const moving = dx !== 0 || dz !== 0;
+  if (moving) moveEntity(camera.position, dx, dz, spd, dt);
+
+  // 疾跑横幅
+  const sprintEl = document.getElementById('sprint-banner');
+  sprintEl.style.display = (P.sprinting && moving) ? 'block' : 'none';
+
+  return moving;
+}
+
+// ── 暂停/恢复 ────────────────────────────────────────────────────
+function togglePause() {
+  if (!_gameActive) return;
+  _paused = !_paused;
+  const scr = document.getElementById('scr-pause');
+  if (_paused) {
+    scr.style.display = 'flex';
+    document.exitPointerLock();
+    // 填入暂停面板统计
+    document.getElementById('pause-stats').innerHTML =
+      '<span class="plbl">波次</span><span>' + (WAVE.idx>=0 ? WAVE.idx+1 : '—') + '</span>' +
+      '&nbsp;&nbsp;<span class="plbl">击杀</span><span>' + P.kills + '</span>' +
+      '&nbsp;&nbsp;<span class="plbl">得分</span><span>' + P.score + '</span>' +
+      '&nbsp;&nbsp;<span class="plbl">HP</span><span>' + Math.ceil(P.hp) + ' / ' + P.maxHp + '</span>';
+  } else {
+    scr.style.display = 'none';
+    canvas.requestPointerLock();
+  }
+}
+
+// 暂停面板按钮
+document.getElementById('resumeBtn').addEventListener('click', () => {
+  if (_paused) togglePause();
+});
+document.getElementById('pause-restartBtn').addEventListener('click', () => location.reload());
+document.getElementById('btn-retry').addEventListener('click', () => location.reload());
+
+// ── HUD全量刷新（每帧调用）──────────────────────────────────────
+function tickHUD() {
+  updateHpHUD();
+  updateAmmoHUD();
+  if (_currentHero === 'genji') {
+    updateGenjiSkillHUD();
+  } else {
+    updateSkillHUD();
+  }
+}
+
+// ── 主游戏循环 ────────────────────────────────────────────────────
+function gameLoop(ts) {
+  if (!_gameActive) return;
+  requestAnimationFrame(gameLoop);
+
+  const dt = Math.min((ts - _lastT) / 1000, 0.05); // 上限50ms防止大跳帧
+  _lastT = ts;
+
+  if (_paused) {
+    renderer.render(scene, camera);
+    return;
+  }
+
+  // ── 玩家移动 & 相机 ──
+  const moving = tickPlayerMove(dt);
+  applyCameraRotation();
+
+  // ── 跳跃 & 重力 & 站推车车顶 ──
+  (function tickVertical() {
+    if (!cart.mesh) {
+      // 没有推车时简单贴地
+      camera.position.y = 1.7;
+      return;
+    }
+
+    const dx = camera.position.x - cart.pos.x;
+    const dz = camera.position.z - cart.pos.z;
+    const onCartXZ = Math.abs(dx) < 1.3 && Math.abs(dz) < 1.7;
+    const cartTopY  = 1.2;   // 车顶世界高度
+    const groundY   = 0;     // 地面
+    // 玩家脚底当前所在的"地板"高度
+    const floorY = onCartXZ ? cartTopY : groundY;
+    const eyeFloorY = floorY + 1.7; // 眼睛距脚底1.7
+
+    // 如果站在车上且车在动，同步 XZ（跟车）
+    if (onCartXZ && P.velY <= 0 && camera.position.y <= eyeFloorY + 0.05) {
+      // 上一帧推车的位置（靠 cart.pos 已更新，用速度反推）
+      // 直接把玩家 XZ offset 锁定：让玩家相对车的偏移不变
+      // cart 每帧移动了 delta，tickPayload 已经更新了 cart.pos
+      // 这里让玩家随车：记录上帧 cart 位置，每帧补偿差值
+      const cdx = cart.pos.x - _lastCartX;
+      const cdz = cart.pos.z - _lastCartZ;
+      camera.position.x += cdx;
+      camera.position.z += cdz;
+    }
+
+    // 重力 & 跳跃
+    P.velY -= 22 * dt;  // 重力加速度
+    camera.position.y += P.velY * dt;
+
+    // 落地检测
+    if (camera.position.y <= eyeFloorY) {
+      camera.position.y = eyeFloorY;
+      P.velY = 0;
+      P.onGround = true;
+    } else {
+      P.onGround = false;
+    }
+  })();
+
+  // 记录这帧推车位置，供下帧跟车用
+  _lastCartX = cart.pos.x;
+  _lastCartZ = cart.pos.z;
+
+  // ── 悬崖检测（垂直物理落地后才查，空中不触发）──
+  tickVoid(dt);
+
+  // ── 连射 ──
+  if (P.shooting && !P.reloading) doShoot();
+
+  // ── 冷却 ──
+  tickCooldowns(dt);
+  tickReload(dt);
+  tickBiotic(dt);
+  tickVisor(dt);
+
+  // ── 推车 & 血包 ──
+  tickPayload(dt);
+  tickHealthPacks(dt);
+
+  // ── 枪械动画 ──
+  updateGunFull(dt, moving, P.sprinting);
+
+  // ── 敌人投射物 ──
+  updateEnemyProjectiles(dt, camera.position);
+
+  // ── Helix 飞行 ──
+  updateHelixProjectiles(dt, (boomPos, dmg, r) => {
+    helixAoeDamage(boomPos, dmg, r);
+    gainUlt(dmg * 0.5);
+  });
+
+  // ── 敌人 AI（目标改为推车位置）──
+  updateEnemies(dt, camera.position, tmp.v3a.set(cart.pos.x, 0, cart.pos.z));
+
+  // ── 随机刷精英/Boss ──
+  tickEnemySpawn(dt);
+  // ── 骚扰刷怪（从推车前方持续补充小怪）──
+  tickHarassSpawn(dt);
+
+  // ── 粒子 ──
+  tickHUD();
+  updateParticles(dt);
+
+  renderer.render(scene, camera);
+}
+
+// ══════════════════════════════════════════════════════════════════
+// 第8步：英雄选择 / 开始游戏 / 窗口 resize 适配
+// ══════════════════════════════════════════════════════════════════
+
+// ── 英雄定义（卡片数据）─────────────────────────────────────────
+const HEROES = [
+  { id:'soldier', name:'Soldier: 76', role:'damage', desc:'重型脉冲步枪，Helix火箭弹，生命力场，战术目镜', locked:false },
+  { id:'genji',   name:'Genji',       role:'damage', desc:'手里剑·迅捷斩·偏转·竜神剣 — 近身刺客', locked:false },
+  { id:'tracer',  name:'Tracer',      role:'damage', desc:'脉冲手枪 · 时光倒流 — 即将解锁', locked:true },
+  { id:'reaper',  name:'Reaper',      role:'damage', desc:'暗影步枪 · 死亡之花 — 即将解锁', locked:true },
+];
+
+let selectedHero = null;
+
+// ── 英雄卡片背景画布（像素角色）────────────────────────────────
+function drawHeroCanvas(cv, hero) {
+  const ctx = cv.getContext('2d');
+  const w = cv.width, h = cv.height;
+  ctx.clearRect(0, 0, w, h);
+
+  // 渐变背景
+  const grad = ctx.createLinearGradient(0, 0, 0, h);
+  const cols = {
+    damage:  ['#2a0a0a', '#1a0505'],
+    support: ['#0a2a0a', '#051505'],
+    tank:    ['#0a1a2a', '#050a1a'],
+  };
+  const [c1, c2] = cols[hero.role] || ['#1a1a2a', '#0d0d1a'];
+  grad.addColorStop(0, c1);
+  grad.addColorStop(1, c2);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, w, h);
+
+  if (hero.locked) return;
+
+  const px = (x, y, s, col) => {
+    ctx.fillStyle = col;
+    ctx.fillRect(Math.floor(w/2 - s/2 + x), Math.floor(h*0.15 + y), s, s);
+  };
+
+  if (hero.id === 'genji') {
+    // 源氏像素画：绿色赛博忍者
+    const armor  = '#2a6a3a';
+    const bright = '#44ff88';
+    const dark   = '#0a1a0e';
+    const visor  = '#00ffaa';
+    // 头（圆头盔）
+    px(-9, 2, 18, armor);
+    px(-7, 0, 14, '#3a8a4a');
+    // 面甲（绿色发光条）
+    ctx.fillStyle = visor;
+    ctx.fillRect(Math.floor(w/2-5), Math.floor(h*0.15+8), 10, 3);
+    // 躯干
+    px(-10, 20, 20, armor);
+    px(-10, 34, 20, dark);
+    // 腰部护甲（亮绿条纹）
+    px(-10, 32, 20, bright); px(-10, 34, 20, dark);
+    // 腿
+    px(-12, 50, 9, dark); px(3, 50, 9, dark);
+    px(-12, 62, 9, armor); px(3, 62, 9, armor);
+    // 手臂
+    px(-22, 22, 10, dark);
+    px(12, 22, 10, dark);
+    // 左手龙刃剑（长条）
+    ctx.fillStyle = bright;
+    ctx.fillRect(Math.floor(w/2 - 26), Math.floor(h*0.15 + 18), 3, 38);
+    // 右手手里剑（小斜块）
+    ctx.fillStyle = '#aaaaaa';
+    ctx.fillRect(Math.floor(w/2 + 15), Math.floor(h*0.15 + 28), 10, 3);
+    ctx.fillRect(Math.floor(w/2 + 17), Math.floor(h*0.15 + 26), 3, 10);
+    // 绿色光晕
+    ctx.globalAlpha = 0.28;
+    const glow2 = ctx.createRadialGradient(w/2, h*0.55, 0, w/2, h*0.55, w*0.55);
+    glow2.addColorStop(0, '#44ff88'); glow2.addColorStop(1, 'transparent');
+    ctx.fillStyle = glow2; ctx.fillRect(0, 0, w, h);
+    ctx.globalAlpha = 1.0;
+    return;
+  }
+
+  // 像素风格人形（Soldier:76 专属）
+  const bodyColor = '#3a4a6a';
+  const armorColor = '#c08030';
+
+  // 躯干
+  px(-12, 20, 24, bodyColor);
+  px(-12, 36, 24, bodyColor);
+  // 头
+  px(-10, 4, 20, '#8a9ab0');
+  // 头盔条纹
+  px(-10, 4, 20, armorColor);
+  px(-10, 8, 20, '#8a9ab0');
+  // 腿
+  px(-14, 52, 10, bodyColor); px(4, 52, 10, bodyColor);
+  px(-14, 64, 10, '#2a3a50'); px(4, 64, 10, '#2a3a50');
+  // 手臂（枪）
+  px(-22, 24, 8, bodyColor);
+  px(14, 24, 8, bodyColor);
+  // 枪
+  px(14, 30, 20, '#222232');
+  px(26, 28, 8, '#111');
+  // 橙色装饰
+  px(-12, 20, 24, armorColor);
+  px(-12, 22, 24, bodyColor);
+  // 眼部发光（橙色）
+  ctx.fillStyle = '#f99e1a';
+  ctx.fillRect(Math.floor(w/2 - 7), Math.floor(h*0.15 + 9), 6, 3);
+  ctx.fillRect(Math.floor(w/2 + 2), Math.floor(h*0.15 + 9), 6, 3);
+  // 光晕效果
+  ctx.globalAlpha = 0.3;
+  const glow = ctx.createRadialGradient(w/2, h*0.5, 0, w/2, h*0.5, w*0.5);
+  glow.addColorStop(0, '#f99e1a');
+  glow.addColorStop(1, 'transparent');
+  ctx.fillStyle = glow;
+  ctx.fillRect(0, 0, w, h);
+  ctx.globalAlpha = 1.0;
+}
+
+// ── 构建英雄选择网格 ─────────────────────────────────────────────
+function buildHeroGrid() {
+  const grid = document.getElementById('hero-grid');
+  grid.innerHTML = '';
+
+  HEROES.forEach(hero => {
+    const card = document.createElement('div');
+    card.className = 'hcard' + (hero.locked ? ' locked' : '');
+    card.dataset.id = hero.id;
+
+    // 背景画布
+    const cv = document.createElement('canvas');
+    cv.width = 136; cv.height = 176;
+    drawHeroCanvas(cv, hero);
+    card.appendChild(cv);
+
+    // 锁图标
+    if (hero.locked) {
+      const lk = document.createElement('div');
+      lk.className = 'hlock'; lk.textContent = '🔒';
+      card.appendChild(lk);
+    }
+
+    // 名字 + 职责
+    const nm = document.createElement('div');
+    nm.className = 'hname'; nm.textContent = hero.name;
+    card.appendChild(nm);
+
+    const rl = document.createElement('div');
+    rl.className = 'hrole ' + hero.role;
+    rl.textContent = hero.role.toUpperCase();
+    card.appendChild(rl);
+
+    // 选中底线
+    const mk = document.createElement('div');
+    mk.className = 'hsel-mark';
+    card.appendChild(mk);
+
+    // 点击选择
+    if (!hero.locked) {
+      card.addEventListener('click', () => {
+        document.querySelectorAll('.hcard').forEach(c => c.classList.remove('sel'));
+        card.classList.add('sel');
+        selectedHero = hero;
+        document.getElementById('hero-desc').textContent = hero.desc;
+        const btn = document.getElementById('confirm-btn');
+        btn.disabled = false;
+        btn.textContent = 'CONFIRM — ' + hero.name.toUpperCase();
+      });
+    }
+
+    grid.appendChild(card);
+  });
+}
+
+// ── 进入游戏 ─────────────────────────────────────────────────────
+function startGame() {
+  // 隐藏所有 overlay
+  document.getElementById('scr-hero').style.display  = 'none';
+  document.getElementById('scr-title').style.display = 'none';
+
+  // 根据英雄设置技能
+  applyHeroConfig(selectedHero ? selectedHero.id : 'soldier');
+
+  // 显示 HUD（命数/波次永久隐藏）
+  // wave-hud 不显示（已改为随机刷怪，无波次概念）
+  document.getElementById('obj-wrap').style.display  = 'block';
+  document.getElementById('hp-wrap').style.display   = 'block';
+  document.getElementById('ammo-wrap').style.display = 'block';
+  document.getElementById('skills').style.display    = 'flex';
+  document.getElementById('ult-wrap').style.display  = 'block';
+
+  // 停止标题预览循环
+  _previewRunning = false;
+
+  // 构建推车、血包和掩体（首次进入游戏时创建3D对象）
+  buildPayload();
+  buildHealthPacks();
+  buildCoverObjects();
+
+  // 初始化推车状态
+  cart.waypointIdx = 1;
+  cart.pos.set(CART_PATH[0].x, 0, CART_PATH[0].z);
+  cart.lastCheckpoint = 0;
+  cart.pathProgress   = 0;
+  cart.reachedB       = false;
+  cart._won           = false;
+  _lastCartX          = cart.pos.x;
+  _lastCartZ          = cart.pos.z;
+
+  // 初始化玩家位置（南段走廊侧面，col5 row12，离车有距离、有掩体遮挡，面朝北）
+  camera.position.set(-17.5, 1.7, 17.5);
+  P.yaw = Math.PI; P.pitch = 0;
+  P.velY = 0; P.onGround = true;
+
+  // 初始 HUD
+  updateHpHUD();
+  updateAmmoHUD();
+  updatePayloadHUD();
+  updateSkillHUD();
+  updateWaveHUD();
+
+  // 清空所有按键状态，防止标题界面残留导致 WASD 卡住
+  Object.keys(KEYS).forEach(k => { KEYS[k] = false; });
+  P.shooting = false;
+  P.sprinting = false;
+
+  // 初始化刷怪计时器
+  _spawnTimer = 5;
+
+  // 请求鼠标锁定（先清空按键再锁定，避免锁定前的残留键影响第一帧）
+  canvas.requestPointerLock();
+
+  // 标记游戏活跃，启动主循环
+  _gameActive = true;
+  _lastT = performance.now();
+  requestAnimationFrame(ts => { _lastT = ts; requestAnimationFrame(gameLoop); });
+}
+
+// ── 标题按钮：进入英雄选择 ──────────────────────────────────────
+document.getElementById('btn-start').addEventListener('click', () => {
+  document.getElementById('scr-title').style.display = 'none';
+  document.getElementById('scr-hero').style.display  = 'flex';
+  buildHeroGrid();
+});
+
+// ── 英雄确认按钮 ─────────────────────────────────────────────────
+document.getElementById('confirm-btn').addEventListener('click', () => {
+  if (!selectedHero) return;
+  startGame();
+});
+
+// ── 窗口 Resize 完整适配 ────────────────────────────────────────
+// onResize 已在第2步定义，这里仅确保游戏中也正确适配
+window.addEventListener('resize', () => {
+  // onResize() 已处理 renderer + camera，无需重复
+  // 但伤害数字的坐标依赖 innerWidth/innerHeight，飘字本身是 CSS 定位，自动适配
+});
+
+// ── 音效补充：击杀音 ─────────────────────────────────────────────
+function sndKill() {
+  const ac = getAC(), now = ac.currentTime;
+  // 两个短促上扬音调（"双击"确认感）
+  [0, 0.10].forEach((delay, i) => {
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = 'sine';
+    o.frequency.setValueAtTime(880 + i*220, now + delay);
+    o.frequency.exponentialRampToValueAtTime(1320 + i*220, now + delay + 0.06);
+    g.gain.setValueAtTime(0.09, now + delay);
+    g.gain.exponentialRampToValueAtTime(0.001, now + delay + 0.12);
+    o.connect(g); g.connect(ac.destination);
+    o.start(now + delay); o.stop(now + delay + 0.12);
+  });
+}
+
+// ── 击杀音已在 killEnemy（第4步）内通过 typeof sndKill 判断调用 ──
+// sndKill 函数在本步骤（第8步）定义，JS 函数声明自动提升，运行时可见
+
+// ══════════════════════════════════════════════════════════════════
+// 第9步：源氏（Genji）英雄系统
+// 手里剑主/副开火 · 迅捷斩 · 偏转 · 竜神剣终极
+// 赛博敏捷：双跳 · 爬墙
+// ══════════════════════════════════════════════════════════════════
+
+// ── 当前英雄标识 ─────────────────────────────────────────────────
+let _currentHero = 'soldier'; // 'soldier' | 'genji'
+
+// ── 英雄配置应用（startGame调用）────────────────────────────────
+function applyHeroConfig(heroId) {
+  _currentHero = heroId;
+  if (heroId !== 'genji') return; // Soldier:76 保持默认
+
+  // ── 源氏属性覆盖 ──
+  P.maxHp  = 250; P.hp = 250;
+  P.ammo   = 30;  P.maxAmmo = 30; P.reserve = 9999;
+  P.fireRate     = 130;       // 单颗手里剑射速（全自动）
+  P.dmgMin       = 27; P.dmgMax = 27; // 固定27伤害
+  P.reloadTime   = 1.2;
+
+  // 技能重映射（复用 P 的 helixCd / bioticCd / ult* 槽位）
+  P.helixCd      = 0; P.helixMaxCd  = 8;  // 迅捷斩
+  P.bioticCd     = 0; P.bioticMaxCd = 8;  // 偏转
+  P.meleeCd      = 0; P.meleeMaxCd  = 0.6;
+  P.ultMax       = 2000; P.ultCharge = 0;
+  P.ultDur       = 6;
+
+  // 赛博敏捷：双跳状态
+  P._doubleJumpUsed = false;
+  // 爬墙状态
+  P._wallClimbT     = 0;
+  P._wallClimbing   = false;
+
+  // 偏转状态
+  P._deflectOn  = false;
+  P._deflectT   = 0;
+
+  // 竜神剣状态
+  P._dragonbladeOn = false;
+  P._dragonbladeT  = 0;
+  P._swingCd       = 0;
+
+  // 迅捷斩状态
+  P._dashOn        = false;
+  P._dashProgress  = 0;
+  P._dashDir       = new THREE.Vector3();
+
+  // 更新 HUD 标签为源氏风格
+  document.getElementById('ult-label').textContent    = '竜神剣';
+  document.getElementById('ult-q-key').textContent    = 'Q';
+  // 技能名
+  const skRows = document.querySelectorAll('.sk-name');
+  // 第0,1行 = helix
+  if (skRows[0]) skRows[0].textContent = '迅捷斩';
+  if (skRows[1]) skRows[1].textContent = '[SHIFT]';
+  // 第2,3行 = biotic
+  if (skRows[2]) skRows[2].textContent = '偏转';
+  if (skRows[3]) skRows[3].textContent = '[E]';
+  // 更新 Helix 图标
+  const hIcon = document.querySelector('#skills .sk-row:nth-child(1) .sk-icon');
+  if (hIcon) hIcon.textContent = '⚡';
+  const bIcon = document.querySelector('#skills .sk-row:nth-child(2) .sk-icon');
+  if (bIcon) bIcon.textContent = '🛡';
+
+  // 替换枪模型为龙刃
+  buildGenjiWeapon();
+}
+
+// ── 源氏武器模型（手里剑/飞镖）──────────────────────────────────
+function buildGenjiWeapon() {
+  // 清除 Soldier 步枪所有子物件
+  while (gunGroup.children.length > 0) gunGroup.remove(gunGroup.children[0]);
+
+  // 手里剑主体：4片刃交叉（俯视星形）
+  const matBlade = new THREE.MeshLambertMaterial({ color: 0xccddcc, emissive: 0x223322, emissiveIntensity: 0.3 });
+  const matCenter = new THREE.MeshLambertMaterial({ color: 0x1a3a1a, emissive: 0x004400, emissiveIntensity: 0.6 });
+  const matGlow   = new THREE.MeshBasicMaterial({ color: 0x44ff88, transparent: true, opacity: 0.85 });
+
+  // 两片交叉刀刃（组成4尖星）
+  const blade1 = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.008, 0.045), matBlade);
+  blade1.position.set(0, 0, -0.10);
+  gunGroup.add(blade1);
+
+  const blade2 = new THREE.Mesh(new THREE.BoxGeometry(0.045, 0.008, 0.28), matBlade);
+  blade2.position.set(0, 0, -0.10);
+  gunGroup.add(blade2);
+
+  // 中央圆盘
+  const center = new THREE.Mesh(new THREE.CylinderGeometry(0.045, 0.045, 0.014, 8), matCenter);
+  center.rotation.x = Math.PI / 2;
+  center.position.set(0, 0, -0.10);
+  gunGroup.add(center);
+
+  // 绿色发光中心点
+  const glowDot = new THREE.Mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.016, 8), matGlow);
+  glowDot.rotation.x = Math.PI / 2;
+  glowDot.position.set(0, 0, -0.10);
+  gunGroup.add(glowDot);
+
+  // 绿色刃边发光线（横）
+  const glowH = new THREE.Mesh(new THREE.BoxGeometry(0.24, 0.003, 0.008), new THREE.MeshBasicMaterial({ color: 0x44ff88 }));
+  glowH.position.set(0, 0.006, -0.10);
+  gunGroup.add(glowH);
+
+  // 绿色刃边发光线（纵）
+  const glowV = new THREE.Mesh(new THREE.BoxGeometry(0.008, 0.003, 0.24), new THREE.MeshBasicMaterial({ color: 0x44ff88 }));
+  glowV.position.set(0, 0.006, -0.10);
+  gunGroup.add(glowV);
+
+  // 绿色点光（投掷时闪光）
+  muzzleLight.position.set(0, 0, -0.30);
+  muzzleLight.color.set(0x44ff88);
+  gunGroup.add(muzzleLight);
+  muzzleSprite.position.set(0, 0, -0.32);
+  muzzleSprite.material.color.set(0x44ff88);
+  gunGroup.add(muzzleSprite);
+
+  // 龙刃状态：左手大刀（初始隐藏）
+  buildDragonbladeModel();
+
+  // 调整 gunGroup 位置适配手里剑（居中偏右，稍靠前）
+  gunGroup.position.set(0.18, -0.20, -0.34);
+  gunGroup.rotation.set(0, 0.04, 0);
+}
+
+// 左手龙刃大刀
+let _dragonbladeGroup = null;
+function buildDragonbladeModel() {
+  const g = new THREE.Group();
+
+  // 刀身（长绿）
+  const blade = new THREE.Mesh(
+    new THREE.BoxGeometry(0.038, 0.012, 0.82),
+    new THREE.MeshBasicMaterial({ color:0x44ff88 })
+  );
+  blade.position.z = -0.35;
+  g.add(blade);
+
+  // 刀光（半透明）
+  const glow = new THREE.Mesh(
+    new THREE.BoxGeometry(0.07, 0.003, 0.80),
+    new THREE.MeshBasicMaterial({ color:0x88ffcc, transparent:true, opacity:0.45, depthWrite:false })
+  );
+  glow.position.z = -0.35;
+  g.add(glow);
+
+  // 手柄
+  const hilt = new THREE.Mesh(
+    new THREE.BoxGeometry(0.05, 0.05, 0.16),
+    new THREE.MeshLambertMaterial({ color:0x1a3a1a })
+  );
+  hilt.position.z = 0.10;
+  g.add(hilt);
+
+  // 发光点光
+  const dbl = new THREE.PointLight(0x44ff88, 2.5, 5);
+  dbl.position.z = -0.5;
+  g.add(dbl);
+  g._light = dbl;
+
+  g.visible = false;
+  g.position.set(-0.26, -0.10, -0.28);
+  g.rotation.set(0, 0.15, 0.08);
+  gunPivot.add(g);
+  _dragonbladeGroup = g;
+}
+
+// ── 手里剑投掷特效（替代子弹孔）────────────────────────────────
+function spawnShurikenTrail(startPos, dir) {
+  // 飞行中的手里剑（小扁星形用CrossGeometry模拟）
+  const g = new THREE.Group();
+  const mat = new THREE.MeshBasicMaterial({ color:0xaaccaa });
+  // 4片刃（交叉）
+  for (let i = 0; i < 2; i++) {
+    const b = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.008, 0.04), mat);
+    b.rotation.z = i * Math.PI / 2;
+    g.add(b);
+  }
+  // 绿色尾迹光
+  const trail = new THREE.PointLight(0x44ff88, 1.2, 1.5);
+  g.add(trail);
+
+  g.position.copy(startPos);
+  scene.add(g);
+
+  // 旋转飞行
+  let t = 0;
+  const speed = 36;
+  const maxLife = 1.2;
+  function fly() {
+    t += 0.016;
+    g.rotation.z += 0.5; // 手里剑自旋
+    const nx = g.position.x + dir.x * speed * 0.016;
+    const ny = g.position.y + dir.y * speed * 0.016;
+    const nz = g.position.z + dir.z * speed * 0.016;
+    if (isWall(nx, nz) || ny < 0.1 || ny > 3.9 || t > maxLife) {
+      scene.remove(g);
+      return;
+    }
+    g.position.set(nx, ny, nz);
+    requestAnimationFrame(fly);
+  }
+  requestAnimationFrame(fly);
+}
+
+// ── 手里剑射击（替代 doShoot，源氏专用）─────────────────────────
+// 左键：三连发，每发间隔 80ms，后摇 0.5s（三发打完后才能再开火）
+// 右键：扇形三发同时射出，后摇 0.25s
+
+let _genjiLastBurst  = 0;  // 上次连发结束时间（含后摇）
+let _genjiFanLastShot = 0; // 右键扇形上次射击时间
+let _genjiBurstTimer = null;
+let _genjiFanBurstTimer = null;
+
+// 发射单颗手里剑（通用）—— angle=0 打准星正前方
+function _fireOneShuriken(angle) {
+  if (P.reloading || P.ammo <= 0) return;
+
+  P.ammo--;
+  triggerMuzzleFlash();
+  sndShurikenThrow();
+
+  const baseDir = new THREE.Vector3();
+  camera.getWorldDirection(baseDir);
+  let dir = baseDir.clone();
+  if (angle !== 0) {
+    dir.applyAxisAngle(new THREE.Vector3(0, 1, 0), angle);
+  } else {
+    dir.x += (Math.random()-0.5) * 0.02;
+    dir.y += (Math.random()-0.5) * 0.01;
+    dir.normalize();
+  }
+
+  const startPos = camera.position.clone().addScaledVector(dir, 0.5);
+  startPos.y -= 0.05;
+
+  // 所有标统一用从相机原点出发的射线检测（避免贴脸偏角打不中）
+  const ray = new THREE.Raycaster(camera.position.clone(), dir, 0, 80);
+  const eMeshes = enemies.filter(e => !e.dying).flatMap(e => e.meshes);
+  const hits = ray.intersectObjects(eMeshes, false);
+  if (hits.length > 0) {
+    for (const e of enemies) {
+      if (e.dying) continue;
+      if (e.meshes.includes(hits[0].object)) {
+        const isHead = hits[0].object === e.head;
+        const dmg = Math.round(P.dmgMin * (isHead ? 2.0 : 1)); // 爆头2倍
+        spawnBlood(hits[0].point);
+        showDmgNum(hits[0].point, dmg, isHead);
+        const killed = damageEnemy(e, dmg, hits[0].point);
+        if (killed) showKillMarker(); else showHitMarker(isHead);
+        gainUlt(dmg * 0.9);
+        break;
+      }
+    }
+  }
+
+  spawnShurikenTrail(startPos, dir);
+  if (P.ammo === 0) startReload();
+  updateAmmoHUD();
+}
+
+// 左键：三连发（每发间隔 80ms），三发打完后后摇 0.5s
+function doGenjiShoot(fanMode) {
+  if (P.reloading || P.ammo <= 0) return;
+  if (P._deflectOn) return;
+  if (P._dragonbladeOn) { doGenjiSwing(); return; }
+  if (_genjiBurstTimer !== null) return;   // 正在连发中
+  if (_genjiFanBurstTimer !== null) return;
+
+  const now = performance.now();
+  const backswing = 500; // 后摇 0.5s
+  const interval  = 80;  // 每发间隔 80ms
+  const burstCount = 3;
+  if (now - _genjiLastBurst < backswing) return; // 后摇未结束
+
+  let i = 0;
+  function fireNext() {
+    if (i >= burstCount || P.ammo <= 0) {
+      _genjiBurstTimer = null;
+      _genjiLastBurst = performance.now(); // 后摇从最后一发开始算
+      return;
+    }
+    _fireOneShuriken(0);
+    i++;
+    _genjiBurstTimer = setTimeout(fireNext, interval);
+  }
+  fireNext();
+}
+
+// 右键：近战小刀（爆头162，正身81），后摇0.25s
+let _genjiSlashCd = 0;
+function doGenjiFanBurst() {
+  if (P._deflectOn) return;
+  if (P._dragonbladeOn) { doGenjiSwing(); return; }
+  if (_genjiSlashCd > 0) return;
+
+  _genjiSlashCd = 0.25;
+  P.actionState = 'melee'; P.actionT = 0;
+  sndShurikenThrow(); // 快速嗖声代替刀音
+
+  // 射线检测：正前方3.5单位内（比普通近战远一点）
+  const dir = new THREE.Vector3();
+  camera.getWorldDirection(dir);
+  const slashRay = new THREE.Raycaster(camera.position.clone(), dir, 0, 3.5);
+  const eMeshes = enemies.filter(e => !e.dying).flatMap(e => e.meshes);
+  const hits = slashRay.intersectObjects(eMeshes, false);
+
+  if (hits.length > 0) {
+    for (const e of enemies) {
+      if (e.dying) continue;
+      if (e.meshes.includes(hits[0].object)) {
+        const isHead = hits[0].object === e.head;
+        const dmg = isHead ? 162 : 81;
+        spawnBlood(hits[0].point);
+        showDmgNum(hits[0].point, dmg, isHead);
+        const killed = damageEnemy(e, dmg, hits[0].point);
+        if (killed) showKillMarker(); else showHitMarker(isHead);
+        gainUlt(dmg * 0.9);
+        break;
+      }
+    }
+  }
+}
+
+// ── 手里剑投掷音效 ────────────────────────────────────────────────
+function sndShurikenThrow() {
+  const ac = getAC(), now = ac.currentTime;
+  const o = ac.createOscillator(), g = ac.createGain();
+  o.type = 'triangle';
+  o.frequency.setValueAtTime(1800, now);
+  o.frequency.exponentialRampToValueAtTime(400, now + 0.07);
+  g.gain.setValueAtTime(0.18, now);
+  g.gain.exponentialRampToValueAtTime(0.001, now + 0.09);
+  o.connect(g); g.connect(ac.destination);
+  o.start(now); o.stop(now + 0.1);
+  // 金属摩擦
+  const buf = ac.createBuffer(1, ac.sampleRate * 0.04, ac.sampleRate);
+  const d = buf.getChannelData(0);
+  for (let i=0; i<d.length; i++) d[i] = (Math.random()*2-1) * Math.exp(-i/d.length * 12) * 0.25;
+  const src = ac.createBufferSource(), gn = ac.createGain();
+  src.buffer = buf; gn.gain.value = 0.15;
+  src.connect(gn); gn.connect(ac.destination); src.start(now);
+}
+
+// ── 迅捷斩（Shift键）──────────────────────────────────────────────
+function doSwiftStrike() {
+  if (P.helixCd > 0) return;
+  if (P._dashOn) return;
+  P.helixCd = P.helixMaxCd;
+
+  // 方向：当前视线方向（水平）
+  const dir = new THREE.Vector3();
+  camera.getWorldDirection(dir);
+  dir.y = 0; dir.normalize();
+  P._dashDir.copy(dir);
+  P._dashOn = true;
+  P._dashProgress = 0;
+
+  showSkillBanner('⚡ 迅捷斩', '#44ff88', 700);
+  sndSwiftStrike();
+
+  // 绿色冲刺残影特效
+  spawnDashTrail();
+
+  // 持续冲刺 + 伤害（在 tickGenjiDash 里处理）
+}
+
+function sndSwiftStrike() {
+  const ac = getAC(), now = ac.currentTime;
+  const o = ac.createOscillator(), g = ac.createGain();
+  o.type = 'sawtooth';
+  o.frequency.setValueAtTime(660, now);
+  o.frequency.exponentialRampToValueAtTime(220, now + 0.20);
+  g.gain.setValueAtTime(0.28, now);
+  g.gain.exponentialRampToValueAtTime(0.001, now + 0.22);
+  o.connect(g); g.connect(ac.destination);
+  o.start(now); o.stop(now + 0.25);
+}
+
+// 残影特效（绿色粒子）
+function spawnDashTrail() {
+  for (let i = 0; i < 16; i++) {
+    const m = new THREE.Mesh(
+      new THREE.BoxGeometry(0.08, 0.08, 0.08),
+      new THREE.MeshBasicMaterial({ color:0x44ff88, transparent:true, opacity:0.8, depthWrite:false })
+    );
+    m.position.copy(camera.position);
+    m.position.x += (Math.random()-0.5)*0.3;
+    m.position.y += (Math.random()-0.5)*0.8 - 0.5;
+    m.position.z += (Math.random()-0.5)*0.3;
+    m._vx = (Math.random()-0.5)*1.5;
+    m._vy = Math.random()*1.2;
+    m._vz = (Math.random()-0.5)*1.5;
+    m._life = 0.25 + Math.random()*0.2;
+    m._age  = 0;
+    m._grav = 4;
+    scene.add(m);
+    particles.push(m);
+  }
+}
+
+// 迅捷斩每帧处理
+const _DASH_DIST  = 15;   // 总冲刺距离 15m
+const _DASH_TIME  = 0.28; // 冲刺时间（约 53m/s）
+
+function tickGenjiDash(dt) {
+  if (!P._dashOn) return;
+  P._dashProgress += dt / _DASH_TIME;
+
+  const step = (_DASH_DIST / _DASH_TIME) * dt;
+  moveEntity(camera.position, P._dashDir.x, P._dashDir.z, step / dt, dt);
+
+  // 每帧检测途中的敌人（一次斩击伤害，同一次dash每个敌人只打一次）
+  if (!P._dashHit) P._dashHit = new Set();
+  enemies.forEach(e => {
+    if (e.dying || P._dashHit.has(e.id)) return;
+    const dx = e.group.position.x - camera.position.x;
+    const dz = e.group.position.z - camera.position.z;
+    if (dx*dx + dz*dz < 2.5) {
+      P._dashHit.add(e.id);
+      const dmg = 80;
+      const hp  = e.group.position.clone().add(tmp.v3a.set(0,1,0));
+      spawnBlood(hp);
+      showDmgNum(hp, dmg, false);
+      const killed = damageEnemy(e, dmg, hp);
+      if (killed) {
+        showKillMarker();
+      } else {
+        showHitMarker(false);
+      }
+      gainUlt(dmg * 0.8);
+    }
+  });
+
+  // 残影粒子（每帧少量）
+  if (Math.random() < 0.6) spawnDashTrail();
+
+  if (P._dashProgress >= 1) {
+    P._dashOn = false;
+    P._dashProgress = 0;
+    P._dashHit = null;
+    // 冲刺结束后如果冷却已归零（因击杀重置），保持0
+  }
+}
+
+// ── 偏转（E键）──────────────────────────────────────────────────
+const _DEFLECT_DUR = 2.0; // 持续2秒
+
+function doDeflect() {
+  if (P.bioticCd > 0) return;
+  if (P._deflectOn) return;
+  P.bioticCd  = P.bioticMaxCd;
+  P._deflectOn = true;
+  P._deflectT  = _DEFLECT_DUR;
+
+  showSkillBanner('🛡 偏转', '#7ec8e3', 1500);
+  sndDeflect();
+
+  // 偏转期间：准心变蓝
+  document.getElementById('xhair').classList.add('visor');
+
+  // 偏转光效（蓝色环）
+  const el = document.getElementById('heal-flash');
+  el.style.boxShadow = 'inset 0 0 40px #7ec8e388';
+}
+
+function sndDeflect() {
+  const ac = getAC(), now = ac.currentTime;
+  [440, 660, 880, 1100].forEach((f, i) => {
+    const o = ac.createOscillator(), g = ac.createGain();
+    o.type = 'sine'; o.frequency.value = f;
+    g.gain.setValueAtTime(0.09, now+i*0.04);
+    g.gain.exponentialRampToValueAtTime(0.001, now+i*0.04+0.10);
+    o.connect(g); g.connect(ac.destination);
+    o.start(now+i*0.04); o.stop(now+i*0.04+0.12);
+  });
+}
+
+function tickDeflect(dt) {
+  if (!P._deflectOn) return;
+  P._deflectT -= dt;
+
+  // 偏转：将靠近玩家的敌方投射物按准星方向弹回
+  for (let i = enemyProjectiles.length-1; i>=0; i--) {
+    const p = enemyProjectiles[i];
+    if (p._deflected) continue; // 已反弹过，不重复处理
+    const dx = p.group.position.x - camera.position.x;
+    const dz = p.group.position.z - camera.position.z;
+    if (dx*dx + dz*dz < 3.5) {
+      // 按玩家准星方向弹出（而非原路返回）
+      const aimDir = new THREE.Vector3();
+      camera.getWorldDirection(aimDir);
+      const spd = Math.sqrt(p.vx*p.vx + p.vz*p.vz) * 1.4; // 略加速
+      p.vx = aimDir.x * spd;
+      p.vz = aimDir.z * spd;
+      p.dmg = Math.round(p.dmg * 5); // 反弹伤害 x5
+      p._deflected = true;              // 标记为已反弹，之后打到敌人掉血
+      p.life = p.age + 3.0;            // 重置存活时间
+      // 弹道颜色变蓝（视觉反馈）
+      p.group.traverse(c => { if (c.isMesh) c.material.color.set(0x7ec8e3); });
+      spawnShieldSpark(p.group.position.clone());
+      showSkillBanner('🛡 偏转反弹！', '#7ec8e3', 600);
+      gainUlt(p.dmg * 1.5);
+    }
+  }
+
+  if (P._deflectT <= 0) {
+    P._deflectOn = false;
+    document.getElementById('xhair').classList.remove('visor');
+    document.getElementById('heal-flash').style.boxShadow = '';
+  }
+}
+
+// ── 竜神剣（Q终极）──────────────────────────────────────────────
+function doDragonblade() {
+  if (P.ultCharge < P.ultMax || P._dragonbladeOn) return;
+  P.ultCharge      = 0;
+  P._dragonbladeOn = true;
+  P._dragonbladeT  = P.ultDur;
+  P._swingCd       = 0;
+
+  // 激活：自动回满手里剑弹药（原版机制）
+  P.ammo = P.maxAmmo;
+  P.reloading = false;
+  updateAmmoHUD();
+
+  // 立刻刷新迅捷斩CD
+  P.helixCd = 0;
+  P._dashOn = false; P._dashProgress = 0; P._dashHit = null;
+
+  // 显示龙刃模型
+  if (_dragonbladeGroup) _dragonbladeGroup.visible = true;
+
+  showSkillBanner('🐉 竜神剣', '#44ff88', 2000);
+  sndDragonblade();
+  _visorShowOverlay(false);
+  const pain = document.getElementById('pain');
+  pain.style.background = 'rgba(68,255,136,0.35)';
+  setTimeout(() => { pain.style.background = ''; }, 180);
+}
+
+function sndDragonblade() {
+  const ac = getAC(), now = ac.currentTime;
+  // 低沉龙吼 + 上扬弧线
+  const o = ac.createOscillator(), g = ac.createGain();
+  o.type = 'sawtooth';
+  o.frequency.setValueAtTime(80, now);
+  o.frequency.exponentialRampToValueAtTime(320, now + 0.5);
+  g.gain.setValueAtTime(0.35, now);
+  g.gain.exponentialRampToValueAtTime(0.001, now + 0.6);
+  o.connect(g); g.connect(ac.destination);
+  o.start(now); o.stop(now + 0.65);
+  // 高频金属鸣声
+  const o2 = ac.createOscillator(), g2 = ac.createGain();
+  o2.type = 'sine'; o2.frequency.value = 1320;
+  g2.gain.setValueAtTime(0.12, now+0.1);
+  g2.gain.exponentialRampToValueAtTime(0.001, now+0.55);
+  o2.connect(g2); g2.connect(ac.destination);
+  o2.start(now+0.1); o2.stop(now+0.58);
+}
+
+// 竜神剣：斩击攻击（LMB时调用）
+const _SWING_DMG = 110;
+const _SWING_CD  = 0.65; // 斩击间隔
+let _swingCount  = 0;    // 记录第几刀，控制方向交替
+
+function spawnBladeSlash(angle) {
+  // angle: 旋转角度（deg），正数=右上→左下，负数=左上→右下
+  const el = document.createElement('div');
+  el.className = 'blade-slash';
+  el.style.setProperty('--slash-angle', angle + 'deg');
+  document.getElementById('ui').appendChild(el);
+  setTimeout(() => el.remove(), 400);
+}
+
+function doGenjiSwing() {
+  if (!P._dragonbladeOn) return;
+  if (P._swingCd > 0) return;
+  P._swingCd = _SWING_CD;
+
+  // 交替方向：奇数刀右上→左下(-45°)，偶数刀左上→右下(+45°)
+  const isOdd = (_swingCount % 2 === 0); // 第0刀开始算奇
+  _swingCount++;
+
+  // 枪械动画用 state 传方向信息
+  P.actionState = isOdd ? 'swing_r2l' : 'swing_l2r';
+  P.actionT = 0;
+
+  sndDragonbladeSwing();
+  spawnBladeSlash(isOdd ? -45 : 45);
+
+  // 扇形检测：前方 4m 内所有敌人
+  const dir = new THREE.Vector3();
+  camera.getWorldDirection(dir);
+  let anyKill = false;
+
+  enemies.forEach(e => {
+    if (e.dying) return;
+    const ep = e.group.position;
+    const dx = ep.x - camera.position.x;
+    const dz = ep.z - camera.position.z;
+    const d2 = dx*dx + dz*dz;
+    if (d2 > 16) return;
+
+    const dist = Math.sqrt(d2);
+    const dot  = (dx/dist)*(-Math.sin(P.yaw)) + (dz/dist)*(-Math.cos(P.yaw));
+    if (dot < -0.26) return;
+
+    const hp = ep.clone().add(tmp.v3a.set(0,1,0));
+    spawnBlood(hp);
+    showDmgNum(hp, _SWING_DMG, false);
+    const killed = damageEnemy(e, _SWING_DMG, hp);
+    if (killed) { anyKill = true; gainUlt(50); } else { gainUlt(30); }
+    // 生命汲取：每刀回复伤害的30%
+    P.hp = Math.min(P.maxHp, P.hp + _SWING_DMG * 0.3);
+    updateHpHUD();
+  });
+
+  if (anyKill) showKillMarker();
+}
+
+function sndDragonbladeSwing() {
+  const ac = getAC(), now = ac.currentTime;
+  const o = ac.createOscillator(), g = ac.createGain();
+  o.type = 'sawtooth';
+  o.frequency.setValueAtTime(280, now);
+  o.frequency.exponentialRampToValueAtTime(60, now + 0.18);
+  g.gain.setValueAtTime(0.30, now);
+  g.gain.exponentialRampToValueAtTime(0.001, now + 0.20);
+  o.connect(g); g.connect(ac.destination);
+  o.start(now); o.stop(now+0.22);
+  const buf = ac.createBuffer(1, ac.sampleRate*0.08, ac.sampleRate);
+  const d2 = buf.getChannelData(0);
+  for (let i=0;i<d2.length;i++) d2[i]=(Math.random()*2-1)*0.35*Math.exp(-i/d2.length*10);
+  const src=ac.createBufferSource(),gn2=ac.createGain();
+  src.buffer=buf;gn2.gain.value=0.22;
+  src.connect(gn2);gn2.connect(ac.destination);src.start(now);
+}
+
+// 竜神剣每帧处理
+function tickDragonblade(dt) {
+  if (!P._dragonbladeOn) return;
+  P._dragonbladeT -= dt;
+  if (P._swingCd > 0) P._swingCd -= dt;
+
+  // 龙刃模型旋转动画
+  if (_dragonbladeGroup) {
+    _dragonbladeGroup.rotation.z = Math.sin(P._dragonbladeT * 6) * 0.06;
+    if (_dragonbladeGroup._light) {
+      _dragonbladeGroup._light.intensity = 2.0 + Math.sin(P._dragonbladeT * 8) * 0.5;
+    }
+  }
+
+  // 竜神剣倒计时 HUD
+  const timerEl = document.getElementById('vt-timer-val');
+  if (timerEl) timerEl.textContent = Math.ceil(Math.max(0, P._dragonbladeT)) + 's';
+
+  if (P._dragonbladeT <= 0) {
+    P._dragonbladeOn = false;
+    if (_dragonbladeGroup) _dragonbladeGroup.visible = false;
+    _swingCount = 0;
+    showSkillBanner('竜神剣结束', '#44ff88', 1000);
+    P.actionState = 'idle'; P.actionT = 0;
+  }
+}
+
+// ── 赛博敏捷：双跳 & 爬墙（覆盖原有跳跃逻辑）───────────────────
+// 在 gameLoop 的 tickVertical 后处理，通过 hook 注入
+// 双跳：落地重置，空中再按 Space 可二段跳
+// 爬墙：贴墙+按 Space/W 时短暂上升
+
+function tickCyberAgility(dt) {
+  // 落地时重置双跳
+  if (P.onGround) {
+    P._doubleJumpUsed = false;
+    P._wallClimbing   = false;
+    P._wallClimbT     = 0;
+  }
+
+  // 爬墙检测：玩家近墙且不在地面时
+  if (!P.onGround) {
+    const nearWall = _isNearWall();
+    if (nearWall && KEYS['KeyW'] && !P._wallClimbing) {
+      P._wallClimbing = true;
+      P._wallClimbT   = 1.5; // 爬墙最长1.5秒
+    }
+  }
+
+  if (P._wallClimbing) {
+    P._wallClimbT -= dt;
+    if (P._wallClimbT > 0 && KEYS['KeyW'] && !P.onGround) {
+      // 向上攀升（对抗重力）
+      P.velY = Math.max(P.velY, 3.8);
+    } else {
+      P._wallClimbing = false;
+    }
+  }
+}
+
+function _isNearWall() {
+  const r  = 0.60;
+  const px = camera.position.x;
+  const pz = camera.position.z;
+  return isWall(px + r, pz) || isWall(px - r, pz) ||
+         isWall(px, pz + r) || isWall(px, pz - r);
+}
+
+// ── 赛博敏捷：双跳键监听（注入 keydown）────────────────────────
+// 在原有 keydown 的 Space 分支之后增加双跳处理
+// 通过 flag 注入方式覆写：每次 Space 先检测 _currentHero
+
+// ── 血包拾取增强（源氏：小包+150, 大包+325）─────────────────────
+// 当前 HEALTH_PACKS 都是 hp:50，源氏 Flanker Perk 让小血包+150
+// 在 tickHealthPacks 处通过 hero 判断覆盖
+const _GENJI_PACK_HP = 150; // 源氏专属血包量
+
+// ── 源氏技能冷却 Tick ─────────────────────────────────────────────
+function tickGenjiCooldowns(dt) {
+  tickGenjiDash(dt);
+  tickDeflect(dt);
+  tickDragonblade(dt);
+  tickCyberAgility(dt);
+  if (_genjiSlashCd > 0) _genjiSlashCd = Math.max(0, _genjiSlashCd - dt);
+}
+
+// ── HUD：源氏技能偏转显示 ─────────────────────────────────────────
+function updateGenjiSkillHUD() {
+  const CIRC = 138.2;
+
+  // 迅捷斩（helix 槽）
+  const hFrac = P.helixCd / P.helixMaxCd;
+  document.getElementById('helix-ring').style.strokeDashoffset = CIRC * hFrac;
+  document.getElementById('helix-cd').textContent = P.helixCd > 0 ? Math.ceil(P.helixCd) + 's' : '';
+  document.getElementById('helix-ring').style.stroke = P.helixCd > 0 ? '#555' : '#44ff88';
+
+  // 偏转（biotic 槽）
+  const bFrac = P.bioticCd / P.bioticMaxCd;
+  document.getElementById('biotic-ring').style.strokeDashoffset = CIRC * bFrac;
+  document.getElementById('biotic-cd').textContent = P.bioticCd > 0 ? Math.ceil(P.bioticCd) + 's' : '';
+  document.getElementById('biotic-ring').style.stroke = P._deflectOn ? '#7ec8e3' : (P.bioticCd > 0 ? '#555' : '#7ec8e3');
+
+  // 近战
+  const mFrac = P.meleeCd / P.meleeMaxCd;
+  document.getElementById('melee-ring').style.strokeDashoffset = CIRC * mFrac;
+  document.getElementById('melee-cd').textContent = '';
+  document.getElementById('melee-ring').style.stroke = P.meleeCd > 0 ? '#555' : '#44ff88';
+
+  // 竜神剣充能
+  const uFrac = Math.min(1, P.ultCharge / P.ultMax);
+  const OCIRC = 188.5;
+  const ultRing = document.getElementById('ult-ring-fill');
+  ultRing.style.stroke = '#44ff88';
+  ultRing.style.strokeDashoffset = OCIRC * (1 - uFrac);
+  document.getElementById('ult-pct').textContent = P._dragonbladeOn
+    ? Math.ceil(P._dragonbladeT) + 's'
+    : Math.round(uFrac * 100) + '%';
+  const isReady = uFrac >= 1 && !P._dragonbladeOn;
+  const ultWrap = document.getElementById('ult-wrap');
+  ultWrap.classList.toggle('ready', isReady);
+  ultRing.classList.toggle('ready', isReady);
+  document.getElementById('ult-ready-txt').style.display = isReady ? 'block' : 'none';
+}
+
+// ══════════════════════════════════════════════════════════════════
+// 第10步：源氏输入补丁（标题界面控制说明更新）
+// ══════════════════════════════════════════════════════════════════
+// applyHeroConfig 已在 startGame 入口处调用，英雄专属逻辑全部在第9步处理。
+// 此处无需额外包装。
+
+
+</script>
+</body>
+</html>
