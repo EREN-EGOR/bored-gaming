@@ -5208,6 +5208,7 @@ let dlg = {
   lineIdx: 0,
   typeTimer: 0,    // 已经"打"出多少字符（小数累积）
   waitingChoice: false,
+  waitingEnd: false,       // 最后一行打完后等玩家再点一次才关闭
   pendingAngelId: null,        // 当前天使对话对应的天使id（给完对话后发buff）
   pendingBlessingAngel: null,  // 当前祝福天使对象（对话后弹3选1）
 };
@@ -5225,6 +5226,7 @@ function startDialog(id) {
   dlg.lineIdx       = 0;
   dlg.typeTimer     = 0;
   dlg.waitingChoice = false;
+  dlg.waitingEnd    = false;
   dlgChoices.innerHTML = '';
   setGameState(S.DIALOG);
   renderDialog();
@@ -5258,6 +5260,7 @@ function renderDialog() {
   dlg.typeTimer = 0;
   dlgChoices.innerHTML = '';
   dlg.waitingChoice = false;
+  dlg.waitingEnd    = false;
   dlgHint.style.opacity = '1';
 
   dlgSpeaker.textContent  = line.speaker;
@@ -5273,6 +5276,14 @@ function renderDialogText(line) {
 function advanceDialog() {
   const data = DIALOGS[dlg.id];
   if (!data) return;
+
+  // 正在等待玩家确认结束
+  if (dlg.waitingEnd) {
+    dlg.waitingEnd = false;
+    endDialog();
+    return;
+  }
+
   const line = currentLine();
   if (!line) return;
 
@@ -5301,7 +5312,7 @@ function advanceDialog() {
         // 直接渲染下一行（即使 isEnd，也先让玩家读完再点击结束）
         const nextLine = currentLine();
         if (!nextLine) {
-          endDialog();
+          dlg.waitingEnd = true;
         } else {
           renderDialog();
         }
@@ -5313,14 +5324,17 @@ function advanceDialog() {
 
   // 无选项：检查 isEnd 或前进
   if (line.isEnd) {
-    endDialog();
+    // 先把文字显示完，等玩家再点一次才真正结束
+    dlg.waitingEnd = true;
+    dlgHint.style.opacity = '1';
     return;
   }
 
   dlg.lineIdx++;
   const next = currentLine();
   if (!next) {
-    endDialog();
+    dlg.waitingEnd = true;
+    dlgHint.style.opacity = '1';
     return;
   }
   dlg.typeTimer = 0;
