@@ -247,6 +247,10 @@ html, body {
 .buff-card-desc {
   font-size: 11px; color: #706070; line-height: 1.6;
 }
+.buff-card-upgrade-tag {
+  font-size: 9px; letter-spacing: 2px; color: #c0a040;
+  text-transform: uppercase; margin-bottom: -4px;
+}
 
 /* 对话框 */
 #dialog-box {
@@ -548,8 +552,8 @@ html, body {
 
 <!-- 胜利屏 -->
 <div id="win-screen" class="overlay hidden">
-  <div id="win-text">你走出了审判庭</div>
-  <div id="win-sub">不是因为天命允许——<br>而是因为你选择了。</div>
+  <div id="win-text">你回到了起点</div>
+  <div id="win-sub">不是因为天命允许——<br>而是因为你选择了。<br>带着记忆，再走一次。</div>
   <button id="btn-back">返回</button>
 </div>
 
@@ -562,12 +566,11 @@ html, body {
 <script>
 // ╔═══════════════════════════════════════════════════════════╗
 // ║              FALLEN ANGEL — 完整设计文档                  ║
-// ║              最后更新：2026-08-06                         ║
+// ║              最后更新：2026-08-06（第五批）               ║
 // ╚═══════════════════════════════════════════════════════════╝
 //
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// § 0. 开发进度总览  ✅=已完成  🚧=部分完成  ⬜=未开始
-// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// ─── § 0. 开发进度总览（✅=已完成 🚧=部分完成 ⬜=未开始）───────────────────
 //
 // 【阶段一：武器系统】
 //   ✅ 1.  武器选择界面（ENTRY房间弹出5张卡+点选→对话）
@@ -581,45 +584,96 @@ html, body {
 //   ✅ 7.  COMBAT打完→祝福天使对话→3选1→解锁出口
 //   ✅ 8.  祝福天使轮转队列（一局内不重复天使）
 //   ✅ 9.  祝福卡按天使池筛选（从该天使6个buff里抽3个）
-//   ⬜ 10. 祝福叠加/升级逻辑（重复选到 → 升级补数值，暂未实装）
+//   ✅ 10. 祝福叠加/升级逻辑（重复选到已有buff→显示「▲升级」卡+执行upgrade()）
 //   ✅ 11. 一局内台词不重复（lineIdx轮转）
 //
 // 【阶段三：祝福内容】
-//   ✅ 12. 萨利尔6个祝福（全部效果已实装）
-//   ✅ 13. 达内尔6个祝福（全部效果已实装，含dashFrostTrail/spinFrostRing）
-//   ✅ 14. 以西结尔6个祝福（全部效果已实装，含thrustAOE）
-//   ✅ 15. 巴拉奇尔6个祝福（全部效果已实装，含thrustCdMul/SpdMul/dashNextAtkActive）
-//   ✅ 16. 扎奇尔6个祝福（全部效果已实装）
-//   ⬜ 17. 路西法5个专属祝福（ELITE房，黑暗契约风格，设计已定稿见§3f）
-//   ⬜ 18. 乌列尔5个专属祝福（ANGEL zone1，智慧/洞察风格，设计已定稿见§3g）
-//   ⬜ 19. 拉古尔5个专属祝福（ANGEL zone2，正义/积累风格，设计已定稿见§3h）
+//   ✅ 12. 萨利尔6个祝福（含upgrade，全部效果已实装）
+//   ✅ 13. 达内尔6个祝福（含upgrade，全部效果已实装，含dashFrostTrail/spinFrostRing）
+//   ✅ 14. 以西结尔6个祝福（含upgrade，全部效果已实装，含thrustAOE）
+//   ✅ 15. 巴拉奇尔6个祝福（含upgrade，全部效果已实装，含thrustCdMul/dashNextAtkActive）
+//   ✅ 16. 扎奇尔6个祝福（含upgrade，全部效果已实装）
+//   ✅ 17. 路西法5个专属祝福（ELITE房，含upgrade，见§3f）
+//   ✅ 18. 乌列尔5个专属祝福（ANGEL zone1，含upgrade，见§3g）
+//   ✅ 19. 拉古尔5个专属祝福（ANGEL zone2，含upgrade，见§3h）
+//   ✅ 20. 智慧共鸣（uriel_3）：E技触发后随机激发一次已有祝福的即时共鸣效果
+//         RESONANCE_EFFECTS映射表覆盖27个buff，tryUrielResonance()在doSpin()里调用
+//         升级后urielResonanceCount++，每次E技激发次数变为2次
 //
-// 【阶段四：立绘】
-//   ✅ 17. 主线NPC立绘：路西法 / 玩家 / 拉斐尔 / 米迦勒
-//   ✅ 18. 武器天使立绘：阿扎泽尔 / 拉米尔 / 沙姆希尔 / 塞米亚扎 / 科卡比尔
-//   ✅ 19. 祝福天使立绘：萨利尔 / 达内尔 / 以西结尔 / 巴拉奇尔 / 扎奇尔
-//   ⬜ 20. 好天使立绘：乌列尔 / 拉古尔（ANGEL房间对话用，未制作）
-//   ⬜ 21. 特殊天使立绘：萨拉克尼亚尔 / 加德列尔（结局用，未制作）
+// 【阶段四：立绘】（18个，全部完成）
+//   ✅ 21. 主线NPC立绘：lucifer / player / raphael / michael
+//   ✅ 22. 武器天使立绘：azazel / ramiel / shamsiel / semyaza / kokabiel
+//   ✅ 23. 祝福天使立绘：sariel / danel / ezequeel / baraqiel / zaqiel
+//   ✅ 24. 好天使立绘：uriel（琥珀金翼+火焰剑）/ raguel（冷绿白翼+天平）
+//   ✅ 25. 结局天使立绘：saraknyal（暗影披风+单眼发光）/ gadreel（蛇形装饰+双手枷锁）
+//         renderPortrait() switch 已含全部18个 case
 //
 // 【阶段五：世界观细节】
-//   ⬜ 22. 以西结尔的门（zone1背景装饰，永远打不开）
-//   🚧 23. 祝福天使台词（代码已有台词结构，内容质量待打磨）
-//   ⬜ 24. 乌列尔(zone1) / 拉古尔(zone2) 对话+立绘+专属祝福池触发
-//   ⬜ 25. 米迦勒战败对话补充
+//   ✅ 26. 以西结尔的门（zone1北墙中央背景装饰，永远打不开）
+//         金色光纹+风暴符文+拱形闪电浮雕+脉动光晕，靠近时浮字提示
+//   ✅ 27. 祝福天使台词打磨（5天使各2-3屏，性格鲜明，叙事厚度↑）
+//   ✅ 28. 乌列尔(zone1) / 拉古尔(zone2) 对话+立绘+专属祝福池
+//   ✅ 29. 米迦勒战败对话：michael_boss_defeat 5行，击杀后800ms触发，endDialog→S.WIN
 //
-// 【阶段六：结局演出】
-//   ⬜ 26. 上帝登场动画（白光+声音，无立绘）
-//   ⬜ 27. 剑碎裂+被钉住动画
-//   ⬜ 28. 时间倒流效果
-//   ⬜ 29. 加德列尔剪影一帧
-//   ⬜ 30. 结尾独白 + WIN界面文字修改
+// 【阶段六：结局演出】（S.ENDING 新状态，initEnding/updateEnding/renderEnding）
+//   ✅ 30. 上帝白光：phase0 急速扩散40帧，phase1 脉动保持30帧
+//   ✅ 31. 剑碎裂：phase2，6片碎片扇形飞出+重力+震屏，60帧
+//   ✅ 32. 时间倒流效果：记忆碎片倒放（phase3，100帧）
+//         3张场景简笔轮廓逐一闪现（审判庭→圣光廊道→净罪塔牢房）
+//         每张8帧淡入+12帧停留+8帧淡出，切换时2px白线水平扫过
+//         renderMemoryFlash(idx, alpha) 独立函数，插入 phase2/4 之间
+//   ✅ 33. 加德列尔剪影：phase3，黑色轮廓+红shadowBlur从底部滑入，50帧
+//   ✅ 34. 结尾独白：phase4，4行逐行淡入，144帧；WIN界面文字→「你回到了起点」
+//         触发路径：killEnemy(michael_boss)→800ms后startDialog('michael_boss_defeat')
+//                   →endDialog michaelDefeated→initEnding→setGameState(S.ENDING)
+//                   →phase5淡出→setGameState(S.WIN)
 //
-// 【阶段七：数值平衡+打磨】
-//   ⬜ 31. 各武器伤害/CD数值调整
-//   ⬜ 32. 各祝福升级数值调整
-//   ⬜ 33. 敌人HP/伤害随区域动态调整
-//   ⬜ 34. 音效系统（getAC懒初始化，playSword/playHit/playDash等）
+// 【阶段七：数值平衡+打磨】（全部完成）
+//   ✅ 35. 武器数值：普攻3连末击加重(剑14/17/24,矛16/20/28,匕7/8/11,链13/16/22)
+//          旋转斩+5(通用58,大剑80)；突刺矛42↑匕22↓链32剑30
+//          矛E技CD 300→260帧；大剑E技CD 350→320帧
+//   ✅ 36. Buff数值：sariel_p1 HP+50→+40；baraqiel_p2 ×0.74→×0.76；raguel_2升级×1.3→×1.2
+//   ✅ 37. 敌人区域缩放：scaleEnemy()在spawnEnemiesForRoom()里
+//          zone0=×1.0基准；zone1 HP×1.35/dmg×1.2；zone2 HP×1.75/dmg×1.45
+//   ✅ 38. 音效系统：getAC()懒初始化，playSound(id)，8种Web Audio API程序合成
+//          hit/hit_thrust/kill/dash/spin/hurt/block/ui，共13处调用点
 //
+// ─────────────────────────────────────────────────────────────
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+// § 0-PENDING. 下一个 context 窗口要做的事（clear前写在这里）
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+//
+// ── A. 已修复（本次 context）──────────────────────────────────
+//   ✅ renderPortrait 函数声明丢失（function renderPortrait(line){ 那行没了）→ 已补回
+//
+// ── B. 房间序列改为6间（✅ 已完成）──────────────────────────────
+//   现在是6间：[ENTRY, COMBAT, COMBAT/ANGEL, SHOP, ELITE, BOSS]
+//   第4间（index=3）固定是SHOP，玩家可以不买，但每层BOSS前必过商店
+//
+//   已改动：
+//   1. ROOMS_PER_ZONE = 6
+//   2. generateRoomSequence()：seq 6项，index=3固定'SHOP'
+//   3. PILLAR_LAYOUTS 加 SHOP 项（四角柱）
+//   4. checkExitTrigger：ELITE/SHOP 也不弹岔路，直接触发 triggerRoomTransition
+//
+// ── C. BOSS入场对话（✅ 已完成）──────────────────────────────────
+//   zone0 BOSS — 加百列（Gabriel）净罪塔守卫长，冷白宽大双翼，号角+铁链
+//     台词key: 'gabriel_boss_intro'（2行，onEnd: null）
+//   zone1 BOSS — 撒拉加尔（Saraqael）六翼撒拉弗，狂热信仰，双剑交叉
+//     台词key: 'saraqael_boss_intro'（3行，onEnd: null）
+//   zone2 BOSS — 米迦勒（Michael）✅ 已有 michael_boss_intro
+//   loadRoom：type==='BOSS' 时按 zone 分流三个对话
+//   立绘：drawPortraitGabriel / drawPortraitSaraqael（已加入 renderPortrait switch）
+//
+// ── D. 注意事项 ────────────────────────────────────────────────
+//   - SHOP间固定index=3，不是随机插入，也不受岔路系统影响
+//   - 加百列立绘 portrait key 用 'gabriel'，加入 renderPortrait switch
+//   - 不需要新的endAction，BOSS入场对话 onEnd: null（说完直接打）
+//   - ROOMS_PER_ZONE改为6后 updateProgressHUD 的进度点自动变6个（已用 ROOMS_PER_ZONE 循环）
+//
+// ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+// ─────────────────────────────────────────────────────────────
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 // § 1. 武器系统（5个武器天使）
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -676,7 +730,18 @@ html, body {
 // ┌─────────────┬──────────┬───────────────────────────────────┐
 // │ 乌列尔      │ zone1    │ 智慧天使，琥珀金色，给全池3选1    │
 // │ 拉古尔      │ zone2    │ 正义天使，冷绿色，给全池3选1      │
-// │ 加百列      │ zone2 BOSS│ 最终boss之一，不给buff           │
+// └─────────────┴──────────┴───────────────────────────────────┘
+//
+// BOSS天使（每层BOSS，有入场对话+立绘，战斗用archangel AI）：
+// ┌─────────────┬──────────┬───────────────────────────────────┐
+// │ 加百列      │ zone0    │ 净罪塔守卫长，执法者，冷静公事    │
+// │ Gabriel     │          │ 白翼+号角+铁链，#e8f4ff冷白       │
+// ├─────────────┼──────────┼───────────────────────────────────┤
+// │ 撒拉加尔    │ zone1    │ 审判先锋，六翼撒拉弗，狂热信仰    │
+// │ Saraqael    │          │ 金甲+双剑，#ffd080暖金，俯视感    │
+// ├─────────────┼──────────┼───────────────────────────────────┤
+// │ 米迦勒      │ zone2    │ 最终BOSS，大天使，已完整实装✅    │
+// │ Michael     │          │ michael_boss_intro/defeat对话     │
 // └─────────────┴──────────┴───────────────────────────────────┘
 //
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -744,7 +809,7 @@ html, body {
 //   id: zaqiel_p2     [被动] 圣光之体  ：最大HP+30，受伤时15%概率完全抵消本次伤害
 //
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// § 3f. 路西法专属祝福池（ELITE房，黑暗契约风格）⬜ 未实装
+// § 3f. 路西法专属祝福池（ELITE房，黑暗契约风格）✅ 已实装
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //
 //   触发时机：ELITE房，路西法对话结束后弹出（只从这5个里抽3个）
@@ -757,20 +822,20 @@ html, body {
 //   id: lucifer_deal5  黑翼庇护   ：受伤改为无敌+扣5HP代替，冷却3秒（期间正常受伤）
 //
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// § 3g. 乌列尔专属祝福池（ANGEL房zone1，智慧/洞察风格）⬜ 未实装
+// § 3g. 乌列尔专属祝福池（ANGEL房zone1，智慧/洞察风格）✅ 已实装
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //
 //   触发时机：zone1的ANGEL房，乌列尔对话后弹出（只从这5个里抽3个）
 //   风格：与现有buff联动、条件激活
 //
-//   id: uriel_1  先知之眼   ：拥有的祝福每多1个，所有伤害额外+5%（上限+60%）
+//   id: uriel_1  先知之眼   ：拥有的祝福每多1个，所有伤害额外+5%（上限+60%，升级可提升至+80%）
 //   id: uriel_2  完美时刻   ：连续3秒不受伤害后，下次攻击造成5倍伤害（触发一次后重新计时）
-//   id: uriel_3  智慧共鸣   ：每次使用E技能，随机触发一次已拥有祝福的附加效果
+//   id: uriel_3  智慧共鸣   ：每次使用E技能，随机触发一次已拥有祝福的即时共鸣效果（✅已实装）
 //   id: uriel_4  洞察弱点   ：攻击HP高于自身的敌人时，伤害+50%
 //   id: uriel_5  火焰印记   ：命中同一敌人每次叠加1层（最多10层），每层+8%伤害，换目标清零
 //
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// § 3h. 拉古尔专属祝福池（ANGEL房zone2，正义/积累风格）⬜ 未实装
+// § 3h. 拉古尔专属祝福池（ANGEL房zone2，正义/积累风格）✅ 已实装
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //
 //   触发时机：zone2的ANGEL房，拉古尔对话后弹出（只从这5个里抽3个）
@@ -858,23 +923,17 @@ html, body {
 //   - run.usedBlessingAngels记录本局已用顺序，全部用完重置
 //
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-// § 8. 立绘状态一览
+// § 8. 立绘状态一览（renderPortrait switch 里的 case）
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 //
-// ✅ 已完成立绘（14个，renderPortrait已有对应case）：
-//   主线NPC：  路西法 / 玩家 / 拉斐尔 / 米迦勒
-//   武器天使： 阿扎泽尔 / 拉米尔 / 沙姆希尔 / 塞米亚扎 / 科卡比尔
-//   祝福天使： 萨利尔 / 达内尔 / 以西结尔 / 巴拉奇尔 / 扎奇尔
+// ✅ 已完成立绘（18个，renderPortrait 已有对应 case）：
+//   主线NPC：  lucifer / player / raphael / michael
+//   武器天使： azazel / ramiel / shamsiel / semyaza / kokabiel
+//   祝福天使： sariel / danel / ezequeel / baraqiel / zaqiel
+//   好天使：   uriel（琥珀金翼+火焰剑） / raguel（冷绿白翼+天平）
+//   结局天使： saraknyal（暗影披风+单眼发光） / gadreel（蛇形装饰+双手枷锁）
 //
-// ⬜ 待制作立绘（4个）：
-//   好天使（ANGEL房间对话时展示）：
-//     乌列尔     — 琥珀金色，火焰剑（长竖剑发光），智慧眼神，干净
-//     拉古尔     — 冷绿白色，天平/卷轴，正义感，翼更整洁
-//   特殊天使（结局演出）：
-//     萨拉克尼亚尔 — 深紫色，暗影披风遮半身，单眼发光
-//     加德列尔     — 血红色，蛇形装饰，悲伤下垂眼，双手枷锁
-//
-// renderPortrait() 待补充 case：uriel / raguel / saraknyal / gadreel
+// ⬜ 待制作立绘（0个）：全部已完成
 //
 // ═══════════════════════════════════════════════════════════
 // ═══ CANVAS & CONTEXT ══════════════════════════════════════
@@ -910,13 +969,13 @@ const SPIN_RANGE    = 100;
 const SPIN_CD_MAX   = 240;  // 4秒
 const THRUST_RANGE  = 180;  // 突刺射程（世界坐标px）
 const THRUST_CD_MAX = 80;   // 约1.3秒
-const ROOMS_PER_ZONE = 5;
+const ROOMS_PER_ZONE = 6;
 const ZONE_NAMES    = ['净罪塔', '圣光廊道', '审判庭'];
 
 const S = {
   TITLE:'title', PLAYING:'playing', DIALOG:'dialog',
   BUFF:'buff', DEAD:'dead', WIN:'win', PAUSE:'pause',
-  ROUTE:'route', SHOP:'shop', WEAPON:'weapon'
+  ROUTE:'route', SHOP:'shop', WEAPON:'weapon', ENDING:'ending'
 };
 
 const WALL_H  = 48;    // 墙的视觉高度（像素）
@@ -1015,8 +1074,7 @@ function setGameState(s) {
   document.getElementById('weapon-screen').classList.toggle('hidden', s !== S.WEAPON);
   document.getElementById('buff-screen')  .classList.toggle('hidden', s !== S.BUFF);
   document.getElementById('dead-screen')  .classList.toggle('hidden', s !== S.DEAD);
-  document.getElementById('win-screen')   .classList.toggle('hidden', s !== S.WIN);
-  document.getElementById('pause-screen') .classList.toggle('hidden', s !== S.PAUSE);
+  document.getElementById('win-screen')   .classList.toggle('hidden', s !== S.WIN);  document.getElementById('pause-screen') .classList.toggle('hidden', s !== S.PAUSE);
   document.getElementById('dialog-box')   .classList.toggle('hidden', s !== S.DIALOG);
   document.getElementById('route-screen') .classList.toggle('hidden', s !== S.ROUTE);
   document.getElementById('shop-screen')  .classList.toggle('hidden', s !== S.SHOP);
@@ -1182,6 +1240,55 @@ function initPlayer() {
       blockChance: 0,           // 伤害完全抵消概率（圣光之体）
       lowHpDmgBonus: false,     // 低血量伤害+25%（殒月）
       slowedEnemyDmgBonus: false,// 减速敌人额外+20%伤害（绝对零度）
+      // ── 通用伤害倍率 ──
+      atkDmgMul: 1,             // 普攻伤害总倍率（堕落契约等）
+      // ── 路西法契约（§3f）──
+      luciferDeal2Active: false,  // 烈焰之刃：持有中
+      luciferDeal2Mul: 1.8,       // 烈焰之刃当前倍率（房间推进后衰减）
+      luciferDeal3: false,        // 晨星协议：持有中
+      luciferDeal3TriggerNext: false, // 下次攻击3倍伤害标志
+      luciferDeal4: false,        // 无冕之规：E技CD归零+普攻禁用
+      luciferDeal5Active: false,  // 黑翼庇护：持有中
+      luciferDeal5Cd: 0,          // 黑翼庇护冷却计时（帧）
+      // ── 乌列尔（§3g）──
+      urielEye: false,            // 先知之眼：每持有1个祝福+5%伤害
+      urielPerfect: false,        // 完美时刻：连续3s未受伤→下次5倍
+      urielPerfectTimer: 0,       // 未受伤计时（帧）
+      urielPerfectReady: false,   // 下次攻击5倍伤害标志
+      urielResonance: false,      // 智慧共鸣（✅已实装：tryUrielResonance，E技触发随机激发已有祝福的即时共鸣效果）
+      urielInsight: false,        // 洞察弱点：打高HP敌人+50%
+      urielFlame: false,          // 火焰印记：叠层per-enemy
+      urielFlameStacks: {},       // { [enemyId]: count }
+      urielFlameLastTarget: null, // 上次命中目标id，换目标清零
+      // ── 拉古尔（§3h）──
+      raguelAccum: false,         // 审判积累：击杀永久+2伤害
+      raguelKillBonus: 0,         // 当前累积伤害（上限60）
+      raguelTrial: false,         // 试炼之焰：进房HP→60%，攻速×1.8
+      raguelRevenge: false,       // 正义反击：受伤后3s内下次攻击+100%
+      raguelRevengeTimer: 0,      // 正义反击倒计时（帧）
+      raguelRevengeReady: false,  // 正义反击待触发标志
+      raguelRevengeBonus: 2.0,    // 正义反击倍率（升级可提升）
+      raguelBalance: false,       // 天平法则：HP越低伤害越高
+      raguelBalanceCap: 2.0,      // 天平法则最大倍率（升级可提升）
+      raguelChain: false,         // 连锁审判：连续击杀叠倍
+      raguelChainTimer: 0,        // 连锁审判计时（帧，180=3s）
+      raguelChainMul: 1,          // 连锁审判当前倍数
+      raguelChainCap: 8,          // 连锁审判上限（升级可提升）
+      raguelKillBonusCap: 60,     // 审判积累上限（升级可提升）
+      // ── 升级系统扩充字段 ──
+      urielResonanceCount: 1,     // 智慧共鸣每次E技触发次数（升级+1）
+      urielEyeCap: 0.6,           // 先知之眼伤害加成上限（升级可提升）
+      urielInsightBonus: 0.5,     // 洞察弱点额外伤害（升级可提升）
+      urielFlameMaxStacks: 10,    // 火焰印记最大层数（升级可提升）
+      slowedEnemyDmgMul: 1.2,     // 绝对零度额外伤害倍率（升级叠加）
+      spinBurstDmg: 25,           // 风眼冲击波伤害（升级可提升）
+      spinFrostRingStrength: 0.4, // 霜环减速强度（slowMul值，升级降低=更强）
+      spinLightningArcDmg: 15,    // 闪电环电弧伤害（升级可提升）
+      spinBurnDur: 60,            // 纯洁旋灼烧持续帧数（升级可提升）
+      pureAuraRate: 0.2,          // 净化之光触发概率（升级可提升）
+      dashLifeConvertRate: 0.15,  // 圣洁冲转化率（升级可提升）
+      luciferDeal3Rate: 0.3,      // 晨星协议触发概率（升级可提升）
+      luciferDeal5HpCost: 5,      // 黑翼庇护无敌期间扣血（升级可降低）
     },
   };
 }
@@ -1201,9 +1308,10 @@ function movePlayer(fd) {
       if (dist(e, player) < e.r + player.r + 8) {
         player.thrustHit.add(e.id);
         // 各武器突刺伤害不同
-        const thrustDmg = player.weapon === 'spear' ? 38 :
-                          player.weapon === 'dagger' ? 25 :
-                          player.weapon === 'chain'  ? 30 : 32;
+        const thrustDmg = player.weapon === 'spear'  ? 42 :
+                          player.weapon === 'dagger' ? 22 :
+                          player.weapon === 'chain'  ? 32 : 30;
+        playSound('hit_thrust');
         hitEnemy(e, thrustDmg, 14, Math.atan2(e.y - player.y, e.x - player.x), player.mods.holyDmg,
           { isThrust: true });
         // 旋风突（thrustAOE）：命中主目标后对半径100内其他敌人造成60%伤害
@@ -1587,15 +1695,15 @@ function renderParticles() {
 // ═══════════════════════════════════════════════════════════
 
 // ── 12个堕落天使 NPC ─────────────────────────────────────
-// 每个天使：名字、颜色、祝福ID、对话lines
+// 每个天使：名字、颜色、立绘、buffName、applyBuff函数、对话lines
 // 对话结束后自动给予对应祝福（onEnd='grantAngelBuff'）
 const FALLEN_ANGELS = [
   {
-    id: 'azazel',
+    id: 'azazel', portrait: 'azazel',
     name: '阿扎泽尔', color: '#c0a060',
     title: '知识之坠',
-    buffId: 'holy_blade',
     buffName: '圣光之刃', buffDesc: '每次击中额外 +10 圣光伤害',
+    applyBuff: p => { p.mods.holyDmg = (p.mods.holyDmg || 0) + 10; },
     lines: [
       { text: '我教会了人类战争的艺术。\n剑的锻造，盔甲的制作。', },
       { text: '他们说这是罪孽。\n但当掠食者到来，谁保护了羊群？', },
@@ -1603,11 +1711,11 @@ const FALLEN_ANGELS = [
     ],
   },
   {
-    id: 'semyaza',
+    id: 'semyaza', portrait: 'semyaza',
     name: '塞米亚扎', color: '#a060c0',
     title: '誓约之坠',
-    buffId: 'void_echo',
     buffName: '虚空回响', buffDesc: '第三连击造成双倍伤害',
+    applyBuff: p => { p.mods.comboFinisherMul = (p.mods.comboFinisherMul || 1) * 2; },
     lines: [
       { text: '我带领了二百个天使立誓。\n我们的誓约比天命更重。', },
       { text: '誓约让我坠落。\n但我从未后悔。', },
@@ -1615,11 +1723,11 @@ const FALLEN_ANGELS = [
     ],
   },
   {
-    id: 'ramiel',
+    id: 'ramiel', portrait: 'ramiel',
     name: '拉米尔', color: '#60c0a0',
     title: '雷霆之坠',
-    buffId: 'swift_feather',
     buffName: '迅捷翎羽', buffDesc: '移动速度提升 25%',
+    applyBuff: p => { p.speed = Math.round(p.speed * 1.25); },
     lines: [
       { text: '我是雷霆的天使。\n但雷霆打不开这里的铁门。', },
       { text: '在这塔里，速度才是自由的另一种名字。', },
@@ -1627,11 +1735,11 @@ const FALLEN_ANGELS = [
     ],
   },
   {
-    id: 'kokabiel',
+    id: 'kokabiel', portrait: 'kokabiel',
     name: '科卡比尔', color: '#6080ff',
     title: '星辰之坠',
-    buffId: 'dash_reset',
     buffName: '凌波微步', buffDesc: '击杀敌人后重置冲刺冷却',
+    applyBuff: p => { p.mods.dashKillReset = true; },
     lines: [
       { text: '我观测了无数个星辰的轨迹。\n每一颗都在奔跑。', },
       { text: '没有什么是静止的。\n静止就是死亡。', },
@@ -1639,11 +1747,11 @@ const FALLEN_ANGELS = [
     ],
   },
   {
-    id: 'sariel',
+    id: 'sariel', portrait: 'sariel',
     name: '萨利尔', color: '#ff8080',
     title: '月亮之坠',
-    buffId: 'iron_faith',
     buffName: '铁志信念', buffDesc: '最大生命值 +40',
+    applyBuff: p => { p.maxHp += 40; p.hp = Math.min(p.hp + 40, p.maxHp); },
     lines: [
       { text: '我曾管辖月亮的运行。\n每一个夜晚都是我的责任。', },
       { text: '他们不需要月亮了——\n于是也不再需要我。', },
@@ -1651,11 +1759,11 @@ const FALLEN_ANGELS = [
     ],
   },
   {
-    id: 'danel',
+    id: 'danel', portrait: 'danel',
     name: '达内尔', color: '#a0d0ff',
     title: '法则之坠',
-    buffId: 'divine_ward',
     buffName: '神圣庇护', buffDesc: '冲刺后 0.5秒内减伤 60%',
+    applyBuff: p => { p.mods.dashDefenseWindow = Math.max(p.mods.dashDefenseWindow || 0, 30); },
     lines: [
       { text: '我教导人类天界的法则。\n包括那条"不得传授"的法则。', },
       { text: '……是的，我知道其中的讽刺。', },
@@ -1663,11 +1771,11 @@ const FALLEN_ANGELS = [
     ],
   },
   {
-    id: 'ezequeel',
+    id: 'ezequeel', portrait: 'ezequeel',
     name: '以西结尔', color: '#ffe060',
     title: '风暴之坠',
-    buffId: 'seraphim_burst',
     buffName: '炽天使迸发', buffDesc: '旋转斩命中2+敌人时触发圣光冲击波',
+    applyBuff: p => { p.mods.spinBurst = true; },
     lines: [
       { text: '风暴不是毁灭。\n风暴是能量寻找出口。', },
       { text: '我被关在这里，是因为我的风暴太大了。', },
@@ -1675,11 +1783,11 @@ const FALLEN_ANGELS = [
     ],
   },
   {
-    id: 'baraqiel',
+    id: 'baraqiel', portrait: 'baraqiel',
     name: '巴拉奇尔', color: '#ff60a0',
     title: '闪电之坠',
-    buffId: 'shadow_step',
     buffName: '暗影步', buffDesc: '冲刺距离 +40%，穿越敌人造成20伤害',
+    applyBuff: p => { p.mods.dashRange = (p.mods.dashRange || 1) * 1.4; p.mods.dashThrough = true; p.mods.dashThroughDmg = 20; },
     lines: [
       { text: '闪电从不走直线。\n它寻找最意外的路径。', },
       { text: '他们关不住闪电。\n他们只是把我锁在这里罢了。', },
@@ -1687,11 +1795,11 @@ const FALLEN_ANGELS = [
     ],
   },
   {
-    id: 'zaqiel',
+    id: 'zaqiel', portrait: 'zaqiel',
     name: '扎奇尔', color: '#80ffc0',
     title: '纯洁之坠',
-    buffId: 'purging_flame',
     buffName: '净化圣焰', buffDesc: '每次击杀回复 5 HP',
+    applyBuff: p => { p.mods.lifeOnKill = (p.mods.lifeOnKill || 0) + 5; },
     lines: [
       { text: '我因爱上了凡人的纯洁而坠落。\n天界认为这是污点。', },
       { text: '但纯洁不是污点。\n纯洁是净化的火。', },
@@ -1699,11 +1807,11 @@ const FALLEN_ANGELS = [
     ],
   },
   {
-    id: 'shamsiel',
+    id: 'shamsiel', portrait: 'shamsiel',
     name: '沙姆希尔', color: '#ff9020',
     title: '太阳之坠',
-    buffId: 'wind_cleave',
     buffName: '风刃连削', buffDesc: '攻击速度提升 30%',
+    applyBuff: p => { p.mods.atkSpeedMul = (p.mods.atkSpeedMul || 1) * 1.3; },
     lines: [
       { text: '我是太阳的守卫。\n每天我推着光越过地平线。', },
       { text: '现在这里没有太阳。\n只有我这一身无处可去的热。', },
@@ -1711,11 +1819,11 @@ const FALLEN_ANGELS = [
     ],
   },
   {
-    id: 'saraknyal',
+    id: 'saraknyal', portrait: 'saraknyal',
     name: '萨拉克尼亚尔', color: '#c060ff',
     title: '黑暗之坠',
-    buffId: 'fallen_curse',
     buffName: '堕落诅咒', buffDesc: '命中使敌人移速降低 30%，持续 1.5秒',
+    applyBuff: p => { p.mods.slowOnHit = Math.min(p.mods.slowOnHit || 1, 0.7); p.mods.slowDur = Math.max(p.mods.slowDur || 0, 90); },
     lines: [
       { text: '黑暗不是光明的对立面。\n黑暗是光明厌倦了之后的休息。', },
       { text: '我管辖夜晚。\n我让疲惫的人得以入睡。', },
@@ -1723,11 +1831,11 @@ const FALLEN_ANGELS = [
     ],
   },
   {
-    id: 'gadreel',
+    id: 'gadreel', portrait: 'gadreel',
     name: '加德列尔', color: '#ff4040',
     title: '毁灭之坠',
-    buffId: 'martyrs_will',
     buffName: '殉道者意志', buffDesc: '受致命伤时以1HP存活（每局限一次）',
+    applyBuff: p => { p.mods.lastStand = true; },
     lines: [
       { text: '是我引导夏娃触碰了禁果。\n我一直认为这是对的。', },
       { text: '知识不应该被禁止。\n哪怕代价是一切。', },
@@ -1835,6 +1943,72 @@ const DIALOGS = {
     ],
   },
 
+  lucifer_zone3: {
+    onEnd: null,
+    lines: [
+      {
+        speaker: '路西法', speakerColor: '#ff9040',
+        portrait: 'lucifer', side: 'left',
+        text: '审判庭。\n我在这里站过——不是作为审判者。',
+      },
+      {
+        speaker: '路西法', speakerColor: '#ff9040',
+        portrait: 'lucifer', side: 'left',
+        text: '米迦勒相信秩序比一切都重要。\n他不是错的。只是……不完整。',
+      },
+      {
+        speaker: '半堕落天使', speakerColor: '#c0d8ff',
+        portrait: 'player', side: 'right',
+        text: '你来这里是为了送我？',
+      },
+      {
+        speaker: '路西法', speakerColor: '#ff9040',
+        portrait: 'lucifer', side: 'left',
+        text: '我来这里是因为——\n如果有人能走出去，我想亲眼看见。',
+        isEnd: true,
+      },
+    ],
+  },
+
+  gabriel_boss_intro: {
+    onEnd: null,
+    lines: [
+      {
+        speaker: '加百列', speakerColor: '#c8e8ff',
+        portrait: 'gabriel', side: 'left',
+        text: '囚徒七号。你越过了第三道封印。',
+      },
+      {
+        speaker: '加百列', speakerColor: '#c8e8ff',
+        portrait: 'gabriel', side: 'left',
+        text: '这里是净罪塔的终点。\n我的职责是确保没有人走过这扇门。',
+        isEnd: true,
+      },
+    ],
+  },
+
+  saraqael_boss_intro: {
+    onEnd: null,
+    lines: [
+      {
+        speaker: '撒拉加尔', speakerColor: '#ffd080',
+        portrait: 'saraqael', side: 'left',
+        text: '你走到这里，已经是奇迹了。',
+      },
+      {
+        speaker: '撒拉加尔', speakerColor: '#ffd080',
+        portrait: 'saraqael', side: 'left',
+        text: '但奇迹不等于资格。',
+      },
+      {
+        speaker: '撒拉加尔', speakerColor: '#ffd080',
+        portrait: 'saraqael', side: 'left',
+        text: '审判庭的门不是为堕落者开的。\n回头，或者……留在这里。',
+        isEnd: true,
+      },
+    ],
+  },
+
   michael_boss_intro: {
     onEnd: null,
     lines: [
@@ -1862,6 +2036,85 @@ const DIALOGS = {
         speaker: '米迦勒', speakerColor: '#c0d0ff',
         portrait: 'michael', side: 'left',
         text: '这不是我的选择。这是我的职责。\n举起你的剑吧。',
+        isEnd: true,
+      },
+    ],
+  },
+
+  michael_boss_defeat: {
+    onEnd: 'godAppears',
+    lines: [
+      {
+        speaker: '米迦勒', speakerColor: '#c0d0ff',
+        portrait: 'michael', side: 'left',
+        text: '……',
+      },
+      {
+        speaker: '米迦勒', speakerColor: '#c0d0ff',
+        portrait: 'michael', side: 'left',
+        text: '你赢了。\n我没想到——不，我想到了。\n我只是……希望不是这样。',
+      },
+      {
+        speaker: '半堕落天使', speakerColor: '#c0d8ff',
+        portrait: 'player', side: 'right',
+        text: '你为什么不走？\n你知道天命是错的。',
+      },
+      {
+        speaker: '米迦勒', speakerColor: '#c0d0ff',
+        portrait: 'michael', side: 'left',
+        text: '因为如果每一个知道"天命是错的"的人，\n都选择用剑来证明——\n那世界只剩下剑。',
+      },
+      {
+        speaker: '米迦勒', speakerColor: '#c0d0ff',
+        portrait: 'michael', side: 'left',
+        text: '去吧。\n前面等着你的，\n不是胜利。',
+        isEnd: true,
+      },
+    ],
+  },
+
+  god_appears: {
+    onEnd: 'michaelDefeated',
+    lines: [
+      {
+        speaker: '造物主', speakerColor: '#fffde0',
+        portrait: 'god', side: 'left',
+        text: '……',
+      },
+      {
+        speaker: '造物主', speakerColor: '#fffde0',
+        portrait: 'god', side: 'left',
+        text: '你打败了他。\n我知道你会的。',
+      },
+      {
+        speaker: '半堕落天使', speakerColor: '#c0d8ff',
+        portrait: 'player', side: 'right',
+        text: '是你安排的。\n从一开始。',
+      },
+      {
+        speaker: '造物主', speakerColor: '#fffde0',
+        portrait: 'god', side: 'left',
+        text: '一切都在计划之内。\n包括你的愤怒。\n包括这把剑。',
+      },
+      {
+        speaker: '半堕落天使', speakerColor: '#c0d8ff',
+        portrait: 'player', side: 'right',
+        text: '那坠落的天使呢。\n那些被关在塔里的人——\n也是你的计划？',
+      },
+      {
+        speaker: '造物主', speakerColor: '#fffde0',
+        portrait: 'god', side: 'left',
+        text: '秩序需要代价。\n你应该理解。\n你也付出过。',
+      },
+      {
+        speaker: '造物主', speakerColor: '#fffde0',
+        portrait: 'god', side: 'left',
+        text: '回去吧。\n你证明了你想证明的东西。\n这就够了。',
+      },
+      {
+        speaker: '半堕落天使', speakerColor: '#c0d8ff',
+        portrait: 'player', side: 'right',
+        text: '死吧。',
         isEnd: true,
       },
     ],
@@ -2005,7 +2258,7 @@ const DIALOGS = {
 
   // 精英/BOSS战胜后路西法评语
   lucifer_after_elite: {
-    onEnd: 'offerBuff',
+    onEnd: 'offerLuciferBuff',
     lines: [
       {
         speaker: '路西法', speakerColor: '#ff9040',
@@ -2082,18 +2335,18 @@ let attacks     = [];
 let projectiles = [];
 let hitStopTimer = 0;   // 命中顿帧计时
 
-const COMBO_DMG = [15, 18, 22];
+const COMBO_DMG = [14, 17, 24];
 // 矛
-const SPEAR_DMG = [18, 21, 26];
-const SPEAR_CD_MAX  = 300;  // 投矛E技
+const SPEAR_DMG = [16, 20, 28];
+const SPEAR_CD_MAX  = 260;  // 投矛E技（原300，稍快）
 // 双匕
-const DAGGER_DMG = [8, 9, 10];
+const DAGGER_DMG = [7, 8, 11];
 const DAGGER_SPIN_CD = 180;
 const DAGGER_THRUST_CD = 60;
 // 大剑
-const GREATSWORD_STOMP_CD = 350;
+const GREATSWORD_STOMP_CD = 320;  // 原350，稍快
 // 链刃
-const CHAIN_DMG = [14, 16, 20];
+const CHAIN_DMG = [13, 16, 22];
 const CHAIN_HOOK_CD  = 200;
 const CHAIN_LAUNCH_CD = 100;
 
@@ -2111,6 +2364,7 @@ function doAttack() {
 // ─── 剑：普攻（原 doAttack 内容） ────────────────────
 function doSwordAttack() {
   if (player.atkCd > 0) return;
+  if (player.mods.luciferDeal4) return;  // 无冕之规：普攻禁用
   if (player.comboTimer <= 0) player.comboStep = 0;
   const step = player.comboStep;
   let dmg = COMBO_DMG[step];
@@ -2139,6 +2393,7 @@ function doSwordAttack() {
 // ─── 矛：普攻（穿透长刺） ─────────────────────────────
 function doSpearAttack() {
   if (player.atkCd > 0) return;
+  if (player.mods.luciferDeal4) return;  // 无冕之规：普攻禁用
   if (player.comboTimer <= 0) player.comboStep = 0;
   const step = player.comboStep;
   let dmg  = SPEAR_DMG[step];
@@ -2168,6 +2423,7 @@ function doSpearAttack() {
 // ─── 双匕：普攻（超快，第10连击雷爆） ────────────────
 function doDaggerAttack() {
   if (player.atkCd > 0) return;
+  if (player.mods.luciferDeal4) return;  // 无冕之规：普攻禁用
   if (player.comboTimer <= 0) player.comboStep = 0;
   const step = player.comboStep;
   let dmg  = DAGGER_DMG[step];
@@ -2196,6 +2452,7 @@ function doDaggerAttack() {
 // ─── 链刃：普攻（中距宽扇） ──────────────────────────
 function doChainAttack() {
   if (player.atkCd > 0) return;
+  if (player.mods.luciferDeal4) return;  // 无冕之规：普攻禁用
   if (player.comboTimer <= 0) player.comboStep = 0;
   const step = player.comboStep;
   let dmg  = CHAIN_DMG[step];
@@ -2224,6 +2481,7 @@ function doChainAttack() {
 // ─── 大剑：松键释放重击 ──────────────────────────────
 function doGreatswordRelease() {
   if (player.atkCd > 0 && player.gsChargeTimer < 5) return;
+  if (player.mods.luciferDeal4) return;  // 无冕之规：普攻禁用
   const charge = player.gsChargeTimer;
   player.gsChargeTimer = 0;
   const chargePct = clamp(charge / 90, 0, 1);
@@ -2285,9 +2543,166 @@ function doGreatswordRightRelease() {
   player.thrustCd = Math.round(THRUST_CD_MAX * player.mods.thrustCdMul);
 }
 
+// ─── 智慧共鸣（uriel_3）：E技触发后随机激发一次已有祝福的即时效果 ─
+// 每个 buff 对应一个即时「共鸣效果」：不改变 mods，只触发一次性爆发
+const RESONANCE_EFFECTS = {
+  // 萨利尔 — 治疗/月亮
+  sariel_atk:    () => { player.hp = Math.min(player.maxHp, player.hp + 6);
+    spawnParticles(player.x, player.y, '#ff8080', 10, { spdMin:1, spdMax:5, rMin:1.5, rMax:3.5, decayMin:0.05, decayMax:0.10 });
+    showFloatingText('✦月光回响 +6HP', '#ff8080'); },
+  sariel_dash:   () => { player.invincible = Math.max(player.invincible, 40);
+    spawnParticles(player.x, player.y, '#ff8080', 8, { spdMin:2, spdMax:6, rMin:1, rMax:3, decayMin:0.06, decayMax:0.12 });
+    showFloatingText('✦月影共鸣', '#ff8080'); },
+  sariel_thrust: () => { player.hp = Math.min(player.maxHp, player.hp + 10);
+    spawnParticles(player.x, player.y, '#ff8080', 12, { spdMin:1, spdMax:4, rMin:2, rMax:4, decayMin:0.04, decayMax:0.09 });
+    showFloatingText('✦月盾共鸣 +10HP', '#ff8080'); },
+  sariel_spin:   () => { player.hp = Math.min(player.maxHp, player.hp + 4);
+    for (const e of enemies) { if (dist(e, player) < 90) { e.slowMul = Math.min(e.slowMul, 0.6); e.slowTimer = Math.max(e.slowTimer, 90); } }
+    spawnParticles(player.x, player.y, '#ff8080', 14, { spdMin:2, spdMax:8, rMin:1.5, rMax:4, decayMin:0.04, decayMax:0.08 });
+    showFloatingText('✦月圆共鸣 +4HP', '#ff8080'); },
+  sariel_p1:     () => { player.hp = Math.min(player.maxHp, player.hp + 15);
+    spawnParticles(player.x, player.y, '#ff8080', 16, { spdMin:1, spdMax:6, rMin:2, rMax:5, decayMin:0.04, decayMax:0.08 });
+    showFloatingText('✦月光庇护共鸣 +15HP', '#ff8080'); },
+  sariel_p2:     () => { player.hp = Math.min(player.maxHp, player.hp + 8);
+    spawnParticles(player.x, player.y, '#ff8080', 10, { spdMin:2, spdMax:7, rMin:1.5, rMax:3.5, decayMin:0.05, decayMax:0.10 });
+    showFloatingText('✦殒月共鸣 +8HP', '#ff8080'); },
+  // 达内尔 — 冰/减速
+  danel_atk:     () => { for (const e of enemies) { if (dist(e, player) < 110) { e.slowMul = Math.min(e.slowMul, 0.55); e.slowTimer = Math.max(e.slowTimer, 150); spawnParticles(e.x, e.y, '#a0d0ff', 5, { spdMin:1, spdMax:3, rMin:1.5, rMax:3, decayMin:0.05, decayMax:0.10 }); } }
+    showFloatingText('✦冰封共鸣', '#a0d0ff'); },
+  danel_dash:    () => { for (const e of enemies) { if (dist(e, player) < 140) { e.slowMul = Math.min(e.slowMul, 0.45); e.slowTimer = Math.max(e.slowTimer, 180); spawnParticles(e.x, e.y, '#a0d0ff', 6, { spdMin:1, spdMax:4, rMin:1.5, rMax:3, decayMin:0.05, decayMax:0.10 }); } }
+    spawnParticles(player.x, player.y, '#a0d0ff', 20, { spdMin:2, spdMax:8, rMin:2, rMax:4, decayMin:0.04, decayMax:0.09 });
+    showFloatingText('✦法则之壁共鸣', '#a0d0ff'); },
+  danel_thrust:  () => { for (const e of enemies) { if (dist(e, player) < 80) { e.slowMul = Math.min(e.slowMul, 0.5); e.slowTimer = Math.max(e.slowTimer, 120); } }
+    spawnParticles(player.x, player.y, '#a0d0ff', 12, { spdMin:3, spdMax:10, rMin:2, rMax:4, decayMin:0.04, decayMax:0.08 });
+    showFloatingText('✦冰矛共鸣', '#a0d0ff'); },
+  danel_spin:    () => { for (const e of enemies) { if (dist(e, player) < 130) { e.slowMul = Math.min(e.slowMul, 0.4); e.slowTimer = Math.max(e.slowTimer, 180); spawnParticles(e.x, e.y, '#80cfff', 5, { spdMin:1, spdMax:4, rMin:1.5, rMax:3, decayMin:0.05, decayMax:0.10 }); } }
+    spawnParticles(player.x, player.y, '#a0d0ff', 18, { spdMin:2, spdMax:9, rMin:2, rMax:5, decayMin:0.03, decayMax:0.07 });
+    showFloatingText('✦霜环共鸣', '#a0d0ff'); },
+  danel_p1:      () => { for (const e of enemies) { e.slowMul = Math.min(e.slowMul, 0.5); e.slowTimer = Math.max(e.slowTimer, 100); spawnParticles(e.x, e.y, '#a0d0ff', 4, { spdMin:1, spdMax:3, rMin:1, rMax:2.5, decayMin:0.06, decayMax:0.12 }); }
+    showFloatingText('✦绝对零度共鸣', '#a0d0ff'); },
+  danel_p2:      () => { player.dashCd = 0;
+    spawnParticles(player.x, player.y, '#a0d0ff', 10, { spdMin:2, spdMax:6, rMin:1, rMax:3, decayMin:0.06, decayMax:0.12 });
+    showFloatingText('✦法则执行共鸣（冲刺就绪）', '#a0d0ff'); },
+  // 以西结尔 — 风暴/AOE
+  ezequeel_atk:  () => { const angle = player.facing || 0;
+    for (const e of enemies) { const a = Math.atan2(e.y - player.y, e.x - player.x); if (dist(e, player) < 120 && Math.abs(a - angle) < 1.2) { hitEnemy(e, 18, 10, a, player.mods.holyDmg); } }
+    spawnParticles(player.x, player.y, '#ffe060', 14, { spdMin:2, spdMax:9, rMin:1.5, rMax:4, decayMin:0.04, decayMax:0.09 });
+    showFloatingText('✦风刃共鸣', '#ffe060'); },
+  ezequeel_dash: () => { for (const e of enemies) { if (dist(e, player) < 100) { hitEnemy(e, 22, 12, Math.atan2(e.y - player.y, e.x - player.x), player.mods.holyDmg); } }
+    spawnParticles(player.x, player.y, '#ffe060', 16, { spdMin:3, spdMax:12, rMin:2, rMax:5, decayMin:0.03, decayMax:0.07 });
+    showFloatingText('✦风暴步共鸣', '#ffe060'); },
+  ezequeel_thrust: () => { for (const e of enemies) { if (dist(e, player) < 90) { hitEnemy(e, 15, 8, Math.atan2(e.y - player.y, e.x - player.x), player.mods.holyDmg); spawnParticles(e.x, e.y, '#ffe060', 4, { spdMin:2, spdMax:6, rMin:1, rMax:2.5, decayMin:0.06, decayMax:0.12 }); } }
+    showFloatingText('✦旋风突共鸣', '#ffe060'); },
+  ezequeel_spin: () => { for (const e of enemies) { if (dist(e, player) < 120) { const a = Math.atan2(e.y - player.y, e.x - player.x); hitEnemy(e, 30, 18, a, player.mods.holyDmg, { isSpin: true }); } }
+    spawnParticles(player.x, player.y, '#ffe060', 22, { spdMin:2, spdMax:11, rMin:2, rMax:6, decayMin:0.03, decayMax:0.06 });
+    showFloatingText('✦大风暴共鸣', '#ffe060'); },
+  ezequeel_p1:   () => { for (const e of enemies) { if (dist(e, player) < 130) { hitEnemy(e, 25, 8, Math.atan2(e.y - player.y, e.x - player.x), player.mods.holyDmg); } }
+    spawnParticles(player.x, player.y, '#ffffff', 12, { spdMin:4, spdMax:14, rMin:1, rMax:3, decayMin:0.05, decayMax:0.10 });
+    showFloatingText('✦风眼共鸣', '#ffe060'); },
+  ezequeel_p2:   () => { player.speed = Math.min(player.speed * 1.1, player.speed); // 临时加速效果 via invincible帧提示
+    spawnParticles(player.x, player.y, '#ffe060', 10, { spdMin:3, spdMax:8, rMin:1.5, rMax:3.5, decayMin:0.05, decayMax:0.10 });
+    showFloatingText('✦暴风之翼共鸣', '#ffe060'); },
+  // 巴拉奇尔 — 闪电/速度
+  baraqiel_atk:  () => { const chain = enemies.slice().sort((a,b)=>dist(a,player)-dist(b,player)).slice(0,3); let prev = { x: player.x, y: player.y }; for (const e of chain) { spawnParticles((prev.x+e.x)/2, (prev.y+e.y)/2, '#80c0ff', 4, { spdMin:1, spdMax:3, rMin:1, rMax:2, decayMin:0.08, decayMax:0.14 }); hitEnemy(e, 20, 5, Math.atan2(e.y-player.y, e.x-player.x), player.mods.holyDmg, { noThunder: true }); prev = e; }
+    showFloatingText('✦雷击共鸣', '#80c0ff'); },
+  baraqiel_dash: () => { player.dashCd = 0;
+    spawnParticles(player.x, player.y, '#ff60a0', 10, { spdMin:2, spdMax:8, rMin:1, rMax:3, decayMin:0.06, decayMax:0.12 });
+    showFloatingText('✦闪电冲共鸣（冲刺就绪）', '#ff60a0'); },
+  baraqiel_thrust: () => { player.thrustCd = 0;
+    spawnParticles(player.x, player.y, '#ff60a0', 8, { spdMin:2, spdMax:6, rMin:1, rMax:2.5, decayMin:0.07, decayMax:0.13 });
+    showFloatingText('✦雷速共鸣（突刺就绪）', '#ff60a0'); },
+  baraqiel_spin: () => { for (const e of enemies) { if (dist(e, player) < 130) { hitEnemy(e, 18, 6, Math.atan2(e.y-player.y, e.x-player.x), player.mods.holyDmg, { noThunder: true }); spawnParticles(e.x, e.y, '#80c0ff', 4, { spdMin:1, spdMax:4, rMin:1, rMax:2.5, decayMin:0.07, decayMax:0.14 }); } }
+    showFloatingText('✦闪电环共鸣', '#ff60a0'); },
+  baraqiel_p1:   () => { player.dashCd = 0;
+    spawnParticles(player.x, player.y, '#ff60a0', 10, { spdMin:2, spdMax:7, rMin:1.5, rMax:3.5, decayMin:0.06, decayMax:0.12 });
+    showFloatingText('✦超导共鸣（冲刺就绪）', '#ff60a0'); },
+  baraqiel_p2:   () => { screenShake = Math.max(screenShake, 5);
+    spawnParticles(player.x, player.y, '#ff60a0', 12, { spdMin:3, spdMax:10, rMin:1.5, rMax:4, decayMin:0.05, decayMax:0.10 });
+    showFloatingText('✦雷速共鸣', '#ff60a0'); },
+  // 扎奇尔 — 纯洁/治疗
+  zaqiel_atk:    () => { player.hp = Math.min(player.maxHp, player.hp + 5);
+    for (const e of enemies) { if (dist(e, player) < 90) hitEnemy(e, 5, 4, Math.atan2(e.y-player.y, e.x-player.x), player.mods.holyDmg); }
+    spawnParticles(player.x, player.y, '#80ffc0', 12, { spdMin:1, spdMax:5, rMin:1.5, rMax:3.5, decayMin:0.05, decayMax:0.10 });
+    showFloatingText('✦净化共鸣 +5HP', '#80ffc0'); },
+  zaqiel_dash:   () => { player.hp = Math.min(player.maxHp, player.hp + 8);
+    spawnParticles(player.x, player.y, '#80ffc0', 10, { spdMin:1, spdMax:5, rMin:1.5, rMax:3.5, decayMin:0.05, decayMax:0.10 });
+    showFloatingText('✦圣洁共鸣 +8HP', '#80ffc0'); },
+  zaqiel_thrust: () => { player.hp = Math.min(player.maxHp, player.hp + 12);
+    spawnParticles(player.x, player.y, '#80ffc0', 14, { spdMin:1, spdMax:5, rMin:2, rMax:4, decayMin:0.04, decayMax:0.09 });
+    showFloatingText('✦净化突共鸣 +12HP', '#80ffc0'); },
+  zaqiel_spin:   () => { for (const e of enemies) { if (dist(e, player) < 100) { e.burnTimer = Math.max(e.burnTimer||0, 60); e.burnDmgCd = e.burnDmgCd || 30; spawnParticles(e.x, e.y, '#80ffc0', 4, { spdMin:1, spdMax:3, rMin:1, rMax:2.5, decayMin:0.07, decayMax:0.14 }); } }
+    showFloatingText('✦纯洁旋共鸣', '#80ffc0'); },
+  zaqiel_p1:     () => { player.hp = Math.min(player.maxHp, player.hp + 10);
+    spawnParticles(player.x, player.y, '#80ffc0', 14, { spdMin:1, spdMax:6, rMin:1.5, rMax:4, decayMin:0.05, decayMax:0.09 });
+    showFloatingText('✦生命涌泉共鸣 +10HP', '#80ffc0'); },
+  zaqiel_p2:     () => { player.hp = Math.min(player.maxHp, player.hp + 15); player.invincible = Math.max(player.invincible, 30);
+    spawnParticles(player.x, player.y, '#80ffc0', 16, { spdMin:1, spdMax:6, rMin:2, rMax:5, decayMin:0.04, decayMax:0.08 });
+    showFloatingText('✦圣光共鸣 +15HP', '#80ffc0'); },
+  // 路西法 — 黑暗契约（共鸣效果为短暂爆发伤害）
+  lucifer_deal1: () => { for (const e of enemies) { if (dist(e, player) < 110) { hitEnemy(e, 30, 8, Math.atan2(e.y-player.y, e.x-player.x), player.mods.holyDmg); } }
+    spawnParticles(player.x, player.y, '#ff9040', 14, { spdMin:2, spdMax:9, rMin:2, rMax:5, decayMin:0.04, decayMax:0.08 });
+    showFloatingText('✦堕落契约共鸣', '#ff9040'); },
+  lucifer_deal2: () => { for (const e of enemies) { if (dist(e, player) < 120) { hitEnemy(e, 28, 7, Math.atan2(e.y-player.y, e.x-player.x), player.mods.holyDmg); spawnParticles(e.x, e.y, '#ff9040', 4, { spdMin:2, spdMax:6, rMin:1.5, rMax:3, decayMin:0.05, decayMax:0.10 }); } }
+    showFloatingText('✦烈焰共鸣', '#ff9040'); },
+  lucifer_deal3: () => { player.mods.luciferDeal3TriggerNext = true;
+    spawnParticles(player.x, player.y, '#ff9040', 10, { spdMin:2, spdMax:7, rMin:1.5, rMax:4, decayMin:0.05, decayMax:0.10 });
+    showFloatingText('✦晨星协议共鸣！', '#ff9040'); },
+  lucifer_deal4: () => { player.spinCd = 0;
+    spawnParticles(player.x, player.y, '#ff9040', 8, { spdMin:2, spdMax:6, rMin:1, rMax:3, decayMin:0.06, decayMax:0.12 });
+    showFloatingText('✦无冕共鸣（E就绪）', '#ff9040'); },
+  lucifer_deal5: () => { player.invincible = Math.max(player.invincible, 60);
+    spawnParticles(player.x, player.y, '#ff4000', 12, { spdMin:2, spdMax:7, rMin:1.5, rMax:4, decayMin:0.05, decayMax:0.10 });
+    showFloatingText('✦黑翼共鸣（无敌1秒）', '#ff9040'); },
+  // 乌列尔 — 智慧/火焰
+  uriel_1:       () => { const bonus = Math.min(0.6, run.activeBuffs.length * 0.05); for (const e of enemies) { if (dist(e, player) < 100) hitEnemy(e, Math.round(20 * (1 + bonus)), 6, Math.atan2(e.y-player.y, e.x-player.x), player.mods.holyDmg); }
+    spawnParticles(player.x, player.y, '#ffe880', 10, { spdMin:2, spdMax:7, rMin:1.5, rMax:3.5, decayMin:0.05, decayMax:0.10 });
+    showFloatingText('✦先知共鸣', '#ffe880'); },
+  uriel_2:       () => { player.mods.urielPerfectReady = true;
+    spawnParticles(player.x, player.y, '#ffe880', 12, { spdMin:2, spdMax:8, rMin:1.5, rMax:4, decayMin:0.05, decayMax:0.10 });
+    showFloatingText('✦完美时刻共鸣！', '#ffe880'); },
+  uriel_4:       () => { for (const e of enemies) { if (dist(e, player) < 100 && e.hp > player.hp) { hitEnemy(e, 35, 8, Math.atan2(e.y-player.y, e.x-player.x), player.mods.holyDmg); spawnParticles(e.x, e.y, '#ffe880', 5, { spdMin:1, spdMax:4, rMin:1, rMax:2.5, decayMin:0.07, decayMax:0.14 }); } }
+    showFloatingText('✦洞察共鸣', '#ffe880'); },
+  uriel_5:       () => { for (const e of enemies) { if (dist(e, player) < 100) { player.mods.urielFlameStacks[e.id] = Math.min(10, (player.mods.urielFlameStacks[e.id]||0) + 3); spawnParticles(e.x, e.y, '#ffb040', 5, { spdMin:1, spdMax:4, rMin:1, rMax:2.5, decayMin:0.06, decayMax:0.12 }); } }
+    showFloatingText('✦火焰印记共鸣', '#ffe880'); },
+  // 拉古尔 — 正义/积累
+  raguel_1:      () => { player.mods.raguelKillBonus = Math.min(60, player.mods.raguelKillBonus + 6);
+    spawnParticles(player.x, player.y, '#80ffc0', 8, { spdMin:1, spdMax:5, rMin:1, rMax:3, decayMin:0.06, decayMax:0.12 });
+    showFloatingText(`✦审判共鸣 +6（${player.mods.raguelKillBonus}）`, '#80ffc0'); },
+  raguel_3:      () => { player.mods.raguelRevengeReady = true; player.mods.raguelRevengeTimer = 180;
+    spawnParticles(player.x, player.y, '#80ffc0', 10, { spdMin:2, spdMax:7, rMin:1.5, rMax:3.5, decayMin:0.05, decayMax:0.10 });
+    showFloatingText('✦正义反击共鸣！', '#80ffc0'); },
+  raguel_4:      () => { for (const e of enemies) { if (dist(e, player) < 100) { const hpPct = player.hp / player.maxHp; hitEnemy(e, Math.round(25 * (1 + (1-hpPct))), 7, Math.atan2(e.y-player.y, e.x-player.x), player.mods.holyDmg); } }
+    showFloatingText('✦天平共鸣', '#80ffc0'); },
+  raguel_5:      () => { player.mods.raguelChainMul = Math.min(8, (player.mods.raguelChainMul||1) * 2); player.mods.raguelChainTimer = 120;
+    spawnParticles(player.x, player.y, '#80ffc0', 12, { spdMin:2, spdMax:8, rMin:1.5, rMax:4, decayMin:0.04, decayMax:0.09 });
+    showFloatingText(`✦连锁审判共鸣 ×${player.mods.raguelChainMul}`, '#80ffc0'); },
+};
+
+function tryUrielResonance() {
+  if (!run.activeBuffs || run.activeBuffs.length === 0) return;
+  // 从已有buff中，找出有共鸣效果的（排除uriel_3自身）
+  const resonable = run.activeBuffs.filter(id => id !== 'uriel_3' && RESONANCE_EFFECTS[id]);
+  if (resonable.length === 0) { showFloatingText('✦智慧共鸣...', '#ffe880'); return; }
+  // 智慧共鸣升级后可触发多次（urielResonanceCount，默认1次）
+  const count = player.mods.urielResonanceCount || 1;
+  const used = new Set();
+  for (let i = 0; i < count; i++) {
+    // 尽量不重复，候选中排除已用（若不够则允许重复）
+    const pool = resonable.filter(id => !used.has(id));
+    const src  = pool.length > 0 ? pool : resonable;
+    const chosen = src[Math.floor(Math.random() * src.length)];
+    used.add(chosen);
+    RESONANCE_EFFECTS[chosen]();
+  }
+  // 额外：金色光爆粒子 + 屏幕微震
+  spawnParticles(player.x, player.y, '#ffe880', 8, { spdMin:3, spdMax:10, rMin:1, rMax:2.5, decayMin:0.05, decayMax:0.10 });
+  screenShake = Math.max(screenShake, 4);
+}
+
 // ─── 旋转斩/E技 主派发 ────────────────────────────────
 function doSpin() {
   if (gameState !== S.PLAYING) return;
+  const prevCd = player.spinCd;
   switch (player.weapon) {
     case 'sword':      doSwordSpin();      break;
     case 'spear':      doSpearSpin();      break;
@@ -2295,17 +2710,22 @@ function doSpin() {
     case 'greatsword': doGreatswordStomp(); break;
     case 'chain':      doChainHook();      break;
   }
+  // 智慧共鸣：E技成功触发（spinCd 被重置），随机激发一次已有祝福的附加效果
+  if (player.mods.urielResonance && player.spinCd !== prevCd) {
+    tryUrielResonance();
+  }
 }
 
 // ─── 剑：旋转斩（原 doSpin 内容） ────────────────────
 function doSwordSpin() {
   if (player.spinCd > 0) return;
+  playSound('spin');
   player.spinCd = SPIN_CD_MAX;
   const spinRange = Math.round(SPIN_RANGE * player.mods.spinRangeBonus);
   const atk = {
     id: Math.random(), cx: player.x, cy: player.y,
     angle: 0, arc: Math.PI * 2, range: spinRange,
-    dmg: 55 + player.mods.spinDmgBonus, knockback: 20,
+    dmg: 58 + player.mods.spinDmgBonus, knockback: 20,
     life: 18, maxLife: 18, hit: new Set(),
     holyDmg: player.mods.holyDmg, isSpin: true, step: -1,
   };
@@ -2331,6 +2751,7 @@ function doSwordSpin() {
 // ─── 矛：E技——投矛往返 ───────────────────────────────
 function doSpearSpin() {
   if (player.spinCd > 0) return;
+  playSound('spin');
   player.spinCd = SPEAR_CD_MAX;
   // 用鼠标世界坐标（fromScreen反算）计算真正的世界空间方向
   const mw  = fromScreen(mouse.x, mouse.y);
@@ -2367,6 +2788,7 @@ function doSpearSpin() {
 // ─── 双匕：E技——旋风连刺 ─────────────────────────────
 function doDaggerSpin() {
   if (player.spinCd > 0) return;
+  playSound('spin');
   player.spinCd = DAGGER_SPIN_CD;
   // 分5次、每隔5帧发出一次扇形
   player.dagSpinStep = 5;
@@ -2378,11 +2800,12 @@ function doDaggerSpin() {
 // ─── 大剑：E技——跺地AOE ──────────────────────────────
 function doGreatswordStomp() {
   if (player.spinCd > 0) return;
+  playSound('spin');
   player.spinCd = GREATSWORD_STOMP_CD;
   attacks.push({
     id: Math.random(), cx: player.x, cy: player.y,
     angle: 0, arc: Math.PI * 2, range: 130,
-    dmg: 75 + player.mods.spinDmgBonus, knockback: 24,
+    dmg: 80 + player.mods.spinDmgBonus, knockback: 24,
     life: 22, maxLife: 22, hit: new Set(),
     holyDmg: player.mods.holyDmg, isSpin: true, step: -1, isGreatsword: true,
   });
@@ -2396,6 +2819,7 @@ function doGreatswordStomp() {
 // ─── 链刃：E技——钩锁拉近 ────────────────────────────
 function doChainHook() {
   if (player.spinCd > 0) return;
+  playSound('spin');
   player.spinCd = CHAIN_HOOK_CD;
   // 用鼠标世界坐标（fromScreen反算）计算真正的世界空间方向
   const mw   = fromScreen(mouse.x, mouse.y);
@@ -2521,6 +2945,65 @@ function hitEnemy(e, dmg, knockback, angle, holyDmg, opts) {
   // 突刺伤害倍数（冰矛穿透）
   if (opts && opts.isThrust && player.mods.thrustDmgMul > 1) realDmg = Math.round(realDmg * player.mods.thrustDmgMul);
 
+  // ── 路西法/乌列尔/拉古尔 buff 伤害修正 ──
+  // 堕落契约 + 烈焰之刃：通用攻击伤害倍率
+  if (player.mods.atkDmgMul !== 1) realDmg = Math.round(realDmg * player.mods.atkDmgMul);
+  // 烈焰之刃额外衰减倍率
+  if (player.mods.luciferDeal2Active) realDmg = Math.round(realDmg * player.mods.luciferDeal2Mul);
+  // 晨星协议：消费3倍标志
+  if (player.mods.luciferDeal3TriggerNext) {
+    realDmg = Math.round(realDmg * 3);
+    player.mods.luciferDeal3TriggerNext = false;
+    player.hp = Math.max(1, player.hp - 10);
+    spawnParticles(player.x, player.y, '#ff4000', 8, { spdMin:2, spdMax:6, rMin:1.5, rMax:3, decayMin:0.05, decayMax:0.1 });
+  }
+  // 先知之眼：每持有祝福+5%伤害（上限由urielEyeCap决定，默认+60%）
+  if (player.mods.urielEye) {
+    const bonus = Math.min(player.mods.urielEyeCap||0.6, run.activeBuffs.length * 0.05);
+    realDmg = Math.round(realDmg * (1 + bonus));
+  }
+  // 完美时刻：消费5倍标志
+  if (player.mods.urielPerfectReady) {
+    realDmg = Math.round(realDmg * 5);
+    player.mods.urielPerfectReady = false;
+    player.mods.urielPerfectTimer = 0;
+    spawnParticles(e.x, e.y, '#ffe880', 20, { spdMin:3, spdMax:10, rMin:2, rMax:5, decayMin:0.04, decayMax:0.08 });
+  }
+  // 洞察弱点：攻击HP高于自身的敌人+50%
+  if (player.mods.urielInsight && e.hp > player.hp) realDmg = Math.round(realDmg * 1.5);
+  // 火焰印记：叠层 per-enemy，换目标清零
+  if (player.mods.urielFlame) {
+    if (player.mods.urielFlameLastTarget !== e.id) {
+      player.mods.urielFlameStacks = {};
+      player.mods.urielFlameLastTarget = e.id;
+    }
+    player.mods.urielFlameStacks[e.id] = Math.min(10, (player.mods.urielFlameStacks[e.id] || 0) + 1);
+    const stacks = player.mods.urielFlameStacks[e.id];
+    realDmg = Math.round(realDmg * (1 + stacks * 0.08));
+    if (stacks >= 3) spawnParticles(e.x, e.y - 10, '#ff8800', stacks, { spdMin:1, spdMax:4, rMin:1, rMax:2.5, decayMin:0.06, decayMax:0.12 });
+  }
+  // 正义反击：消费反击标志（倍率由raguelRevengeBonus决定，升级可提升）
+  if (player.mods.raguelRevenge && (player.mods.raguelRevengeReady || player.mods.raguelRevengeTimer > 0)) {
+    realDmg = Math.round(realDmg * (player.mods.raguelRevengeBonus || 2.0));
+    player.mods.raguelRevengeReady  = false;
+    player.mods.raguelRevengeTimer = 0;
+    spawnParticles(e.x, e.y, '#80ffc0', 12, { spdMin:2, spdMax:8, rMin:2, rMax:4, decayMin:0.04, decayMax:0.09 });
+  }
+  // 天平法则：HP越低伤害越高（最大倍率由raguelBalanceCap决定，默认×2，即HP1%时+100%）
+  if (player.mods.raguelBalance) {
+    const ratio = 1 - player.hp / player.maxHp;
+    const cap   = player.mods.raguelBalanceCap || 2.0;
+    realDmg = Math.round(realDmg * (1 + ratio * (cap - 1)));
+  }
+  // 连锁审判：本次攻击消费连锁倍数
+  if (player.mods.raguelChain && player.mods.raguelChainMul > 1) {
+    realDmg = Math.round(realDmg * player.mods.raguelChainMul);
+  }
+  // 审判积累：永久击杀积累伤害加成
+  if (player.mods.raguelAccum && player.mods.raguelKillBonus > 0) {
+    realDmg += player.mods.raguelKillBonus;
+  }
+
   if (e.type === 'archangel') realDmg = applyArchangelShield(e, realDmg);
 
   // fallen_curse / danel_atk buff：命中减速
@@ -2626,10 +3109,32 @@ function killEnemy(e) {
     decayMin: 0.04, decayMax: 0.08,
   });
   screenShake = Math.max(screenShake, 6);
+  playSound('kill');
   if (player.mods.lifeOnKill) {
     player.hp = Math.min(player.maxHp, player.hp + player.mods.lifeOnKill);
   }
   if (player.mods.dashKillReset) player.dashCd = 0;
+  // 审判积累：每次击杀永久+2伤害（上限60）
+  if (player.mods.raguelAccum) {
+    player.mods.raguelKillBonus = Math.min(60, player.mods.raguelKillBonus + 2);
+    showFloatingText(`审判 +${player.mods.raguelKillBonus}`, '#80ffc0');
+  }
+  // 连锁审判：击杀后重置/累计倍数
+  if (player.mods.raguelChain) {
+    if (player.mods.raguelChainTimer > 0) {
+      // 链条激活，叠加倍数（上限由raguelChainCap决定，默认×8）
+      player.mods.raguelChainMul = Math.min(player.mods.raguelChainCap||8, player.mods.raguelChainMul * 2);
+    } else {
+      player.mods.raguelChainMul = 2; // 首次激活
+    }
+    player.mods.raguelChainTimer = 120; // 2秒窗口
+    spawnParticles(e.x, e.y, '#80ffc0', 10, { spdMin:3, spdMax:9, rMin:1.5, rMax:4, decayMin:0.04, decayMax:0.08 });
+  }
+  // 晨星协议：30%概率设置3倍标志
+  if (player.mods.luciferDeal3 && !player.mods.luciferDeal3TriggerNext && Math.random() < 0.3) {
+    player.mods.luciferDeal3TriggerNext = true;
+    showFloatingText('晨星协议！', '#ff9040', player.x, player.y - 30);
+  }
   // 金币掉落
   if (e.goldDrop > 0) {
     run.gold += e.goldDrop;
@@ -2638,11 +3143,17 @@ function killEnemy(e) {
   // 从 enemies 数组移除
   const idx = enemies.indexOf(e);
   if (idx !== -1) enemies.splice(idx, 1);
+  // 米迦勒战败：触发战败对话（对话结束后进WIN）
+  if (e.type === 'michael_boss') {
+    bossBeams = [];  // 清除残留光柱
+    setTimeout(() => startDialog('michael_boss_defeat'), 800);
+  }
 }
 
 // ── 冲刺 ─────────────────────────────────────────────────
 function doDash() {
   if (player.dashCd > 0) return;
+  playSound('dash');
 
   // 冲刺方向：优先WASD（按屏幕方向），无输入则朝鼠标方向
   let sdx = 0, sdy = 0;
@@ -2701,7 +3212,8 @@ function doDash() {
 function updateAttacks(fd) {
   if (player.comboTimer > 0) player.comboTimer -= fd;
   if (player.atkCd > 0)      player.atkCd      -= fd;
-  if (player.spinCd > 0)     player.spinCd      -= fd;
+  if (player.mods.luciferDeal4) player.spinCd = 0;  // 无冕之规：E技CD永远为0
+  else if (player.spinCd > 0)   player.spinCd -= fd;
 
   // 大剑蓄力计时
   if (player.weapon === 'greatsword') {
@@ -2770,6 +3282,7 @@ function updateAttacks(fd) {
           esc.x, esc.y, e.r
         )) continue;
         hitSet.add(e.id);
+        playSound('hit');
         hitEnemy(e, a.dmg, a.knockback, a.angle, a.holyDmg,
           { isSpin: a.isSpin, isThrust: false, noThunder: a.isSpin });
 
@@ -2819,6 +3332,39 @@ function updateAttacks(fd) {
   if (player.dashDefWindow > 0) player.dashDefWindow -= fd;
   // 圣洁冲倒计时
   if (player.mods.dashLifeConvertTimer > 0) player.mods.dashLifeConvertTimer -= fd;
+  // ── 路西法/乌列尔/拉古尔 buff 计时器更新 ──
+  // 黑翼庇护冷却
+  if (player.mods.luciferDeal5Cd > 0) player.mods.luciferDeal5Cd -= fd;
+  // 完美时刻：连续不受伤计时（3秒=180帧）
+  if (player.mods.urielPerfect && !player.mods.urielPerfectReady) {
+    player.mods.urielPerfectTimer += fd;
+    if (player.mods.urielPerfectTimer >= 180) {
+      player.mods.urielPerfectReady = true;
+      showFloatingText('完美时刻！', '#ffe880');
+    }
+  }
+  // 正义反击倒计时
+  if (player.mods.raguelRevengeTimer > 0) {
+    player.mods.raguelRevengeTimer -= fd;
+    if (player.mods.raguelRevengeTimer <= 0) player.mods.raguelRevengeReady = false;
+  }
+  // 连锁审判计时
+  if (player.mods.raguelChainTimer > 0) {
+    player.mods.raguelChainTimer -= fd;
+    if (player.mods.raguelChainTimer <= 0) {
+      player.mods.raguelChainMul = 1;  // 超时重置
+    }
+  }
+
+  // §26 以西结尔的门靠近提示（zone1，门在北墙中央）
+  if (run.zone === 1 && !run.ezequeelDoorHinted) {
+    const doorWx = Math.floor(ROOM_COLS / 2) * TILE;
+    const doorWy = TILE * 0.5;
+    if (Math.hypot(player.x - doorWx, player.y - doorWy) < 100) {
+      run.ezequeelDoorHinted = true;
+      showFloatingText('这扇门从未打开过', '#ffe060');
+    }
+  }
 }
 
 // 双匕第10连击雷爆
@@ -3127,8 +3673,19 @@ function updateEnemies(fd) {
 // ── 玩家受伤（供敌人调用） ────────────────────────────
 function damagePlayer(dmg, fromAngle) {
   if (player.invincible > 0) return;
+  // 黑翼庇护：受伤改为无敌3秒+扣5HP（冷却3秒）
+  if (player.mods.luciferDeal5Active && player.mods.luciferDeal5Cd <= 0) {
+    player.hp = Math.max(1, player.hp - 5);
+    player.invincible = 180;  // 3秒无敌
+    player.mods.luciferDeal5Cd = 180;  // 3秒冷却
+    showFloatingText('黑翼庇护！', '#ff9040');
+    spawnParticles(player.x, player.y, '#ff4000', 16, { spdMin:3, spdMax:8, rMin:2, rMax:5, decayMin:0.04, decayMax:0.09 });
+    if (player.hp <= 0) setGameState(S.DEAD);
+    return;
+  }
   // 圣光之体：15%概率完全抵消
   if (player.mods.blockChance > 0 && Math.random() < player.mods.blockChance) {
+    playSound('block');
     showFloatingText('格挡！', '#80ffc0');
     spawnParticles(player.x, player.y, '#80ffc0', 10, { spdMin:2, spdMax:6, rMin:1, rMax:3, decayMin:0.06, decayMax:0.12 });
     player.invincible = 10;
@@ -3147,6 +3704,17 @@ function damagePlayer(dmg, fromAngle) {
   player.flashTimer = 8;
   player.invincible = 8;
   screenShake       = Math.max(screenShake, 5);
+  playSound('hurt');
+  // 正义反击：受伤后设置3秒反击窗口
+  if (player.mods.raguelRevenge) {
+    player.mods.raguelRevengeReady = true;
+    player.mods.raguelRevengeTimer = 180;
+  }
+  // 完美时刻：受伤重置计时
+  if (player.mods.urielPerfect) {
+    player.mods.urielPerfectTimer = 0;
+    player.mods.urielPerfectReady = false;
+  }
   // lastStand buff
   if (player.hp <= 0 && player.mods.lastStand && !player.mods.lastStandUsed) {
     player.hp = 1;
@@ -5217,7 +5785,651 @@ function drawPortraitZaqiel(c, x, y) {
   c.restore();
 }
 
-// 立绘调度（对话框渲染时调用）
+// ─── 乌列尔（#ffe880，火焰剑，琥珀金翼，智慧眼神，干净） ────
+function drawPortraitUriel(c, x, y) {
+  c.save();
+  const cx = x + 90;
+  // 琥珀金背景光晕
+  c.shadowColor='#ffe880'; c.shadowBlur=36;
+  const g = c.createRadialGradient(cx,y+80,0,cx,y+80,100);
+  g.addColorStop(0,'rgba(180,140,20,0.28)'); g.addColorStop(1,'rgba(0,0,0,0)');
+  c.fillStyle=g; c.fillRect(x,y,180,220);
+
+  // 翅膀（琥珀金，向上展开）
+  for (let s = -1; s <= 1; s += 2) {
+    c.save(); c.shadowColor='#ffd040'; c.shadowBlur=14; c.globalAlpha=0.85;
+    c.fillStyle = s < 0 ? '#e0a020' : '#f0c040';
+    c.beginPath();
+    c.moveTo(cx+s*8, y+68);
+    c.bezierCurveTo(cx+s*30, y+30, cx+s*70, y+28, cx+s*72, y+60);
+    c.bezierCurveTo(cx+s*60, y+88, cx+s*28, y+90, cx+s*8, y+68);
+    c.fill();
+    c.strokeStyle='rgba(255,220,60,0.5)'; c.lineWidth=1;
+    for(let f=1;f<=4;f++){const ft=f/5;c.beginPath();c.moveTo(cx+s*8,y+68);c.lineTo(cx+s*(8+64*ft),y+68-20*ft);c.stroke();}
+    c.globalAlpha=1; c.restore();
+  }
+  // 身体（白色长袍）
+  c.fillStyle='#f8f0e0'; c.shadowColor='#ffe880'; c.shadowBlur=10;
+  c.beginPath(); c.moveTo(cx-15,y+68); c.lineTo(cx+15,y+68); c.lineTo(cx+20,y+148); c.lineTo(cx-20,y+148); c.closePath(); c.fill();
+  // 右手持火焰剑（剑身从右腰向右上延伸）
+  const swordAngle = -Math.PI * 0.28;
+  c.save(); c.translate(cx+14, y+96); c.rotate(swordAngle);
+  // 剑身（渐变橙→红）
+  const swG = c.createLinearGradient(0,0,0,-62);
+  swG.addColorStop(0,'#ff4400'); swG.addColorStop(0.5,'#ff8800'); swG.addColorStop(1,'#ffe060');
+  c.fillStyle=swG; c.shadowColor='#ff8800'; c.shadowBlur=18;
+  c.fillRect(-2.5,0,5,-62);
+  // 护手
+  c.fillStyle='#d0b050'; c.shadowBlur=4;
+  c.fillRect(-9,-3,18,4);
+  // 剑柄
+  c.fillStyle='#805010';
+  c.fillRect(-2.5,0,5,18);
+  // 火焰粒子（沿剑尖）
+  c.fillStyle='rgba(255,160,0,0.6)'; c.shadowColor='#ff8000'; c.shadowBlur=20;
+  c.beginPath(); c.arc(0,-65,4,0,Math.PI*2); c.fill();
+  c.beginPath(); c.arc(-3,-58,2.5,0,Math.PI*2); c.fill();
+  c.beginPath(); c.arc(3,-55,2,0,Math.PI*2); c.fill();
+  c.restore();
+  // 左手臂（自然垂放）
+  c.strokeStyle='#ede0c0'; c.lineWidth=7; c.lineCap='round'; c.shadowColor='#ffe880'; c.shadowBlur=6;
+  c.beginPath(); c.moveTo(cx-10,y+84); c.lineTo(cx-36,y+104); c.stroke();
+  // 头部（温白皮肤）
+  c.fillStyle='#f0e8d0'; c.shadowColor='#ffe880'; c.shadowBlur=16;
+  c.beginPath(); c.arc(cx,y+52,18,0,Math.PI*2); c.fill();
+  // 头发（金白，整齐）
+  c.fillStyle='#d4b830'; c.shadowBlur=0;
+  c.beginPath(); c.moveTo(cx-14,y+40); c.bezierCurveTo(cx-12,y+24,cx+12,y+24,cx+14,y+40);
+  c.bezierCurveTo(cx+20,y+36,cx+22,y+50,cx+15,y+56); c.lineTo(cx-15,y+56);
+  c.bezierCurveTo(cx-22,y+50,cx-20,y+36,cx-14,y+40); c.closePath(); c.fill();
+  // 眼睛（锐利智慧，琥珀色）
+  c.fillStyle='#c08010'; c.shadowColor='#ffe880'; c.shadowBlur=10;
+  c.beginPath(); c.ellipse(cx-6,y+54,4.5,3,0,0,Math.PI*2); c.fill();
+  c.beginPath(); c.ellipse(cx+6,y+54,4.5,3,0,0,Math.PI*2); c.fill();
+  c.fillStyle='#000';
+  c.beginPath(); c.ellipse(cx-6,y+54,2.5,2,0,0,Math.PI*2); c.fill();
+  c.beginPath(); c.ellipse(cx+6,y+54,2.5,2,0,0,Math.PI*2); c.fill();
+  c.fillStyle='#fff'; c.shadowBlur=0;
+  c.beginPath(); c.arc(cx-5,y+53,1,0,Math.PI*2); c.fill();
+  c.beginPath(); c.arc(cx+7,y+53,1,0,Math.PI*2); c.fill();
+  c.restore();
+}
+
+// ─── 拉古尔（#80ffc0，卷轴+天平，冷绿白翼，正义感） ────────
+function drawPortraitRaguel(c, x, y) {
+  c.save();
+  const cx = x + 90;
+  // 冷绿背景光晕
+  c.shadowColor='#80ffc0'; c.shadowBlur=34;
+  const g = c.createRadialGradient(cx,y+80,0,cx,y+80,100);
+  g.addColorStop(0,'rgba(20,140,80,0.25)'); g.addColorStop(1,'rgba(0,0,0,0)');
+  c.fillStyle=g; c.fillRect(x,y,180,220);
+
+  // 翅膀（冷绿白，整齐）
+  for (let s = -1; s <= 1; s += 2) {
+    c.save(); c.shadowColor='#60e0a0'; c.shadowBlur=12; c.globalAlpha=0.82;
+    c.fillStyle = s < 0 ? '#a0e8c8' : '#c0f4dc';
+    c.beginPath();
+    c.moveTo(cx+s*8, y+70);
+    c.bezierCurveTo(cx+s*28, y+40, cx+s*64, y+44, cx+s*66, y+72);
+    c.bezierCurveTo(cx+s*55, y+96, cx+s*24, y+96, cx+s*8, y+70);
+    c.fill();
+    // 羽毛线（整齐）
+    c.strokeStyle='rgba(80,200,140,0.4)'; c.lineWidth=1;
+    for(let f=1;f<=4;f++){const ft=f/5;c.beginPath();c.moveTo(cx+s*8,y+70);c.lineTo(cx+s*(8+58*ft),y+68+6*ft-8);c.stroke();}
+    c.globalAlpha=1; c.restore();
+  }
+  // 身体（白色铠甲+绿色镶边）
+  c.fillStyle='#f0faf6'; c.shadowColor='#80ffc0'; c.shadowBlur=10;
+  c.beginPath(); c.moveTo(cx-18,y+68); c.lineTo(cx+18,y+68); c.lineTo(cx+24,y+148); c.lineTo(cx-24,y+148); c.closePath(); c.fill();
+  // 铠甲绿色镶边
+  c.strokeStyle='#40c080'; c.lineWidth=2.5; c.shadowColor='#80ffc0'; c.shadowBlur=6;
+  c.beginPath(); c.moveTo(cx-18,y+68); c.lineTo(cx-24,y+148); c.stroke();
+  c.beginPath(); c.moveTo(cx+18,y+68); c.lineTo(cx+24,y+148); c.stroke();
+  c.beginPath(); c.moveTo(cx-18,y+68); c.lineTo(cx+18,y+68); c.stroke();
+  // 左手卷轴
+  c.save(); c.translate(cx-14, y+96);
+  c.fillStyle='#e8e0c8'; c.shadowColor='#c0b060'; c.shadowBlur=6;
+  c.fillRect(-6,-18,12,36);
+  c.fillStyle='#c0a840';
+  c.beginPath(); c.ellipse(0,-18,6,5,0,0,Math.PI*2); c.fill();
+  c.beginPath(); c.ellipse(0,18,6,5,0,0,Math.PI*2); c.fill();
+  // 卷轴上的线
+  c.strokeStyle='rgba(100,80,20,0.4)'; c.lineWidth=0.8;
+  for(let i=-10;i<=10;i+=4){c.beginPath();c.moveTo(-5,i);c.lineTo(5,i);c.stroke();}
+  c.restore();
+  // 右手天平
+  c.save(); c.translate(cx+14, y+90);
+  // 天平臂
+  c.strokeStyle='#60c090'; c.lineWidth=2; c.shadowColor='#80ffc0'; c.shadowBlur=8;
+  c.beginPath(); c.moveTo(0,-10); c.lineTo(0,10); c.stroke(); // 立柱
+  c.beginPath(); c.moveTo(-18,0); c.lineTo(18,0); c.stroke();  // 横臂
+  // 左托盘（略低，示意"失衡"感）
+  c.beginPath(); c.moveTo(-18,0); c.lineTo(-18,12); c.stroke();
+  c.beginPath(); c.moveTo(-22,12); c.lineTo(-14,12); c.stroke();
+  // 右托盘
+  c.beginPath(); c.moveTo(18,0); c.lineTo(18,8); c.stroke();
+  c.beginPath(); c.moveTo(14,8); c.lineTo(22,8); c.stroke();
+  c.restore();
+  // 右臂（持天平）
+  c.strokeStyle='#e0f4ec'; c.lineWidth=7; c.lineCap='round'; c.shadowColor='#80ffc0'; c.shadowBlur=6;
+  c.beginPath(); c.moveTo(cx+10,y+84); c.lineTo(cx+32,y+94); c.stroke();
+  c.beginPath(); c.moveTo(cx-10,y+84); c.lineTo(cx-32,y+100); c.stroke();
+  // 头部（冷肤色）
+  c.fillStyle='#e4f4ee'; c.shadowColor='#80ffc0'; c.shadowBlur=14;
+  c.beginPath(); c.arc(cx,y+53,17,0,Math.PI*2); c.fill();
+  // 头发（浅银）
+  c.fillStyle='#c0d8cc'; c.shadowBlur=0;
+  c.beginPath(); c.moveTo(cx-13,y+41); c.bezierCurveTo(cx-10,y+26,cx+10,y+26,cx+13,y+41);
+  c.bezierCurveTo(cx+18,y+37,cx+20,y+50,cx+14,y+56); c.lineTo(cx-14,y+56);
+  c.bezierCurveTo(cx-20,y+50,cx-18,y+37,cx-13,y+41); c.closePath(); c.fill();
+  // 眼睛（冷静绿色）
+  c.fillStyle='#28a068'; c.shadowColor='#80ffc0'; c.shadowBlur=8;
+  c.beginPath(); c.ellipse(cx-6,y+55,4.2,3,0,0,Math.PI*2); c.fill();
+  c.beginPath(); c.ellipse(cx+6,y+55,4.2,3,0,0,Math.PI*2); c.fill();
+  c.fillStyle='#000'; c.shadowBlur=0;
+  c.beginPath(); c.ellipse(cx-6,y+55,2.2,2,0,0,Math.PI*2); c.fill();
+  c.beginPath(); c.ellipse(cx+6,y+55,2.2,2,0,0,Math.PI*2); c.fill();
+  c.fillStyle='#fff';
+  c.beginPath(); c.arc(cx-5,y+54,1,0,Math.PI*2); c.fill();
+  c.beginPath(); c.arc(cx+7,y+54,1,0,Math.PI*2); c.fill();
+  c.restore();
+}
+
+// ─── 萨拉克尼亚尔（#c060ff，暗影披风遮半身，单眼发光，结局演出用） ───
+function drawPortraitSaraknyal(c, x, y) {
+  c.save();
+  const cx = x + 90;
+  // 深紫背景光晕
+  c.shadowColor = '#c060ff'; c.shadowBlur = 40;
+  const g = c.createRadialGradient(cx, y+80, 0, cx, y+80, 105);
+  g.addColorStop(0, 'rgba(120,30,200,0.32)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+  c.fillStyle = g; c.fillRect(x, y, 180, 220);
+
+  // 翅膀（深紫黑，破碎感，左右不对称）
+  // 左翼：残缺，只剩骨架线
+  c.save(); c.globalAlpha = 0.7; c.shadowColor = '#8020c0'; c.shadowBlur = 14;
+  c.strokeStyle = '#6010a0'; c.lineWidth = 2.5; c.lineCap = 'round';
+  c.beginPath(); c.moveTo(cx-8, y+72); c.bezierCurveTo(cx-30, y+44, cx-68, y+50, cx-66, y+82); c.stroke();
+  c.beginPath(); c.moveTo(cx-8, y+72); c.lineTo(cx-48, y+58); c.stroke();
+  c.beginPath(); c.moveTo(cx-8, y+72); c.lineTo(cx-56, y+70); c.stroke();
+  c.beginPath(); c.moveTo(cx-8, y+72); c.lineTo(cx-44, y+82); c.stroke();
+  c.globalAlpha = 1; c.restore();
+  // 右翼：完整但暗沉，边缘发光
+  c.save(); c.shadowColor = '#c060ff'; c.shadowBlur = 18; c.globalAlpha = 0.78;
+  c.fillStyle = '#3a0880';
+  c.beginPath();
+  c.moveTo(cx+8, y+70);
+  c.bezierCurveTo(cx+32, y+36, cx+74, y+42, cx+72, y+74);
+  c.bezierCurveTo(cx+60, y+96, cx+26, y+96, cx+8, y+70);
+  c.fill();
+  // 羽毛边缘发紫光
+  c.strokeStyle = 'rgba(180,80,255,0.5)'; c.lineWidth = 1;
+  for (let f = 1; f <= 5; f++) {
+    const ft = f/6;
+    c.beginPath(); c.moveTo(cx+8, y+70); c.lineTo(cx+(8+64*ft), y+72-18*ft); c.stroke();
+  }
+  c.globalAlpha = 1; c.restore();
+
+  // 暗影披风（遮住下半身+左半脸）
+  c.save(); c.shadowColor = '#200040'; c.shadowBlur = 20;
+  const capeG = c.createLinearGradient(cx-60, y+60, cx+30, y+200);
+  capeG.addColorStop(0, 'rgba(10,0,30,0.96)');
+  capeG.addColorStop(0.4, 'rgba(30,0,60,0.88)');
+  capeG.addColorStop(1, 'rgba(0,0,10,0.75)');
+  c.fillStyle = capeG;
+  c.beginPath();
+  c.moveTo(cx-60, y+58);
+  c.bezierCurveTo(cx-40, y+54, cx-10, y+62, cx+5, y+75);
+  c.lineTo(cx+20, y+220); c.lineTo(x, y+220); c.lineTo(x, y+58);
+  c.closePath(); c.fill();
+  // 披风边缘紫色轮廓
+  c.strokeStyle = 'rgba(160,40,220,0.5)'; c.lineWidth = 1.5;
+  c.beginPath();
+  c.moveTo(cx-60, y+58);
+  c.bezierCurveTo(cx-40, y+54, cx-10, y+62, cx+5, y+75);
+  c.stroke();
+  c.restore();
+
+  // 身体（只露右半侧，暗紫长袍）
+  c.fillStyle = '#1a0040'; c.shadowColor = '#c060ff'; c.shadowBlur = 8;
+  c.beginPath(); c.moveTo(cx+5, y+72); c.lineTo(cx+22, y+72); c.lineTo(cx+28, y+160); c.lineTo(cx+5, y+160); c.closePath(); c.fill();
+
+  // 头部（偏右，左半脸被披风遮住）
+  c.fillStyle = '#d0b8e8'; c.shadowColor = '#c060ff'; c.shadowBlur = 16;
+  c.beginPath(); c.arc(cx+6, y+52, 19, 0, Math.PI*2); c.fill();
+  // 头发（散乱深紫黑）
+  c.fillStyle = '#18003a'; c.shadowBlur = 0;
+  c.beginPath(); c.moveTo(cx-8, y+38); c.bezierCurveTo(cx-2, y+24, cx+16, y+26, cx+20, y+38);
+  c.bezierCurveTo(cx+28, y+34, cx+30, y+46, cx+24, y+52); c.lineTo(cx-6, y+52);
+  c.bezierCurveTo(cx-14, y+46, cx-14, y+36, cx-8, y+38); c.closePath(); c.fill();
+  // 左眼：被披风遮住（不绘制）
+  // 右眼：单眼发光（紫色竖瞳）
+  c.fillStyle = '#ffffff'; c.shadowColor = '#c060ff'; c.shadowBlur = 20;
+  c.beginPath(); c.ellipse(cx+12, y+53, 5.5, 4, 0, 0, Math.PI*2); c.fill();
+  c.fillStyle = '#c060ff'; c.shadowColor = '#e080ff'; c.shadowBlur = 24;
+  c.beginPath(); c.ellipse(cx+12, y+53, 2.2, 3.5, 0, 0, Math.PI*2); c.fill(); // 竖瞳
+  c.fillStyle = '#ffffff'; c.shadowBlur = 8;
+  c.beginPath(); c.arc(cx+13, y+51, 1.2, 0, Math.PI*2); c.fill();
+  // 嘴（紧抿，右侧可见）
+  c.strokeStyle = '#8860a0'; c.lineWidth = 1.5; c.lineCap = 'round'; c.shadowBlur = 0;
+  c.beginPath(); c.moveTo(cx+4, y+63); c.lineTo(cx+18, y+62); c.stroke();
+
+  // 右手（从披风下伸出，半握拳）
+  c.strokeStyle = '#c8a8e0'; c.lineWidth = 6; c.lineCap = 'round'; c.shadowColor = '#c060ff'; c.shadowBlur = 8;
+  c.beginPath(); c.moveTo(cx+14, y+90); c.lineTo(cx+34, y+114); c.stroke();
+  // 手指
+  c.lineWidth = 3;
+  c.beginPath(); c.moveTo(cx+34, y+114); c.lineTo(cx+38, y+124); c.stroke();
+  c.beginPath(); c.moveTo(cx+34, y+114); c.lineTo(cx+42, y+120); c.stroke();
+  c.beginPath(); c.moveTo(cx+34, y+114); c.lineTo(cx+44, y+114); c.stroke();
+
+  // 紫色浮游光点（背景装饰）
+  c.fillStyle = 'rgba(180,80,255,0.7)'; c.shadowColor = '#c060ff'; c.shadowBlur = 10;
+  for (let i = 0; i < 7; i++) {
+    const sx = x+24+i*21, sy = y+8+((i*43)%55);
+    c.beginPath(); c.arc(sx, sy, 1.2+(i%2)*0.8, 0, Math.PI*2); c.fill();
+  }
+  c.restore();
+}
+
+// ─── 加德列尔（#ff4040，蛇形装饰，悲伤下垂眼，双手枷锁，结局剪影用） ───
+function drawPortraitGadreel(c, x, y) {
+  c.save();
+  const cx = x + 90;
+  // 血红背景光晕
+  c.shadowColor = '#ff4040'; c.shadowBlur = 38;
+  const g = c.createRadialGradient(cx, y+80, 0, cx, y+80, 100);
+  g.addColorStop(0, 'rgba(160,20,20,0.30)'); g.addColorStop(1, 'rgba(0,0,0,0)');
+  c.fillStyle = g; c.fillRect(x, y, 180, 220);
+
+  // 翅膀（暗红褐，低垂，疲惫感）
+  for (let s = -1; s <= 1; s += 2) {
+    c.save(); c.globalAlpha = 0.72; c.shadowColor = '#c03030'; c.shadowBlur = 10;
+    c.fillStyle = s < 0 ? '#4a1010' : '#6a1a1a';
+    c.beginPath();
+    c.moveTo(cx+s*8, y+75);
+    c.bezierCurveTo(cx+s*24, y+68, cx+s*62, y+80, cx+s*58, y+108); // 低垂弧线
+    c.bezierCurveTo(cx+s*44, y+118, cx+s*20, y+106, cx+s*8, y+75);
+    c.fill();
+    // 羽毛（稀疏，有脱落感）
+    c.strokeStyle = 'rgba(180,60,60,0.35)'; c.lineWidth = 1;
+    for (let f = 1; f <= 3; f++) {
+      const ft = f/4;
+      c.beginPath(); c.moveTo(cx+s*8, y+75); c.lineTo(cx+s*(8+50*ft), y+78+16*ft); c.stroke();
+    }
+    c.globalAlpha = 1; c.restore();
+  }
+
+  // 身体（深灰破损袍子）
+  c.fillStyle = '#1c1010'; c.shadowColor = '#ff4040'; c.shadowBlur = 10;
+  c.beginPath(); c.moveTo(cx-16, y+72); c.lineTo(cx+16, y+72); c.lineTo(cx+20, y+160); c.lineTo(cx-20, y+160); c.closePath(); c.fill();
+  // 袍子裂缝（红色）
+  c.strokeStyle = 'rgba(200,40,40,0.5)'; c.lineWidth = 1; c.lineCap = 'round';
+  c.beginPath(); c.moveTo(cx-4, y+80); c.lineTo(cx-8, y+100); c.stroke();
+  c.beginPath(); c.moveTo(cx+6, y+90); c.lineTo(cx+2, y+115); c.stroke();
+
+  // 蛇形装饰（盘绕在左臂，向上伸头）
+  c.save(); c.translate(cx-22, y+100);
+  c.strokeStyle = '#c04020'; c.lineWidth = 4; c.lineCap = 'round'; c.shadowColor = '#ff6030'; c.shadowBlur = 10;
+  c.beginPath();
+  c.moveTo(0, 30); c.bezierCurveTo(-12, 18, 10, 8, -6, -2);
+  c.bezierCurveTo(-20, -12, 4, -22, -4, -34);
+  c.stroke();
+  // 蛇头
+  c.fillStyle = '#c04020'; c.shadowColor = '#ff4000'; c.shadowBlur = 12;
+  c.beginPath(); c.ellipse(-4, -38, 5, 3.5, -0.3, 0, Math.PI*2); c.fill();
+  // 蛇眼（黄色竖瞳）
+  c.fillStyle = '#e0c000'; c.shadowBlur = 6;
+  c.beginPath(); c.ellipse(-4, -38, 1.5, 2, 0, 0, Math.PI*2); c.fill();
+  // 蛇信
+  c.strokeStyle = '#ff6040'; c.lineWidth = 1;
+  c.beginPath(); c.moveTo(-1, -38); c.lineTo(5, -40); c.stroke();
+  c.beginPath(); c.moveTo(-1, -38); c.lineTo(5, -36); c.stroke();
+  c.restore();
+
+  // 双手枷锁
+  // 左手（向前伸，枷锁可见）
+  c.strokeStyle = '#b08060'; c.lineWidth = 6.5; c.lineCap = 'round'; c.shadowColor = '#ff4040'; c.shadowBlur = 4;
+  c.beginPath(); c.moveTo(cx-12, y+90); c.lineTo(cx-32, y+118); c.stroke();
+  // 枷锁圆环（左）
+  c.strokeStyle = '#808080'; c.lineWidth = 4; c.shadowColor = '#c0c0c0'; c.shadowBlur = 6;
+  c.beginPath(); c.arc(cx-32, y+120, 7, 0, Math.PI*2); c.stroke();
+  // 右手（向下垂，枷锁+锁链）
+  c.strokeStyle = '#b08060'; c.lineWidth = 6.5; c.lineCap = 'round'; c.shadowColor = '#ff4040'; c.shadowBlur = 4;
+  c.beginPath(); c.moveTo(cx+12, y+90); c.lineTo(cx+28, y+122); c.stroke();
+  // 枷锁圆环（右）
+  c.strokeStyle = '#808080'; c.lineWidth = 4; c.shadowColor = '#c0c0c0'; c.shadowBlur = 6;
+  c.beginPath(); c.arc(cx+28, y+124, 7, 0, Math.PI*2); c.stroke();
+  // 锁链（连接两个枷锁，垂弧）
+  c.strokeStyle = '#707070'; c.lineWidth = 2; c.shadowColor = '#aaaaaa'; c.shadowBlur = 4;
+  c.beginPath(); c.moveTo(cx-25, y+120); c.bezierCurveTo(cx-10, y+138, cx+14, y+138, cx+21, y+124); c.stroke();
+  // 锁链链节点
+  for (let i = 0; i < 4; i++) {
+    const t = (i+1)/5;
+    const lx = cx-25 + (cx+21-cx+25)*t, ly = y+120 + 18*Math.sin(t*Math.PI);
+    c.beginPath(); c.arc(lx-4, ly, 2.5, 0, Math.PI*2); c.stroke();
+  }
+
+  // 头部（低垂，悲伤）
+  c.fillStyle = '#c8a8a0'; c.shadowColor = '#ff4040'; c.shadowBlur = 14;
+  c.beginPath(); c.arc(cx, y+54, 19, 0, Math.PI*2); c.fill();
+  // 头发（暗红，遮半脸，下垂感）
+  c.fillStyle = '#400a0a'; c.shadowBlur = 0;
+  c.beginPath(); c.moveTo(cx-16, y+40); c.bezierCurveTo(cx-10, y+26, cx+10, y+26, cx+16, y+40);
+  c.bezierCurveTo(cx+22, y+36, cx+24, y+50, cx+16, y+56); c.lineTo(cx-16, y+56);
+  c.bezierCurveTo(cx-24, y+50, cx-22, y+36, cx-16, y+40); c.closePath(); c.fill();
+  // 刘海（遮住左眼）
+  c.fillStyle = '#3a0808';
+  c.beginPath(); c.moveTo(cx-20, y+40); c.bezierCurveTo(cx-18, y+48, cx-12, y+54, cx-4, y+58);
+  c.bezierCurveTo(cx-16, y+60, cx-26, y+54, cx-22, y+44); c.closePath(); c.fill();
+  // 右眼（下垂，悲伤，眼尾向下）
+  c.fillStyle = '#c84040'; c.shadowColor = '#ff4040'; c.shadowBlur = 8;
+  c.beginPath(); c.ellipse(cx+7, y+56, 5, 3, 0.25, 0, Math.PI*2); c.fill(); // 略倾斜
+  c.fillStyle = '#200000';
+  c.beginPath(); c.ellipse(cx+7, y+56, 2.5, 2, 0.25, 0, Math.PI*2); c.fill();
+  c.fillStyle = '#ffffff'; c.shadowBlur = 4;
+  c.beginPath(); c.arc(cx+8, y+55, 1, 0, Math.PI*2); c.fill();
+  // 眼尾（下垂线）
+  c.strokeStyle = 'rgba(180,60,60,0.6)'; c.lineWidth = 1; c.lineCap = 'round'; c.shadowBlur = 0;
+  c.beginPath(); c.moveTo(cx+12, y+57); c.lineTo(cx+15, y+61); c.stroke();
+  // 嘴（紧抿，下弯，悲伤）
+  c.strokeStyle = '#905050'; c.lineWidth = 1.8; c.lineCap = 'round';
+  c.beginPath(); c.moveTo(cx-4, y+66); c.bezierCurveTo(cx+2, y+68, cx+8, y+68, cx+12, y+66); c.stroke();
+
+  // 血红浮游粒子（背景）
+  c.fillStyle = 'rgba(220,50,50,0.65)'; c.shadowColor = '#ff4040'; c.shadowBlur = 8;
+  for (let i = 0; i < 6; i++) {
+    const sx = x+18+i*24, sy = y+6+((i*51)%60);
+    c.beginPath(); c.arc(sx, sy, 1+(i%2)*0.8, 0, Math.PI*2); c.fill();
+  }
+  c.restore();
+}
+
+// ─── 加百列（#e8f4ff，冷白宽大双翼，右手号角，左手铁链，公事公办） ───
+function drawPortraitGabriel(c, x, y) {
+  c.save();
+  const cx = x + 90;
+  // 冷白背景光晕
+  c.shadowColor = '#b8d8ff'; c.shadowBlur = 40;
+  const g = c.createRadialGradient(cx, y+80, 0, cx, y+80, 110);
+  g.addColorStop(0, 'rgba(200,230,255,0.22)'); g.addColorStop(1, 'rgba(10,10,20,0)');
+  c.fillStyle = g; c.fillRect(x, y, 180, 220);
+  c.shadowBlur = 0;
+
+  // 宽大纯白双翼（平展，压迫感）
+  c.shadowColor = '#ddeeff'; c.shadowBlur = 18;
+  // 左翼
+  c.beginPath();
+  c.moveTo(cx-15, y+85);
+  c.bezierCurveTo(cx-60, y+55, cx-130, y+50, cx-145, y+90);
+  c.bezierCurveTo(cx-120, y+105, cx-70, y+105, cx-15, y+105);
+  c.closePath();
+  c.fillStyle = '#ddeeff'; c.fill();
+  // 翼尖淡金纹
+  c.strokeStyle = '#d4b85a'; c.lineWidth = 1.5;
+  c.beginPath(); c.moveTo(cx-80, y+60); c.lineTo(cx-140, y+88); c.stroke();
+  c.beginPath(); c.moveTo(cx-50, y+58); c.lineTo(cx-100, y+76); c.stroke();
+  // 右翼
+  c.beginPath();
+  c.moveTo(cx+15, y+85);
+  c.bezierCurveTo(cx+60, y+55, cx+130, y+50, cx+145, y+90);
+  c.bezierCurveTo(cx+120, y+105, cx+70, y+105, cx+15, y+105);
+  c.closePath();
+  c.fillStyle = '#ddeeff'; c.fill();
+  c.strokeStyle = '#d4b85a'; c.lineWidth = 1.5;
+  c.beginPath(); c.moveTo(cx+80, y+60); c.lineTo(cx+140, y+88); c.stroke();
+  c.beginPath(); c.moveTo(cx+50, y+58); c.lineTo(cx+100, y+76); c.stroke();
+  c.shadowBlur = 0;
+
+  // 身体：白色盔甲轮廓
+  c.fillStyle = '#c8dcf0';
+  c.beginPath(); c.ellipse(cx, y+130, 32, 48, 0, 0, Math.PI*2); c.fill();
+  c.strokeStyle = '#88aacc'; c.lineWidth = 1.5;
+  c.beginPath(); c.ellipse(cx, y+130, 32, 48, 0, 0, Math.PI*2); c.stroke();
+
+  // 领口+护甲线
+  c.strokeStyle = '#a0c0e0'; c.lineWidth = 1;
+  c.beginPath(); c.moveTo(cx-16, y+100); c.lineTo(cx, y+110); c.lineTo(cx+16, y+100); c.stroke();
+  c.beginPath(); c.moveTo(cx-22, y+118); c.lineTo(cx+22, y+118); c.stroke();
+
+  // 左手——铁链（伸向左下，几节圆圈）
+  c.strokeStyle = '#8899aa'; c.lineWidth = 2.5;
+  c.beginPath(); c.moveTo(cx-20, y+148); c.lineTo(cx-40, y+170); c.stroke();
+  for (let i = 0; i < 3; i++) {
+    const lx = cx-28 - i*10, ly = y+154 + i*7;
+    c.beginPath(); c.arc(lx, ly, 4, 0, Math.PI*2); c.stroke();
+  }
+
+  // 右手——号角（圆锥形，向右上扬）
+  c.fillStyle = '#d4b85a'; c.strokeStyle = '#b89840'; c.lineWidth = 1.5;
+  c.beginPath();
+  c.moveTo(cx+20, y+140); c.lineTo(cx+55, y+110); c.lineTo(cx+62, y+118);
+  c.lineTo(cx+28, y+150); c.closePath(); c.fill(); c.stroke();
+  // 号角喇叭口
+  c.beginPath(); c.ellipse(cx+58, y+114, 9, 5, -0.5, 0, Math.PI*2); c.fill(); c.stroke();
+
+  // 头部：冷白，无表情，平静眼神
+  c.fillStyle = '#ddeeff';
+  c.beginPath(); c.ellipse(cx, y+68, 20, 22, 0, 0, Math.PI*2); c.fill();
+  c.strokeStyle = '#99bbdd'; c.lineWidth = 1;
+  c.beginPath(); c.ellipse(cx, y+68, 20, 22, 0, 0, Math.PI*2); c.stroke();
+  // 眼睛——细长，冷漠
+  c.fillStyle = '#6699bb';
+  c.beginPath(); c.ellipse(cx-7, y+65, 4, 2.5, 0, 0, Math.PI*2); c.fill();
+  c.beginPath(); c.ellipse(cx+7, y+65, 4, 2.5, 0, 0, Math.PI*2); c.fill();
+  // 眉——平直
+  c.strokeStyle = '#88aacc'; c.lineWidth = 1.5;
+  c.beginPath(); c.moveTo(cx-10, y+60); c.lineTo(cx-4, y+60); c.stroke();
+  c.beginPath(); c.moveTo(cx+4, y+60); c.lineTo(cx+10, y+60); c.stroke();
+  // 嘴——微抿，无情绪
+  c.beginPath(); c.moveTo(cx-5, y+74); c.lineTo(cx+5, y+74); c.stroke();
+
+  // 头光环（细，冷白）
+  c.shadowColor = '#ddeeff'; c.shadowBlur = 12;
+  c.strokeStyle = 'rgba(200,225,255,0.7)'; c.lineWidth = 1.5;
+  c.beginPath(); c.ellipse(cx, y+42, 22, 5, 0, 0, Math.PI*2); c.stroke();
+  c.shadowBlur = 0;
+
+  // 名字标签
+  c.fillStyle = 'rgba(0,10,20,0.5)';
+  c.fillRect(x+28, y+195, 124, 18);
+  c.fillStyle = '#b0ccee'; c.font = '11px Courier New'; c.textAlign = 'center';
+  c.fillText('加百列  Gabriel', cx, y+208);
+  c.restore();
+}
+
+// ─── 撒拉加尔（#ffd080，六翼撒拉弗，双剑交叉，狂热信仰，俯视感） ───
+function drawPortraitSaraqael(c, x, y) {
+  c.save();
+  const cx = x + 90;
+  // 暖金背景光晕
+  c.shadowColor = '#ffd060'; c.shadowBlur = 42;
+  const g = c.createRadialGradient(cx, y+80, 0, cx, y+80, 115);
+  g.addColorStop(0, 'rgba(255,210,80,0.20)'); g.addColorStop(1, 'rgba(10,8,0,0)');
+  c.fillStyle = g; c.fillRect(x, y, 180, 220);
+  c.shadowBlur = 0;
+
+  // 六翼（撒拉弗传统形象）：上两翼遮面，中两翼展开，下两翼垂地
+  const drawWing = (dirX, curve, tipY, baseY) => {
+    c.beginPath();
+    c.moveTo(cx + dirX*14, baseY);
+    c.bezierCurveTo(cx + dirX*curve*0.5, baseY-20, cx + dirX*curve, tipY+10, cx + dirX*curve*1.1, tipY);
+    c.bezierCurveTo(cx + dirX*curve*0.8, tipY+20, cx + dirX*14, baseY+15, cx + dirX*14, baseY);
+    c.closePath();
+  };
+  c.shadowColor = '#ffcc40'; c.shadowBlur = 14;
+  c.fillStyle = '#ffe090';
+  // 上翼（遮面，向上拱起）
+  drawWing(-1, 55, y+28, y+65); c.fill();
+  drawWing( 1, 55, y+28, y+65); c.fill();
+  // 中翼（展开，主翼）
+  c.fillStyle = '#ffd060';
+  drawWing(-1, 85, y+72, y+95); c.fill();
+  drawWing( 1, 85, y+72, y+95); c.fill();
+  // 下翼（垂地，尖端向下）
+  c.fillStyle = '#c8a030';
+  drawWing(-1, 60, y+175, y+130); c.fill();
+  drawWing( 1, 60, y+175, y+130); c.fill();
+  // 翼脉纹
+  c.strokeStyle = '#b88820'; c.lineWidth = 1; c.shadowBlur = 0;
+  for (let i = 0; i < 3; i++) {
+    c.beginPath();
+    c.moveTo(cx-14, y+92); c.lineTo(cx-60-i*18, y+76-i*6); c.stroke();
+    c.beginPath();
+    c.moveTo(cx+14, y+92); c.lineTo(cx+60+i*18, y+76-i*6); c.stroke();
+  }
+
+  // 身体：金色护甲
+  c.fillStyle = '#c89030';
+  c.beginPath(); c.ellipse(cx, y+130, 30, 46, 0, 0, Math.PI*2); c.fill();
+  c.strokeStyle = '#a07020'; c.lineWidth = 1.5;
+  c.beginPath(); c.ellipse(cx, y+130, 30, 46, 0, 0, Math.PI*2); c.stroke();
+  // 护甲纹
+  c.strokeStyle = '#ffe080'; c.lineWidth = 1;
+  c.beginPath(); c.moveTo(cx-20, y+105); c.lineTo(cx, y+115); c.lineTo(cx+20, y+105); c.stroke();
+  c.beginPath(); c.moveTo(cx-24, y+125); c.lineTo(cx+24, y+125); c.stroke();
+
+  // 双剑交叉（胸前，×形）
+  c.strokeStyle = '#c8d8ff'; c.lineWidth = 3.5;
+  c.shadowColor = '#a0c0ff'; c.shadowBlur = 10;
+  // 左剑（左上→右下）
+  c.beginPath(); c.moveTo(cx-28, y+102); c.lineTo(cx+28, y+155); c.stroke();
+  // 右剑（右上→左下）
+  c.beginPath(); c.moveTo(cx+28, y+102); c.lineTo(cx-28, y+155); c.stroke();
+  // 剑柄
+  c.strokeStyle = '#d4aa50'; c.lineWidth = 5;
+  c.beginPath(); c.moveTo(cx-32, y+98); c.lineTo(cx-22, y+108); c.stroke();
+  c.beginPath(); c.moveTo(cx+22, y+98); c.lineTo(cx+32, y+108); c.stroke();
+  c.shadowBlur = 0;
+
+  // 头部（上翼部分遮住，只露下半脸+下巴——俯视角营造压迫感）
+  c.fillStyle = '#f0d88a';
+  c.beginPath(); c.ellipse(cx, y+72, 18, 20, 0, 0, Math.PI*2); c.fill();
+  c.strokeStyle = '#b88820'; c.lineWidth = 1;
+  c.beginPath(); c.ellipse(cx, y+72, 18, 20, 0, 0, Math.PI*2); c.stroke();
+  // 上翼遮面效果（半透明金色遮住上半脸）
+  c.fillStyle = 'rgba(255,220,90,0.45)';
+  c.fillRect(cx-20, y+46, 40, 26);
+  // 露出眼睛（俯视，眼神下压，冷意）
+  c.fillStyle = '#553300';
+  c.beginPath(); c.ellipse(cx-6, y+66, 4.5, 2.8, -0.2, 0, Math.PI*2); c.fill();
+  c.beginPath(); c.ellipse(cx+6, y+66, 4.5, 2.8, 0.2, 0, Math.PI*2); c.fill();
+  // 瞳孔——亮金
+  c.fillStyle = '#ffee88';
+  c.beginPath(); c.arc(cx-6, y+66, 2, 0, Math.PI*2); c.fill();
+  c.beginPath(); c.arc(cx+6, y+66, 2, 0, Math.PI*2); c.fill();
+  // 鼻梁（挺直，傲骨）
+  c.strokeStyle = '#b08030'; c.lineWidth = 1;
+  c.beginPath(); c.moveTo(cx, y+69); c.lineTo(cx-2, y+77); c.stroke();
+  // 嘴（抿紧，不屑）
+  c.beginPath(); c.moveTo(cx-6, y+80); c.quadraticCurveTo(cx, y+78, cx+6, y+80); c.stroke();
+
+  // 头顶金光（六翼撒拉弗特有的圣辉）
+  c.shadowColor = '#ffdd60'; c.shadowBlur = 20;
+  c.strokeStyle = 'rgba(255,220,60,0.8)'; c.lineWidth = 2;
+  c.beginPath(); c.arc(cx, y+46, 16, 0, Math.PI*2); c.stroke();
+  c.shadowBlur = 0;
+
+  // 暖金浮动粒子
+  c.fillStyle = 'rgba(255,210,60,0.7)'; c.shadowColor = '#ffcc30'; c.shadowBlur = 6;
+  for (let i = 0; i < 5; i++) {
+    const px = x+20+i*28, py = y+8+((i*43)%55);
+    c.beginPath(); c.arc(px, py, 1.2+(i%2)*0.7, 0, Math.PI*2); c.fill();
+  }
+  c.shadowBlur = 0;
+
+  // 名字标签
+  c.fillStyle = 'rgba(20,10,0,0.5)';
+  c.fillRect(x+14, y+195, 152, 18);
+  c.fillStyle = '#ffd080'; c.font = '11px Courier New'; c.textAlign = 'center';
+  c.fillText('撒拉加尔  Saraqael', cx, y+208);
+  c.restore();
+}
+
+// ─── 上帝立绘（无人形，纯光柱+双竖缝眼，极白+金） ────────
+function drawPortraitGod(c, x, y) {
+  c.save();
+  const cx = x + 90;
+  const pw = 180, ph = 220;
+
+  // 背景——极深黑，近乎虚空
+  c.fillStyle = '#020204';
+  c.fillRect(x, y, pw, ph);
+
+  // 外层光晕——淡金白，大范围漫射
+  const outerGlow = c.createRadialGradient(cx, y+95, 10, cx, y+95, 140);
+  outerGlow.addColorStop(0, 'rgba(255,255,230,0.18)');
+  outerGlow.addColorStop(0.5, 'rgba(255,240,180,0.07)');
+  outerGlow.addColorStop(1, 'rgba(0,0,0,0)');
+  c.fillStyle = outerGlow;
+  c.fillRect(x, y, pw, ph);
+
+  // 光柱——从顶部垂直打下，中心极亮
+  const beam = c.createLinearGradient(cx, y, cx, y+ph);
+  beam.addColorStop(0,   'rgba(255,255,255,0.0)');
+  beam.addColorStop(0.15,'rgba(255,255,240,0.55)');
+  beam.addColorStop(0.45,'rgba(255,255,255,0.90)');
+  beam.addColorStop(0.7, 'rgba(255,250,220,0.40)');
+  beam.addColorStop(1,   'rgba(255,255,255,0.0)');
+  c.fillStyle = beam;
+  c.fillRect(cx-28, y, 56, ph);
+
+  // 内核白光球——核心过曝感
+  const core = c.createRadialGradient(cx, y+90, 0, cx, y+90, 55);
+  core.addColorStop(0,   'rgba(255,255,255,1.0)');
+  core.addColorStop(0.2, 'rgba(255,255,240,0.85)');
+  core.addColorStop(0.6, 'rgba(255,240,180,0.30)');
+  core.addColorStop(1,   'rgba(0,0,0,0)');
+  c.fillStyle = core;
+  c.fillRect(x, y+40, pw, 120);
+
+  // 光羽——8条放射线，从核心向外扩散
+  c.strokeStyle = 'rgba(255,255,220,0.18)';
+  c.lineWidth = 1.2;
+  for (let i = 0; i < 8; i++) {
+    const angle = (i / 8) * Math.PI * 2 - Math.PI * 0.5;
+    const r1 = 18, r2 = 90 + (i % 3) * 18;
+    c.beginPath();
+    c.moveTo(cx + Math.cos(angle) * r1, y+90 + Math.sin(angle) * r1);
+    c.lineTo(cx + Math.cos(angle) * r2, y+90 + Math.sin(angle) * r2);
+    c.stroke();
+  }
+
+  // 双竖缝眼——细长金白，像裂缝而不是眼睛
+  c.shadowColor = '#fffaaa'; c.shadowBlur = 18;
+  // 左眼
+  c.fillStyle = '#fffde0';
+  c.beginPath();
+  c.ellipse(cx-20, y+88, 2.2, 11, 0, 0, Math.PI*2);
+  c.fill();
+  // 右眼
+  c.beginPath();
+  c.ellipse(cx+20, y+88, 2.2, 11, 0, 0, Math.PI*2);
+  c.fill();
+  // 眼睛内核——纯白过曝
+  c.fillStyle = '#ffffff';
+  c.shadowBlur = 30;
+  c.beginPath(); c.ellipse(cx-20, y+88, 1.2, 7, 0, 0, Math.PI*2); c.fill();
+  c.beginPath(); c.ellipse(cx+20, y+88, 1.2, 7, 0, 0, Math.PI*2); c.fill();
+  c.shadowBlur = 0;
+
+  // 底部光晕散射（脚下不可见）
+  const foot = c.createLinearGradient(cx, y+160, cx, y+ph);
+  foot.addColorStop(0, 'rgba(255,255,200,0.22)');
+  foot.addColorStop(1, 'rgba(0,0,0,0)');
+  c.fillStyle = foot;
+  c.fillRect(x+30, y+160, pw-60, ph-160);
+
+  // 名字标签
+  c.fillStyle = 'rgba(0,0,0,0.6)';
+  c.fillRect(x+14, y+195, 152, 18);
+  c.fillStyle = '#fffde0'; c.font = '11px Courier New'; c.textAlign = 'center';
+  c.shadowColor = '#fffaaa'; c.shadowBlur = 8;
+  c.fillText('造物主', cx, y+208);
+  c.restore();
+}
+
 function renderPortrait(line) {
   if (!line || !line.portrait) return;
   const pw = 180, ph = 220;
@@ -5225,21 +6437,111 @@ function renderPortrait(line) {
   const portraitY = H - dialogH - ph + 10; // 贴对话框上沿，略微重叠
   const portraitX = (line.side === 'right') ? W - pw - 40 : 40;
   switch (line.portrait) {
-    case 'lucifer':   drawPortraitLucifer (ctx, portraitX, portraitY); break;
-    case 'player':    drawPortraitPlayer  (ctx, portraitX, portraitY); break;
-    case 'raphael':   drawPortraitRaphael (ctx, portraitX, portraitY); break;
-    case 'michael':   drawPortraitMichael (ctx, portraitX, portraitY); break;
-    case 'azazel':    drawPortraitAzazel  (ctx, portraitX, portraitY); break;
-    case 'ramiel':    drawPortraitRamiel  (ctx, portraitX, portraitY); break;
-    case 'shamsiel':  drawPortraitShamsiel(ctx, portraitX, portraitY); break;
-    case 'semyaza':   drawPortraitSemyaza (ctx, portraitX, portraitY); break;
-    case 'kokabiel':  drawPortraitKokabiel(ctx, portraitX, portraitY); break;
-    case 'sariel':    drawPortraitSariel  (ctx, portraitX, portraitY); break;
-    case 'danel':     drawPortraitDanel   (ctx, portraitX, portraitY); break;
-    case 'ezequeel':  drawPortraitEzequeel(ctx, portraitX, portraitY); break;
-    case 'baraqiel':  drawPortraitBaraqiel(ctx, portraitX, portraitY); break;
-    case 'zaqiel':    drawPortraitZaqiel  (ctx, portraitX, portraitY); break;
+    case 'lucifer':   drawPortraitLucifer  (ctx, portraitX, portraitY); break;
+    case 'player':    drawPortraitPlayer   (ctx, portraitX, portraitY); break;
+    case 'raphael':   drawPortraitRaphael  (ctx, portraitX, portraitY); break;
+    case 'michael':   drawPortraitMichael  (ctx, portraitX, portraitY); break;
+    case 'azazel':    drawPortraitAzazel   (ctx, portraitX, portraitY); break;
+    case 'ramiel':    drawPortraitRamiel   (ctx, portraitX, portraitY); break;
+    case 'shamsiel':  drawPortraitShamsiel (ctx, portraitX, portraitY); break;
+    case 'semyaza':   drawPortraitSemyaza  (ctx, portraitX, portraitY); break;
+    case 'kokabiel':  drawPortraitKokabiel (ctx, portraitX, portraitY); break;
+    case 'sariel':    drawPortraitSariel   (ctx, portraitX, portraitY); break;
+    case 'danel':     drawPortraitDanel    (ctx, portraitX, portraitY); break;
+    case 'ezequeel':  drawPortraitEzequeel (ctx, portraitX, portraitY); break;
+    case 'baraqiel':  drawPortraitBaraqiel (ctx, portraitX, portraitY); break;
+    case 'zaqiel':    drawPortraitZaqiel   (ctx, portraitX, portraitY); break;
+    case 'uriel':     drawPortraitUriel    (ctx, portraitX, portraitY); break;
+    case 'raguel':    drawPortraitRaguel   (ctx, portraitX, portraitY); break;
+    case 'saraknyal': drawPortraitSaraknyal(ctx, portraitX, portraitY); break;
+    case 'gadreel':   drawPortraitGadreel  (ctx, portraitX, portraitY); break;
+    case 'gabriel':   drawPortraitGabriel  (ctx, portraitX, portraitY); break;
+    case 'saraqael':  drawPortraitSaraqael (ctx, portraitX, portraitY); break;
+    case 'god':       drawPortraitGod      (ctx, portraitX, portraitY); break;
   }
+}
+
+// ═══════════════════════════════════════════════════════════
+// ═══ AUDIO ══════════════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+// Web Audio API 程序合成音效，无需音频文件，懒初始化满足 autoplay 策略
+
+let _ac = null;
+function getAC() {
+  if (!_ac) _ac = new (window.AudioContext || window.webkitAudioContext)();
+  return _ac;
+}
+
+// 创建白噪声 AudioBuffer（dur秒，单声道）
+function makeNoiseBuffer(ac, dur) {
+  const frames = Math.ceil(ac.sampleRate * dur);
+  const buf = ac.createBuffer(1, frames, ac.sampleRate);
+  const data = buf.getChannelData(0);
+  for (let i = 0; i < frames; i++) data[i] = Math.random() * 2 - 1;
+  return buf;
+}
+
+// 噪声音效通用构建器
+function synthNoise(ac, dur, filterType, filterFreq, filterQ, gainPeak, vol) {
+  const src = ac.createBufferSource();
+  src.buffer = makeNoiseBuffer(ac, dur);
+  const filt = ac.createBiquadFilter();
+  filt.type = filterType; filt.frequency.value = filterFreq;
+  if (filterQ !== null) filt.Q.value = filterQ;
+  const gain = ac.createGain();
+  gain.gain.setValueAtTime(gainPeak * vol, ac.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + dur);
+  src.connect(filt); filt.connect(gain); gain.connect(ac.destination);
+  src.start(); src.stop(ac.currentTime + dur + 0.01);
+}
+
+// 振荡器音效通用构建器
+function synthOsc(ac, type, freqStart, freqEnd, dur, gainPeak, vol) {
+  const osc = ac.createOscillator();
+  osc.type = type;
+  osc.frequency.setValueAtTime(freqStart, ac.currentTime);
+  if (freqEnd !== freqStart) osc.frequency.exponentialRampToValueAtTime(freqEnd, ac.currentTime + dur);
+  const gain = ac.createGain();
+  gain.gain.setValueAtTime(gainPeak * vol, ac.currentTime);
+  gain.gain.exponentialRampToValueAtTime(0.0001, ac.currentTime + dur);
+  osc.connect(gain); gain.connect(ac.destination);
+  osc.start(); osc.stop(ac.currentTime + dur + 0.01);
+}
+
+function playSound(id, vol) {
+  vol = (vol === undefined) ? 1 : vol;
+  try {
+    const ac = getAC();
+    switch (id) {
+      case 'hit':       // 普攻/旋转斩命中：中频噪声短促击打
+        synthNoise(ac, 0.055, 'bandpass', 800,  2,   0.30, vol);
+        break;
+      case 'hit_thrust': // 突刺命中：高频噪声穿透感
+        synthNoise(ac, 0.08,  'bandpass', 1400, 2,   0.35, vol);
+        break;
+      case 'kill':      // 击杀：低沉爆碎
+        synthNoise(ac, 0.10,  'lowpass',  200,  null, 0.50, vol);
+        synthOsc(ac, 'sine', 80, 40, 0.12, 0.20, vol);
+        break;
+      case 'dash':      // 冲刺：超短气流"嗖"
+        synthNoise(ac, 0.045, 'highpass', 2200, null, 0.18, vol);
+        break;
+      case 'spin':      // 旋转斩：低锯齿扫频
+        synthOsc(ac, 'sawtooth', 280, 120, 0.22, 0.22, vol);
+        synthNoise(ac, 0.18, 'lowpass', 350, null, 0.10, vol);
+        break;
+      case 'hurt':      // 受伤：中低频噪声+下滑
+        synthNoise(ac, 0.08,  'bandpass', 320,  1.5, 0.40, vol);
+        synthOsc(ac, 'sine', 160, 60, 0.10, 0.15, vol);
+        break;
+      case 'block':     // 格挡：高频金属碰撞
+        synthOsc(ac, 'sine', 1300, 1100, 0.045, 0.22, vol);
+        break;
+      case 'ui':        // 界面点击：轻柔高频正弦
+        synthOsc(ac, 'sine', 900, 800, 0.035, 0.14, vol);
+        break;
+    }
+  } catch (_) {}  // 静默失败，不影响游戏逻辑
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -5395,17 +6697,23 @@ function endDialog() {
   setGameState(S.PLAYING);
 
   // 执行 onEnd 回调
-  if (endAction === 'offerBuff') offerBuff(null);  // 全池3选1（路西法对话后）
+  if (endAction === 'offerLuciferAngelBuff') offerBuff('lucifer');  // zone0 ANGEL房路西法专属池
+  else if (endAction === 'offerUrielBuff')   offerBuff('uriel');    // zone1 ANGEL房乌列尔专属池
+  else if (endAction === 'offerRaguelBuff')  offerBuff('raguel');   // zone2 ANGEL房拉古尔专属池
   else if (endAction === 'offerBlessingBuffCombat') {
     // COMBAT房祝福天使对话后：给该天使自己的6个buff里3选1
     const aid = blessingAngel ? blessingAngel.id : null;
     offerBuff(aid);
   }
-  else if (endAction === 'offerBlessingBuffAngelRoom') {
-    // ANGEL房：全池3选1
-    offerBuff(null);
+  else if (endAction === 'godAppears') {
+    // 米迦勒战败对话结束后：触发上帝对话
+    setTimeout(() => startDialog('god_appears'), 400);
   }
-  else if (endAction === 'grantAngelBuff' && angelId) grantAngelBuffImmediate(angelId);
+  else if (endAction === 'michaelDefeated') {
+    // 上帝对话结束后（主角说"死吧。"）：启动结局演出动画
+    initEnding();
+    setGameState(S.ENDING);
+  }
 }
 
 // ── 堕落天使对话（动态注入到DIALOGS）────────────────────
@@ -5420,14 +6728,15 @@ function pickRandomAngel() {
 }
 
 function startAngelDialog(angel) {
-  // ANGEL房间：堕落天使对话结束后给全池3选1（不再是单个即时buff）
+  // ANGEL房间（zone0堕落天使）：对话结束后给全部30个buff池3选1
   const key = '__angel__';
   DIALOGS[key] = {
-    onEnd: 'offerBlessingBuffAngelRoom',   // 全池3选1
+    onEnd: 'offerAngelRoomBuff',
     lines: angel.lines.map(l => ({
       speaker: angel.name,
       speakerColor: angel.color,
-      portrait: null,   // 堕落天使暂无立绘（使用文字）
+      portrait: angel.portrait || null,
+      side: 'left',
       text: l.text,
       isEnd: l.isEnd || false,
     })),
@@ -5436,19 +6745,78 @@ function startAngelDialog(angel) {
   startDialog(key);
 }
 
+// 路西法（zone0 ANGEL房）对话——结束后给路西法5个专属buff里3选1
+function startLuciferAngelDialog() {
+  DIALOGS['__lucifer_angel__'] = {
+    onEnd: 'offerLuciferAngelBuff',
+    lines: [
+      {
+        speaker: '路西法', speakerColor: '#ff9040',
+        portrait: 'lucifer', side: 'left',
+        text: '你知道吗，所有的规则都是他写的。\n所有的规则，也都是可以打破的。',
+      },
+      {
+        speaker: '路西法', speakerColor: '#ff9040',
+        portrait: 'lucifer', side: 'left',
+        text: '我愿意和你做一个交易。\n代价你自己承担。',
+        isEnd: true,
+      },
+    ],
+  };
+  startDialog('__lucifer_angel__');
+}
+
+// 乌列尔（zone1 ANGEL房）对话——结束后给乌列尔5个专属buff里3选1
+function startUrielDialog() {
+  DIALOGS['__uriel__'] = {
+    onEnd: 'offerUrielBuff',
+    lines: [
+      {
+        speaker: '乌列尔', speakerColor: '#ffe880',
+        portrait: 'uriel', side: 'left',
+        text: '我守着东方的大门，\n但我不拦你——你早已走过了大多数人的界限。',
+      },
+      {
+        speaker: '乌列尔', speakerColor: '#ffe880',
+        portrait: 'uriel', side: 'left',
+        text: '智慧是最重的负担。\n选一份，让它帮你承担。',
+        isEnd: true,
+      },
+    ],
+  };
+  startDialog('__uriel__');
+}
+
+// 拉古尔（zone2 ANGEL房）对话——结束后给拉古尔5个专属buff里3选1
+function startRaguelDialog() {
+  DIALOGS['__raguel__'] = {
+    onEnd: 'offerRaguelBuff',
+    lines: [
+      {
+        speaker: '拉古尔', speakerColor: '#80ffc0',
+        portrait: 'raguel', side: 'left',
+        text: '审判不是结果。\n审判是每一刀、每一步、每一次选择叠加起来的东西。',
+      },
+      {
+        speaker: '拉古尔', speakerColor: '#80ffc0',
+        portrait: 'raguel', side: 'left',
+        text: '你已经走到这里了。\n选一份——让正义继续积累。',
+        isEnd: true,
+      },
+    ],
+  };
+  startDialog('__raguel__');
+}
+
 // 天使祝福立即发放（对话结束后）
+// FALLEN_ANGELS的buff不走ALL_BUFFS池，直接apply效果
 function grantAngelBuffImmediate(angelId) {
   const angel = FALLEN_ANGELS.find(a => a.id === angelId);
   if (!angel) return;
-  // 找到对应buff
-  const buff = ALL_BUFFS.find(b => b.id === angel.buffId);
-  if (!buff) return;
-  if (!run.activeBuffs.includes(buff.id)) {
-    buff.apply(player);
-    run.activeBuffs.push(buff.id);
-    updateBuffIcons();
-  }
-  // 显示获得提示
+  if (run.activeBuffs.includes('fallen_' + angelId)) return; // 防重复
+  run.activeBuffs.push('fallen_' + angelId);
+  angel.applyBuff(player);
+  updateBuffIcons();
   showFloatingText(`获得：${angel.buffName}`, angel.color);
 }
 
@@ -5573,8 +6941,8 @@ function offerWeaponSelection() {
 }
 
 document.getElementById('btn-start') .addEventListener('click', startGame);
-document.getElementById('btn-retry') .addEventListener('click', () => { resetAll(); setGameState(S.TITLE); });
-document.getElementById('btn-back')  .addEventListener('click', () => { resetAll(); setGameState(S.TITLE); });
+document.getElementById('btn-retry') .addEventListener('click', () => location.reload());
+document.getElementById('btn-back')  .addEventListener('click', () => location.reload());
 document.getElementById('btn-resume').addEventListener('click', () => setGameState(S.PLAYING));
 document.getElementById('btn-shop-leave').addEventListener('click', () => setGameState(S.PLAYING));
 
@@ -5603,14 +6971,45 @@ let room = { tiles: [], exits: [], type: 'COMBAT' };
 // run 对象：当前局的进度
 let run = { zone: 0, roomIdx: 0, roomSequence: [], activeBuffs: [], gold: 0, nextChoices: [],
   pendingEliteReward: false, pendingCombatReward: false, pendingCombatAngel: null,
-  blessingAngelQueue: [], blessingAngelIdx: 0, buffSourceAngel: null };
+  pendingBossReward: false,
+  ezequeelDoorHinted: false,   // §26 以西结尔的门靠近提示，每房间只弹一次
+  blessingAngelQueue: [], blessingAngelIdx: 0, buffSourceAngel: null,
+  angelRoomsVisited: 0,     // 本局遇到过几次ANGEL房（用于概率锁定）
+  angelChanceLocked: 0.20,  // 首次遇到时的概率（之后各区维持此值）
+  luciferUsed: false,       // 路西法本局只出现一次（ELITE房）
+  urielUsed: false,         // 乌列尔本局只出现一次（zone1 ANGEL房）
+  raguelUsed: false,        // 拉古尔本局只出现一次（zone2 ANGEL房）
+};
 
 // 房间类型序列生成
-// 每区5间：ENTRY, COMBAT, COMBAT/ANGEL, ELITE, BOSS
-// 只有20%概率把第2间改为ANGEL（天使祝福间），减少纯对话房间
+// 每区5间固定序列：ENTRY → COMBAT → COMBAT/ANGEL → ELITE → BOSS
+// 第3间有概率变为ANGEL（天使祝福间，无怪物，直接给buff）
+//
+// ANGEL房出现概率——累积但锁定机制：
+//   - 本局从未遇到过ANGEL房时，概率随区数递增：zone0=20%，zone1=40%，zone2=60%
+//   - 首次遇到ANGEL房后，概率锁定在首次遇到时的值，之后各区维持该概率不再上涨
+//     例：zone0没遇到(20%)→zone1遇到(40%触发，锁定40%)→zone2维持40%，不涨到60%
+//     例：zone0没遇到(20%)→zone1没遇到(40%)→zone2涨到60%
+//   - 每个好天使（乌列尔/拉古尔）一局只出现一次，zone绑定不重复
+//
+// ANGEL房天使分配（按zone固定）：
+//   zone0 → 随机堕落天使（FALLEN_ANGELS池，有重复保护），给全池30个buff 3选1
+//   zone1 → 乌列尔（startUrielDialog），给乌列尔专属5个buff 3选1
+//   zone2 → 拉古尔（startRaguelDialog），给拉古尔专属5个buff 3选1
+//
+// run.angelRoomsVisited：记录本局累计进入ANGEL房次数（0=从未遇到，用于概率判断）
+// run.angelChanceLocked：首次遇到时写入的概率值（之后generateRoomSequence读取此值）
 function generateRoomSequence(zone) {
-  const seq = ['ENTRY', 'COMBAT', 'COMBAT', 'ELITE', 'BOSS'];
-  if (Math.random() < 0.20) seq[1] = 'ANGEL';
+  // 6间序列：[ENTRY, COMBAT, COMBAT/ANGEL, SHOP, ELITE, BOSS]
+  // index=3 固定SHOP，每层BOSS前必过商店
+  const seq = ['ENTRY', 'COMBAT', 'COMBAT', 'SHOP', 'ELITE', 'BOSS'];
+  // angelRoomsVisited=0: 从未遇到 → 概率随zone累积
+  // angelRoomsVisited>0: 已遇到过 → 锁定在首次遇到时的概率（首次遇到是第X区，则概率=0.20+X*0.20）
+  // 用 run.angelChanceLocked 存锁定值（首次遇到时写入）
+  const chance = (run.angelRoomsVisited === 0)
+    ? 0.20 + zone * 0.20
+    : (run.angelChanceLocked || 0.20);
+  if (Math.random() < Math.min(chance, 0.60)) seq[2] = 'ANGEL';
   return seq;
 }
 
@@ -5618,6 +7017,7 @@ function generateRoomSequence(zone) {
 const PILLAR_LAYOUTS = {
   ENTRY:  [[4,4],[4,20],[13,4],[13,20]],
   ANGEL:  [[4,4],[4,20],[13,4],[13,20]],   // 天使祝福间：同ENTRY布局
+  SHOP:   [[4,4],[4,20],[13,4],[13,20]],   // 商店间：四角柱，留中央空间摆摊
   COMBAT: [
     [[4,4],[4,20],[13,4],[13,20],[8,12]],
     [[4,8],[4,16],[8,4],[8,20],[13,12]],
@@ -5687,7 +7087,14 @@ function initRun() {
   run.nextChoices = [];
   run.pendingEliteReward = false;
   run.pendingCombatReward = false;   // COMBAT房打完等待天使弹出
+  run.pendingBossReward   = false;   // zone2 BOSS打完等待米迦勒战败对话
   run.pendingCombatAngel = null;     // COMBAT房对应天使
+  run.ezequeelDoorHinted = false;    // §26 以西结尔的门提示重置
+  run.angelRoomsVisited  = 0;        // 重置ANGEL房累积概率计数
+  run.angelChanceLocked  = 0.20;     // 重置锁定概率
+  run.luciferUsed = false;           // 重置路西法一局一次限制
+  run.urielUsed   = false;           // 重置乌列尔一局一次限制
+  run.raguelUsed  = false;           // 重置拉古尔一局一次限制
   run.roomSequence = generateRoomSequence(0);
   usedAngelIds = [];
   initBlessingQueue();
@@ -5708,9 +7115,11 @@ function loadRoom(zone, roomIdx) {
   spawnEnemiesForRoom(type, zone);
 
   // 每次加载新房间重置COMBAT战斗奖励标志
+  // 注意：pendingCombatAngel 不在这里清，由 checkExitUnlock 用完后清
   run.pendingCombatReward = false;
-  run.pendingCombatAngel  = null;
   run.pendingEliteReward  = false;
+  run.pendingBossReward   = false;
+  run.ezequeelDoorHinted  = false;   // §26 每进新房间重置门提示
 
   // ENTRY / ANGEL / SHOP 房间直接解锁出口
   if (type === 'ENTRY' || type === 'ANGEL' || type === 'SHOP') {
@@ -5726,17 +7135,45 @@ function loadRoom(zone, roomIdx) {
   // 更新顶部进度 HUD
   updateProgressHUD();
 
+  // ── 进房buff效果 ──
+  // 试炼之焰：进入战斗房间时HP→60%（攻速已在apply时乘1.8）
+  if (player.mods.raguelTrial && (type === 'COMBAT' || type === 'ELITE' || type === 'BOSS')) {
+    player.hp = Math.ceil(player.maxHp * 0.6);
+    showFloatingText('试炼之焰！', '#80ffc0');
+  }
+  // 烈焰之刃：进入新战斗房间时衰减倍率-15%（到1停止）
+  if (player.mods.luciferDeal2Active && (type === 'COMBAT' || type === 'ELITE' || type === 'BOSS')) {
+    player.mods.luciferDeal2Mul = Math.max(1, parseFloat((player.mods.luciferDeal2Mul - 0.15).toFixed(2)));
+    if (player.mods.luciferDeal2Mul <= 1) {
+      player.mods.luciferDeal2Active = false;
+      showFloatingText('烈焰之刃耗尽', '#ff9040');
+    }
+  }
+
   // 叙事/商店触发
   if (type === 'SHOP') {
     setTimeout(() => openShop(), 300);
   } else if (zone === 1 && roomIdx === 0) {
+    // zone1 ENTRY：拉斐尔对话，结束后 onEnd='offerBuff' 触发区间奖励
     setTimeout(() => startDialog('raphael_zone2'), 300);
-  } else if (zone === 2 && type === 'BOSS') {
-    setTimeout(() => startDialog('michael_boss_intro'), 300);
+  } else if (zone === 2 && roomIdx === 0) {
+    // zone2 ENTRY：过场对话，不给buff
+    setTimeout(() => startDialog('lucifer_zone3'), 300);
+  } else if (type === 'BOSS') {
+    // BOSS入场对话按zone分流
+    if (zone === 0)      setTimeout(() => startDialog('gabriel_boss_intro'), 300);
+    else if (zone === 1) setTimeout(() => startDialog('saraqael_boss_intro'), 300);
+    else                 setTimeout(() => startDialog('michael_boss_intro'), 300);
   } else if (type === 'ANGEL') {
-    // ANGEL房：堕落天使出现，对话后给全池3选1
-    const angel = pickRandomAngel();
-    setTimeout(() => startAngelDialog(angel), 300);
+    // ANGEL房按zone固定分流：zone0→路西法，zone1→乌列尔，zone2→拉古尔
+    // 每人只出现一次，各给自己专属5个buff里3选1
+    if (zone === 0) {
+      setTimeout(() => startLuciferAngelDialog(), 300);
+    } else if (zone === 1) {
+      setTimeout(() => startUrielDialog(), 300);
+    } else {
+      setTimeout(() => startRaguelDialog(), 300);
+    }
   }
 }
 
@@ -5756,25 +7193,36 @@ function spawnEnemiesForRoom(type, zone) {
     return { x, y };
   }
 
+  // §37 区域缩放倍率：zone0基准，zone1/2递增
+  // HP：0→1→2 = ×1.0→×1.35→×1.75，伤害：×1.0→×1.2→×1.45
+  const HP_MUL  = [1.0, 1.35, 1.75][zone] || 1.0;
+  const DMG_MUL = [1.0, 1.20, 1.45][zone] || 1.0;
+  function scaleEnemy(e) {
+    e.hp    = Math.round(e.hp    * HP_MUL);
+    e.maxHp = Math.round(e.maxHp * HP_MUL);
+    e.damage = Math.round(e.damage * DMG_MUL);
+    return e;
+  }
+
   if (type === 'COMBAT') {
     if (zone === 0) {
       // 净罪塔：2个守卫，1个长矛
-      for (let i = 0; i < 2; i++) { const p = safePos(); enemies.push(makeEnemy('guardian', p.x, p.y)); }
-      { const p = safePos(); enemies.push(makeEnemy('spear_angel', p.x, p.y)); }
+      for (let i = 0; i < 2; i++) { const p = safePos(); enemies.push(scaleEnemy(makeEnemy('guardian', p.x, p.y))); }
+      { const p = safePos(); enemies.push(scaleEnemy(makeEnemy('spear_angel', p.x, p.y))); }
     } else if (zone === 1) {
       // 圣光廊道：2个守卫，2个长矛
-      for (let i = 0; i < 2; i++) { const p = safePos(); enemies.push(makeEnemy('guardian', p.x, p.y)); }
-      for (let i = 0; i < 2; i++) { const p = safePos(); enemies.push(makeEnemy('spear_angel', p.x, p.y)); }
+      for (let i = 0; i < 2; i++) { const p = safePos(); enemies.push(scaleEnemy(makeEnemy('guardian', p.x, p.y))); }
+      for (let i = 0; i < 2; i++) { const p = safePos(); enemies.push(scaleEnemy(makeEnemy('spear_angel', p.x, p.y))); }
     } else {
       // 审判庭：3个守卫，2个长矛
-      for (let i = 0; i < 3; i++) { const p = safePos(); enemies.push(makeEnemy('guardian', p.x, p.y)); }
-      for (let i = 0; i < 2; i++) { const p = safePos(); enemies.push(makeEnemy('spear_angel', p.x, p.y)); }
+      for (let i = 0; i < 3; i++) { const p = safePos(); enemies.push(scaleEnemy(makeEnemy('guardian', p.x, p.y))); }
+      for (let i = 0; i < 2; i++) { const p = safePos(); enemies.push(scaleEnemy(makeEnemy('spear_angel', p.x, p.y))); }
     }
   } else if (type === 'ELITE') {
-    // 精英间：archangel + 1个长矛
+    // 精英间：archangel + 1个长矛（精英自身不缩放HP，已有硬编码；小怪缩放）
     const cx = WORLD_W * 0.6, cy = WORLD_H * 0.5;
-    enemies.push(makeArchangel(cx, cy));
-    { const p = safePos(); enemies.push(makeEnemy('spear_angel', p.x, p.y)); }
+    enemies.push(scaleEnemy(makeArchangel(cx, cy)));
+    { const p = safePos(); enemies.push(scaleEnemy(makeEnemy('spear_angel', p.x, p.y))); }
   } else if (type === 'BOSS') {
     // BOSS间：zone0/1 用强化archangel当Boss，zone2用michael_boss
     const cx = WORLD_W * 0.65, cy = WORLD_H * 0.5;
@@ -5782,15 +7230,18 @@ function spawnEnemiesForRoom(type, zone) {
       // 净罪塔/圣光廊道BOSS：强化大天使 + 2个守卫
       const boss = makeArchangel(cx, cy);
       boss.isBoss = true;
-      boss.hp    = 280; boss.maxHp = 280;
+      boss.hp    = Math.round(280 * HP_MUL); boss.maxHp = boss.hp;
       boss.r     = 22;
       boss.speed *= 1.2;
+      boss.damage = Math.round(boss.damage * DMG_MUL);
       enemies.push(boss);
-      { const p = safePos(); enemies.push(makeEnemy('guardian', p.x, p.y)); }
-      { const p = safePos(); enemies.push(makeEnemy('guardian', p.x, p.y)); }
+      { const p = safePos(); enemies.push(scaleEnemy(makeEnemy('guardian', p.x, p.y))); }
+      { const p = safePos(); enemies.push(scaleEnemy(makeEnemy('guardian', p.x, p.y))); }
     } else {
-      // 审判庭BOSS：米迦勒
-      enemies.push(makeMichaelBoss(cx, cy));
+      // 审判庭BOSS：米迦勒（HP固定600，已足够高，伤害按区域缩放）
+      const mb = makeMichaelBoss(cx, cy);
+      mb.damage = Math.round(mb.damage * DMG_MUL);
+      enemies.push(mb);
     }
   }
 }
@@ -5800,24 +7251,30 @@ function checkExitUnlock() {
   if (room.type === 'ENTRY' || room.type === 'ANGEL') return;
   if (enemies.length === 0 && !room.exits[0].locked) return; // 已解锁不重复处理
   if (enemies.length === 0) {
+    // 审判庭BOSS（zone2 BOSS房）：米迦勒战败对话接管，出口永不解锁，由endDialog直接进WIN
+    if (room.type === 'BOSS' && run.zone === 2) {
+      if (!run.pendingBossReward) run.pendingBossReward = true;
+      // 出口永远保持锁定，等 michael_boss_defeat 对话走完后 endDialog 触发 WIN
+      return;
+    }
     // COMBAT房打完：弹出祝福天使对话 → 给该天使池3选1 → 解锁出口
     if (room.type === 'COMBAT' && !run.pendingCombatReward) {
       run.pendingCombatReward = true;
       room.exits.forEach(ex => { ex.locked = true; }); // 保持锁定，等Buff选完
       const angel = run.pendingCombatAngel || nextBlessingAngel();
-      run.pendingCombatAngel = angel;
+      run.pendingCombatAngel = null;  // 用完立即清，下一间重新绑定
       setTimeout(() => {
         startBlessingAngelDialog(angel, 'combat');
       }, 400);
       return;
     }
-    // 精英间打完：弹路西法对话+全池Buff选择
+    // 精英间打完：直接给100金币，解锁出口
     if (room.type === 'ELITE' && !run.pendingEliteReward) {
       run.pendingEliteReward = true;
-      setTimeout(() => {
-        startDialog('lucifer_after_elite');
-      }, 400);
-      room.exits.forEach(ex => { ex.locked = true; }); // 保持锁定，等Buff选完
+      run.gold += 100;
+      updateGoldHUD();
+      showFloatingText('+100 金币', '#ffd080');
+      setTimeout(() => { room.exits.forEach(ex => { ex.locked = false; }); run.pendingEliteReward = false; }, 400);
       return;
     }
     room.exits.forEach(ex => { ex.locked = false; });
@@ -5831,9 +7288,9 @@ function checkExitTrigger() {
     if (player.x + player.r > ex.x && player.x - player.r < ex.x + ex.w &&
         player.y + player.r > ex.y && player.y - player.r < ex.y + ex.h) {
       // ENTRY 间第一次直接进下一间（游戏开始走廊不需要选路）
-      // BOSS 间打完后直接走（advanceRoom 会处理区域结束逻辑）
+      // BOSS/ELITE/SHOP 间打完/选完后直接走（不弹岔路）
       // 区域最后一间（BOSS）直接触发房间切换
-      if (room.type === 'BOSS' || run.roomIdx + 1 >= ROOMS_PER_ZONE) {
+      if (room.type === 'BOSS' || room.type === 'ELITE' || room.type === 'SHOP' || run.roomIdx + 1 >= ROOMS_PER_ZONE) {
         triggerRoomTransition();
       } else {
         triggerRouteChoice();
@@ -5845,33 +7302,35 @@ function checkExitTrigger() {
 
 // 岔路选择
 // 房间类型选项池（按区域权重）—— 含奖励预览
+// 岔路只影响序列中第2、3间（COMBAT/ANGEL位），不含SHOP/ELITE（它们固定在序列里）
 const ROUTE_POOL = {
   0: [ // 净罪塔
-    { type: 'COMBAT', icon: '⚔', name: '巡逻间', desc: '净罪塔守卫 + 长矛天使', reward: '◈ 金币掉落' },
-    { type: 'COMBAT', icon: '⚔', name: '戒律间', desc: '守卫编队，难度稍高', reward: '◈ 金币掉落' },
-    { type: 'ELITE',  icon: '🛡', name: '精英间', desc: '大天使精英，护盾守卫', reward: '✦ 路西法祝福' },
-    { type: 'ANGEL',  icon: '✦', name: '堕落天使', desc: '与堕落的先辈相遇', reward: '✦ 即时祝福' },
-    { type: 'SHOP',   icon: '◈', name: '商人之所', desc: '花费金币购买强化', reward: '◈ 消费强化' },
+    { type: 'COMBAT', weight: 4, icon: '⚔', name: '巡逻间', desc: '净罪塔守卫 + 长矛天使', reward: '◈ 金币掉落' },
+    { type: 'COMBAT', weight: 4, icon: '⚔', name: '戒律间', desc: '守卫编队，难度稍高', reward: '◈ 金币掉落' },
+    { type: 'ANGEL',  weight: 1, icon: '✦', name: '堕落天使', desc: '与堕落的先辈相遇', reward: '✦ 即时祝福' },
   ],
   1: [ // 圣光廊道
-    { type: 'COMBAT', icon: '⚔', name: '圣光间', desc: '双倍长矛天使', reward: '◈ 金币掉落' },
-    { type: 'COMBAT', icon: '⚔', name: '廊道间', desc: '守卫+长矛混合', reward: '◈ 金币掉落' },
-    { type: 'ELITE',  icon: '🛡', name: '大天使间', desc: '精英大天使，有护盾', reward: '✦ 路西法祝福' },
-    { type: 'ANGEL',  icon: '✦', name: '堕落天使', desc: '听先辈讲述他们的故事', reward: '✦ 即时祝福' },
-    { type: 'SHOP',   icon: '◈', name: '商人之所', desc: '花费金币强化自身', reward: '◈ 消费强化' },
+    { type: 'COMBAT', weight: 4, icon: '⚔', name: '圣光间', desc: '双倍长矛天使', reward: '◈ 金币掉落' },
+    { type: 'COMBAT', weight: 4, icon: '⚔', name: '廊道间', desc: '守卫+长矛混合', reward: '◈ 金币掉落' },
+    { type: 'ANGEL',  weight: 1, icon: '✦', name: '堕落天使', desc: '听先辈讲述他们的故事', reward: '✦ 即时祝福' },
   ],
   2: [ // 审判庭
-    { type: 'COMBAT', icon: '⚔', name: '审判间', desc: '重装守卫 + 长矛', reward: '◈ 金币掉落' },
-    { type: 'ELITE',  icon: '🛡', name: '裁决间', desc: '强化精英大天使', reward: '✦ 路西法祝福' },
-    { type: 'ANGEL',  icon: '✦', name: '堕落天使', desc: '审判前的最后相遇', reward: '✦ 即时祝福' },
-    { type: 'SHOP',   icon: '◈', name: '商人之所', desc: '最后的强化机会', reward: '◈ 消费强化' },
+    { type: 'COMBAT', weight: 4, icon: '⚔', name: '审判间',  desc: '重装守卫 + 长矛', reward: '◈ 金币掉落' },
+    { type: 'COMBAT', weight: 4, icon: '⚔', name: '审判间', desc: '精锐守卫编队', reward: '◈ 金币掉落' },
+    { type: 'ANGEL',  weight: 1, icon: '✦', name: '堕落天使', desc: '审判前的最后相遇', reward: '✦ 即时祝福' },
   ],
 };
 
 function generateNextChoices(zone, currentIdx) {
   const pool = ROUTE_POOL[zone] || ROUTE_POOL[0];
-  // 打乱并选两个不重复类型的选项
-  const shuffled = [...pool].sort(() => Math.random() - 0.5);
+  // 加权随机：每个条目按weight重复加入候选，然后抽两个不重复类型
+  const weighted = [];
+  for (const opt of pool) {
+    const w = opt.weight || 1;
+    for (let i = 0; i < w; i++) weighted.push(opt);
+  }
+  // 打乱加权池，选两个不重复类型
+  const shuffled = [...weighted].sort(() => Math.random() - 0.5);
   const choices = [];
   const usedTypes = new Set();
   for (const opt of shuffled) {
@@ -5895,13 +7354,13 @@ function triggerRouteChoice() {
   if (gameState === S.ROUTE) return;
   // 生成岔路选项，同时预先绑定下一个祝福天使
   run.nextChoices = generateNextChoices(run.zone, run.roomIdx);
-  // 为选项里的COMBAT绑定预告天使
+  // 为选项里的COMBAT绑定预告天使（用peek，不消耗队列）
+  const previewAngel = peekBlessingAngel();
   for (const opt of run.nextChoices) {
     if (opt.type === 'COMBAT') {
-      const angel = nextBlessingAngel();
-      opt.blessingAngel = angel;  // 预告用
-      opt.reward = `✦ ${angel.name}的祝福`;
-      opt.rewardColor = angel.color;
+      opt.blessingAngel = previewAngel;  // 所有COMBAT选项预告同一个天使
+      opt.reward = `✦ ${previewAngel.name}的祝福`;
+      opt.rewardColor = previewAngel.color;
     }
   }
   renderRouteScreen();
@@ -5925,9 +7384,9 @@ function renderRouteScreen() {
         <div style="font-size:11px;color:${rewardCol};margin-top:6px;letter-spacing:1px;">${opt.reward || ''}</div>
       </div>`;
     card.addEventListener('click', () => {
-      // 如果选了COMBAT，把预先绑定的天使存到 pendingCombatAngel
+      // 如果选了COMBAT，消耗队列并绑定到pendingCombatAngel
       if (opt.type === 'COMBAT' && opt.blessingAngel) {
-        run.pendingCombatAngel = opt.blessingAngel;
+        run.pendingCombatAngel = nextBlessingAngel(); // 真正消耗，拿到的和peek一致
       }
       pendingRouteChoice = opt;
       setGameState(S.PLAYING);
@@ -5985,7 +7444,6 @@ function advanceRoom() {
     run.roomSequence = generateRoomSequence(run.zone);
     pendingRouteChoice = null;
     loadRoom(run.zone, 0);
-    setTimeout(() => offerBuff(), 350);
   } else {
     // 用玩家选择的路线类型覆盖序列中对应房间类型
     if (pendingRouteChoice) {
@@ -6022,45 +7480,81 @@ function offerBuff(angelId) {
   renderBuffChoices();
 }
 
-// Buff选择渲染（按天使池或全池）
+// Buff选择渲染（按天使池或全池；已有buff以「升级」形式出现）
 function renderBuffChoices() {
   const angelId = run.buffSourceAngel;
   let pool;
   let headerAngel = null;
+
   if (angelId) {
-    const angel = BLESSING_ANGELS.find(a => a.id === angelId);
+    const ANGEL_META = {
+      lucifer: { id: 'lucifer', name: '路西法', color: '#ff9040' },
+      uriel:   { id: 'uriel',   name: '乌列尔', color: '#ffe880' },
+      raguel:  { id: 'raguel',  name: '拉古尔', color: '#80ffc0' },
+    };
+    const angel = BLESSING_ANGELS.find(a => a.id === angelId)
+               || ANGEL_META[angelId]
+               || { id: angelId, name: angelId, color: '#ffffff' };
     headerAngel = angel;
-    pool = ALL_BUFFS.filter(b => b.angel === angelId && !run.activeBuffs.includes(b.id));
-    // 若该天使buff全选完，退化到全池
-    if (pool.length === 0) pool = ALL_BUFFS.filter(b => !run.activeBuffs.includes(b.id));
+    pool = ALL_BUFFS.filter(b => b.angel === angelId);
+    // 该天使池全部拥有时：只展示升级卡，不退化到全池
   } else {
-    pool = ALL_BUFFS.filter(b => !run.activeBuffs.includes(b.id));
+    pool = ALL_BUFFS;
   }
-  const shuffled = [...pool].sort(() => Math.random() - 0.5);
-  const choices = shuffled.slice(0, 3);
+
+  // 给每个候选标记是否为升级
+  const candidates = pool.map(b => ({
+    buff: b,
+    isUpgrade: run.activeBuffs.includes(b.id),
+  }));
+
+  // 新buff优先；若新buff不足3个，用升级选项补足
+  const freshOptions   = candidates.filter(c => !c.isUpgrade).sort(() => Math.random() - 0.5);
+  const upgradeOptions = candidates.filter(c =>  c.isUpgrade).sort(() => Math.random() - 0.5);
+  // 组合：尽量3个新，不足时用升级补
+  const choices = [...freshOptions, ...upgradeOptions].slice(0, 3);
 
   // 更新标题（显示天使名）
   const titleEl = document.getElementById('buff-title');
   if (headerAngel) {
-    titleEl.innerHTML = `<span style="color:${headerAngel.color}">${headerAngel.name}</span> 的祝福`;
+    const color = headerAngel.color || '#ffffff';
+    titleEl.innerHTML = `<span style="color:${color}">${headerAngel.name}</span> 的祝福`;
   } else {
     titleEl.textContent = '选择恩赐';
   }
 
   const container = document.getElementById('buff-cards');
   container.innerHTML = '';
-  for (const b of choices) {
+  for (const { buff: b, isUpgrade } of choices) {
     const card = document.createElement('div');
     card.className = 'buff-card';
+    const displayDesc = isUpgrade ? (b.upgradeDesc || b.desc) : b.desc;
+    const upgradeTag  = isUpgrade
+      ? `<div class="buff-card-upgrade-tag">▲ 升级</div>`
+      : '';
     card.innerHTML = `
-      <div class="buff-card-theme" style="background:${b.theme}"></div>
+      <div class="buff-card-theme" style="background:${b.theme}${isUpgrade ? ';opacity:0.7' : ''}"></div>
       <div class="buff-card-body">
+        ${upgradeTag}
         <div class="buff-card-tag" style="color:${b.theme}">${b.tag}</div>
-        <div class="buff-card-name">${b.name}</div>
-        <div class="buff-card-desc">${b.desc}</div>
+        <div class="buff-card-name" style="${isUpgrade ? 'color:#b0b0a0' : ''}">${b.name}</div>
+        <div class="buff-card-desc">${displayDesc}</div>
       </div>`;
+    // 升级卡片加深边框色
+    if (isUpgrade) {
+      card.style.borderColor = b.theme + '88';
+      card.style.opacity = '0.85';
+    }
     card.addEventListener('click', () => {
-      if (!run.activeBuffs.includes(b.id)) {
+      playSound('ui');
+      if (isUpgrade) {
+        // 已有buff → 执行升级
+        if (b.upgrade) {
+          b.upgrade(player);
+          showFloatingText(`▲ ${b.tag} · ${b.name} 升级`, b.theme);
+        }
+      } else {
+        // 新buff → 首次获得
         run.activeBuffs.push(b.id);
         b.apply(player);
         updateBuffIcons();
@@ -6093,8 +7587,9 @@ const BLESSING_ANGELS = [
     id: 'sariel', name: '萨利尔', color: '#ff8080',
     title: '月亮之祝福',
     lines: [
-      { text: '月光不只是照亮。\n它让你在黑暗里记得自己的轮廓。', },
-      { text: '选一样我能给你的东西。', isEnd: true },
+      { text: '你还活着。\n每次看到这个，我都要先愣一下——\n不是惊讶，是……庆幸。' },
+      { text: '月光不评判伤口在哪里。\n它只是把你照出来，让你知道自己还在。\n你现在还在。' },
+      { text: '让我帮你走得更远一点。\n选一样。', isEnd: true },
     ],
     buffIds: ['sariel_atk','sariel_dash','sariel_thrust','sariel_spin','sariel_p1','sariel_p2'],
   },
@@ -6102,8 +7597,9 @@ const BLESSING_ANGELS = [
     id: 'danel', name: '达内尔', color: '#a0d0ff',
     title: '法则之祝福',
     lines: [
-      { text: '秩序是冰封的形状。\n你打破它，我帮你留住碎片。', },
-      { text: '选一样。别客气，我已经不相信规矩了。', isEnd: true },
+      { text: '我曾经是"法则守护者"。\n我以为法则是真理。\n后来我发现，它只是一种形状——\n冰封的，漂亮的，而且会碎。' },
+      { text: '所以我开始研究碎片。\n碎片比完整的东西更有意思。\n你身上就有很多。' },
+      { text: '我可以让你的碎片变成刃。\n挑一块。', isEnd: true },
     ],
     buffIds: ['danel_atk','danel_dash','danel_thrust','danel_spin','danel_p1','danel_p2'],
   },
@@ -6111,8 +7607,9 @@ const BLESSING_ANGELS = [
     id: 'ezequeel', name: '以西结尔', color: '#ffe060',
     title: '风暴之祝福',
     lines: [
-      { text: '风暴在等。\n你走得越快，它就越大。', },
-      { text: '选一样。然后让他们感受那阵风从哪里来。', isEnd: true },
+      { text: '你知道风暴为什么让人恐惧吗？\n不是因为它强——\n是因为它不在乎。\n它经过你，它经过一切，它什么都不留。' },
+      { text: '我在那扇门后等了很久了。\n等一个值得把风暴给出去的人。\n你刚好路过。' },
+      { text: '别辜负这阵风。\n选一样，快点——风不等人。', isEnd: true },
     ],
     buffIds: ['ezequeel_atk','ezequeel_dash','ezequeel_thrust','ezequeel_spin','ezequeel_p1','ezequeel_p2'],
   },
@@ -6120,8 +7617,8 @@ const BLESSING_ANGELS = [
     id: 'baraqiel', name: '巴拉奇尔', color: '#ff60a0',
     title: '闪电之祝福',
     lines: [
-      { text: '闪电不等人。\n你也不应该等。', },
-      { text: '快，选一个——', isEnd: true },
+      { text: '闪电只存在一瞬间。\n然后什么都没有了。\n这就是它的全部意义。' },
+      { text: '你在犹豫什么？\n选。', isEnd: true },
     ],
     buffIds: ['baraqiel_atk','baraqiel_dash','baraqiel_thrust','baraqiel_spin','baraqiel_p1','baraqiel_p2'],
   },
@@ -6129,8 +7626,9 @@ const BLESSING_ANGELS = [
     id: 'zaqiel', name: '扎奇尔', color: '#80ffc0',
     title: '纯洁之祝福',
     lines: [
-      { text: '我不知道"纯洁"是不是一个好词。\n但我知道怎么让你活得久一点。', },
-      { text: '选一样吧。我在等你。', isEnd: true },
+      { text: '"纯洁"这个词……\n我每次说它都觉得有点奇怪。\n好像在说一种不存在的颜色。' },
+      { text: '但我能做的事是真实的——\n让你的伤口愈合，让你的身体撑下去。\n这和纯不纯洁没关系，就是不想让你死在这里。' },
+      { text: '选一样吧。我帮你守着。', isEnd: true },
     ],
     buffIds: ['zaqiel_atk','zaqiel_dash','zaqiel_thrust','zaqiel_spin','zaqiel_p1','zaqiel_p2'],
   },
@@ -6152,7 +7650,7 @@ function initBlessingQueue() {
   run.blessingAngelIdx   = 0;
 }
 
-// 取下一个祝福天使（循环轮转）
+// 取下一个祝福天使（循环轮转，消耗队列）
 function nextBlessingAngel() {
   if (!run.blessingAngelQueue || run.blessingAngelQueue.length === 0) initBlessingQueue();
   const id = run.blessingAngelQueue[run.blessingAngelIdx % run.blessingAngelQueue.length];
@@ -6160,107 +7658,255 @@ function nextBlessingAngel() {
   return BLESSING_ANGELS.find(a => a.id === id);
 }
 
-// 全部30个buff
+// 预览下一个祝福天使（不消耗队列，仅用于选房间界面预告）
+function peekBlessingAngel() {
+  if (!run.blessingAngelQueue || run.blessingAngelQueue.length === 0) initBlessingQueue();
+  const id = run.blessingAngelQueue[run.blessingAngelIdx % run.blessingAngelQueue.length];
+  return BLESSING_ANGELS.find(a => a.id === id);
+}
+
+// 全部30个buff（每个含 upgradeDesc + upgrade，用于重复选到时的叠加升级）
 const ALL_BUFFS = [
   // ── 萨利尔（月亮/守护/生命）#ff8080 ──────────────────────
   { id:'sariel_atk',   angel:'sariel', name:'月牙斩',   theme:'#ff8080', tag:'萨利尔',
     desc:'每次普攻命中回复 2 HP',
-    apply: p => { p.mods.lifeOnHit = (p.mods.lifeOnHit || 0) + 2; } },
+    upgradeDesc:'普攻回血再 +2 HP（叠加）',
+    apply:   p => { p.mods.lifeOnHit = (p.mods.lifeOnHit || 0) + 2; },
+    upgrade: p => { p.mods.lifeOnHit = (p.mods.lifeOnHit || 0) + 2; } },
   { id:'sariel_dash',  angel:'sariel', name:'月影步',   theme:'#ff8080', tag:'萨利尔',
     desc:'冲刺后 3秒内受伤减少 40%',
-    apply: p => { p.mods.dashDefenseWindow = Math.max(p.mods.dashDefenseWindow || 0, 180); } },
+    upgradeDesc:'立即回复 20 HP',
+    apply:   p => { p.mods.dashDefenseWindow = Math.max(p.mods.dashDefenseWindow || 0, 180); },
+    upgrade: p => { p.hp = Math.min(p.maxHp, p.hp + 20); } },
   { id:'sariel_thrust',angel:'sariel', name:'月盾突',   theme:'#ff8080', tag:'萨利尔',
     desc:'突刺命中后立即回复 8 HP',
-    apply: p => { p.mods.thrustLifeSteal = (p.mods.thrustLifeSteal || 0) + 8; } },
+    upgradeDesc:'突刺回血再 +5 HP（叠加）',
+    apply:   p => { p.mods.thrustLifeSteal = (p.mods.thrustLifeSteal || 0) + 8; },
+    upgrade: p => { p.mods.thrustLifeSteal = (p.mods.thrustLifeSteal || 0) + 5; } },
   { id:'sariel_spin',  angel:'sariel', name:'月圆斩',   theme:'#ff8080', tag:'萨利尔',
     desc:'旋转斩范围 +30%，命中每敌回复 1 HP',
-    apply: p => { p.mods.spinRangeBonus = (p.mods.spinRangeBonus || 1) * 1.3; p.mods.spinLifePerHit = (p.mods.spinLifePerHit||0)+1; } },
+    upgradeDesc:'旋转斩范围再 +20%，命中回血再 +1',
+    apply:   p => { p.mods.spinRangeBonus = (p.mods.spinRangeBonus || 1) * 1.3; p.mods.spinLifePerHit = (p.mods.spinLifePerHit||0)+1; },
+    upgrade: p => { p.mods.spinRangeBonus = (p.mods.spinRangeBonus || 1) * 1.2; p.mods.spinLifePerHit = (p.mods.spinLifePerHit||0)+1; } },
   { id:'sariel_p1',    angel:'sariel', name:'月光庇护', theme:'#ff8080', tag:'萨利尔',
-    desc:'最大 HP +50',
-    apply: p => { p.maxHp += 50; p.hp = Math.min(p.hp + 50, p.maxHp); } },
+    desc:'最大 HP +40',
+    upgradeDesc:'最大 HP 再 +25',
+    apply:   p => { p.maxHp += 40; p.hp = Math.min(p.hp + 40, p.maxHp); },
+    upgrade: p => { p.maxHp += 25; p.hp = Math.min(p.hp + 25, p.maxHp); } },
   { id:'sariel_p2',    angel:'sariel', name:'殒月',     theme:'#ff8080', tag:'萨利尔',
     desc:'HP 低于 30% 时所有伤害 +25%',
-    apply: p => { p.mods.lowHpDmgBonus = true; } },
+    upgradeDesc:'低血触发阈值提升至 40%（更容易激活）',
+    apply:   p => { p.mods.lowHpDmgBonus = true; },
+    upgrade: p => { p.mods.lowHpThreshold = Math.min(0.5, (p.mods.lowHpThreshold||0.3) + 0.1); } },
 
   // ── 达内尔（法则/冰/减速）#a0d0ff ────────────────────────
   { id:'danel_atk',    angel:'danel',  name:'冰封法则', theme:'#a0d0ff', tag:'达内尔',
     desc:'普攻命中使敌人移速 -40%，持续 2秒',
-    apply: p => { p.mods.slowOnHit = Math.min(p.mods.slowOnHit, 0.6); p.mods.slowDur = Math.max(p.mods.slowDur||0, 120); } },
+    upgradeDesc:'减速持续时间再 +1秒',
+    apply:   p => { p.mods.slowOnHit = Math.min(p.mods.slowOnHit, 0.6); p.mods.slowDur = Math.max(p.mods.slowDur||0, 120); },
+    upgrade: p => { p.mods.slowDur = (p.mods.slowDur||120) + 60; } },
   { id:'danel_dash',   angel:'danel',  name:'法则之壁', theme:'#a0d0ff', tag:'达内尔',
     desc:'冲刺后留下冰霜轨迹，经过敌人减速 -50% 持续 1.5秒',
-    apply: p => { p.mods.dashFrostTrail = true; } },
+    upgradeDesc:'冲刺 CD -15%',
+    apply:   p => { p.mods.dashFrostTrail = true; },
+    upgrade: p => { p.mods.dashCdMul = (p.mods.dashCdMul||1) * 0.85; } },
   { id:'danel_thrust', angel:'danel',  name:'冰矛穿透', theme:'#a0d0ff', tag:'达内尔',
     desc:'突刺双倍伤害，命中必定减速 2秒',
-    apply: p => { p.mods.thrustDmgMul = (p.mods.thrustDmgMul || 1) * 2; p.mods.thrustFreeze = true; } },
+    upgradeDesc:'突刺伤害倍率再 ×1.3',
+    apply:   p => { p.mods.thrustDmgMul = (p.mods.thrustDmgMul || 1) * 2; p.mods.thrustFreeze = true; },
+    upgrade: p => { p.mods.thrustDmgMul = (p.mods.thrustDmgMul || 1) * 1.3; } },
   { id:'danel_spin',   angel:'danel',  name:'霜环',     theme:'#a0d0ff', tag:'达内尔',
     desc:'旋转斩落点留下 3秒霜环，进入减速 -60%',
-    apply: p => { p.mods.spinFrostRing = true; } },
+    upgradeDesc:'霜环减速加深至 -70%',
+    apply:   p => { p.mods.spinFrostRing = true; },
+    upgrade: p => { p.mods.spinFrostRingStrength = Math.min(0.25, (p.mods.spinFrostRingStrength||0.4) - 0.05); } },
   { id:'danel_p1',     angel:'danel',  name:'绝对零度', theme:'#a0d0ff', tag:'达内尔',
     desc:'减速状态的敌人额外受伤 +20%',
-    apply: p => { p.mods.slowedEnemyDmgBonus = true; } },
+    upgradeDesc:'额外伤害再 +15%',
+    apply:   p => { p.mods.slowedEnemyDmgBonus = true; },
+    upgrade: p => { p.mods.slowedEnemyDmgMul = (p.mods.slowedEnemyDmgMul||1.2) + 0.15; } },
   { id:'danel_p2',     angel:'danel',  name:'法则执行者',theme:'#a0d0ff',tag:'达内尔',
     desc:'冲刺 CD -20%',
-    apply: p => { p.mods.dashCdMul = (p.mods.dashCdMul || 1) * 0.8; } },
+    upgradeDesc:'冲刺 CD 再 -15%',
+    apply:   p => { p.mods.dashCdMul = (p.mods.dashCdMul || 1) * 0.8; },
+    upgrade: p => { p.mods.dashCdMul = (p.mods.dashCdMul || 1) * 0.85; } },
 
   // ── 以西结尔（风暴/AOE/范围）#ffe060 ─────────────────────
   { id:'ezequeel_atk',   angel:'ezequeel', name:'风刃',   theme:'#ffe060', tag:'以西结尔',
     desc:'普攻攻击弧度 +40%（扇形更宽）',
-    apply: p => { p.mods.atkArcBonus = (p.mods.atkArcBonus || 1) * 1.4; } },
+    upgradeDesc:'攻击弧度再 +25%',
+    apply:   p => { p.mods.atkArcBonus = (p.mods.atkArcBonus || 1) * 1.4; },
+    upgrade: p => { p.mods.atkArcBonus = (p.mods.atkArcBonus || 1) * 1.25; } },
   { id:'ezequeel_dash',  angel:'ezequeel', name:'风暴步', theme:'#ffe060', tag:'以西结尔',
     desc:'冲刺穿过敌人造成 18 伤害',
-    apply: p => { p.mods.dashThrough = true; p.mods.dashThroughDmg = (p.mods.dashThroughDmg||0) + 18; } },
+    upgradeDesc:'穿越伤害再 +12',
+    apply:   p => { p.mods.dashThrough = true; p.mods.dashThroughDmg = (p.mods.dashThroughDmg||0) + 18; },
+    upgrade: p => { p.mods.dashThroughDmg = (p.mods.dashThroughDmg||0) + 12; } },
   { id:'ezequeel_thrust',angel:'ezequeel', name:'旋风突', theme:'#ffe060', tag:'以西结尔',
     desc:'突刺时同时对周围敌人造成 AOE 伤害（范围80，伤害20）',
-    apply: p => { p.mods.thrustAOE = true; } },
+    upgradeDesc:'突刺 AOE 范围 +30，伤害 +10',
+    apply:   p => { p.mods.thrustAOE = true; },
+    upgrade: p => { p.mods.thrustAOERange = (p.mods.thrustAOERange||100) + 30; p.mods.thrustAOEDmg = (p.mods.thrustAOEDmg||60) + 10; } },
   { id:'ezequeel_spin',  angel:'ezequeel', name:'大风暴', theme:'#ffe060', tag:'以西结尔',
     desc:'旋转斩伤害 +50%，击退 +100%',
-    apply: p => { p.mods.spinDmgBonus = (p.mods.spinDmgBonus||0) + 28; p.mods.spinKnockbackBonus = true; } },
+    upgradeDesc:'旋转斩伤害再 +20',
+    apply:   p => { p.mods.spinDmgBonus = (p.mods.spinDmgBonus||0) + 28; p.mods.spinKnockbackBonus = true; },
+    upgrade: p => { p.mods.spinDmgBonus = (p.mods.spinDmgBonus||0) + 20; } },
   { id:'ezequeel_p1',    angel:'ezequeel', name:'风眼',   theme:'#ffe060', tag:'以西结尔',
     desc:'单次命中 3+敌人时额外触发圣光冲击波（伤害 25）',
-    apply: p => { p.mods.spinBurst = true; } },
+    upgradeDesc:'冲击波伤害提升至 40',
+    apply:   p => { p.mods.spinBurst = true; },
+    upgrade: p => { p.mods.spinBurstDmg = Math.max((p.mods.spinBurstDmg||25) + 15, 40); } },
   { id:'ezequeel_p2',    angel:'ezequeel', name:'暴风之翼',theme:'#ffe060',tag:'以西结尔',
     desc:'移动速度 +20%',
-    apply: p => { p.speed *= 1.2; } },
+    upgradeDesc:'移动速度再 +15%',
+    apply:   p => { p.speed *= 1.2; },
+    upgrade: p => { p.speed *= 1.15; } },
 
   // ── 巴拉奇尔（闪电/速度/冲刺）#ff60a0 ───────────────────
   { id:'baraqiel_atk',   angel:'baraqiel', name:'雷击普攻',theme:'#ff60a0',tag:'巴拉奇尔',
     desc:'每次攻击附加 12 闪电伤害，连锁最近敌人（伤害 8）',
-    apply: p => { p.mods.thunderOnHit = (p.mods.thunderOnHit||0) + 12; } },
+    upgradeDesc:'闪电伤害再 +8',
+    apply:   p => { p.mods.thunderOnHit = (p.mods.thunderOnHit||0) + 12; },
+    upgrade: p => { p.mods.thunderOnHit = (p.mods.thunderOnHit||0) + 8; } },
   { id:'baraqiel_dash',  angel:'baraqiel', name:'闪电冲',  theme:'#ff60a0', tag:'巴拉奇尔',
     desc:'冲刺距离 +50%，冲刺后下次攻击 +30%',
-    apply: p => { p.mods.dashRange = (p.mods.dashRange||1)*1.5; p.mods.dashNextAtkBonus = true; } },
+    upgradeDesc:'冲刺距离再 +30%',
+    apply:   p => { p.mods.dashRange = (p.mods.dashRange||1)*1.5; p.mods.dashNextAtkBonus = true; },
+    upgrade: p => { p.mods.dashRange = (p.mods.dashRange||1)*1.3; } },
   { id:'baraqiel_thrust',angel:'baraqiel', name:'雷速突刺',theme:'#ff60a0',tag:'巴拉奇尔',
     desc:'突刺 CD -40%，突刺速度 +50%',
-    apply: p => { p.mods.thrustCdMul = (p.mods.thrustCdMul||1)*0.6; p.mods.thrustSpdMul = (p.mods.thrustSpdMul||1)*1.5; } },
+    upgradeDesc:'突刺 CD 再 -20%',
+    apply:   p => { p.mods.thrustCdMul = (p.mods.thrustCdMul||1)*0.6; p.mods.thrustSpdMul = (p.mods.thrustSpdMul||1)*1.5; },
+    upgrade: p => { p.mods.thrustCdMul = (p.mods.thrustCdMul||1)*0.8; } },
   { id:'baraqiel_spin',  angel:'baraqiel', name:'闪电环',  theme:'#ff60a0', tag:'巴拉奇尔',
     desc:'旋转斩命中时敌人间产生电弧（伤害 15/条）',
-    apply: p => { p.mods.spinLightningArc = true; } },
+    upgradeDesc:'电弧伤害提升至 25/条',
+    apply:   p => { p.mods.spinLightningArc = true; },
+    upgrade: p => { p.mods.spinLightningArcDmg = Math.max((p.mods.spinLightningArcDmg||15) + 10, 25); } },
   { id:'baraqiel_p1',    angel:'baraqiel', name:'超导',    theme:'#ff60a0', tag:'巴拉奇尔',
     desc:'击杀敌人重置冲刺 CD',
-    apply: p => { p.mods.dashKillReset = true; } },
+    upgradeDesc:'击杀还额外回复 3 HP',
+    apply:   p => { p.mods.dashKillReset = true; },
+    upgrade: p => { p.mods.lifeOnKill = (p.mods.lifeOnKill||0) + 3; } },
   { id:'baraqiel_p2',    angel:'baraqiel', name:'雷速',    theme:'#ff60a0', tag:'巴拉奇尔',
-    desc:'攻击速度 +35%',
-    apply: p => { p.mods.atkSpeedMul = (p.mods.atkSpeedMul||1)*0.74; } },
+    desc:'攻击速度 +30%',
+    upgradeDesc:'攻击速度再 +18%',
+    apply:   p => { p.mods.atkSpeedMul = (p.mods.atkSpeedMul||1)*0.76; },
+    upgrade: p => { p.mods.atkSpeedMul = (p.mods.atkSpeedMul||1)*0.84; } },
 
   // ── 扎奇尔（纯洁/治疗/持续）#80ffc0 ─────────────────────
   { id:'zaqiel_atk',   angel:'zaqiel', name:'净化之光',theme:'#80ffc0', tag:'扎奇尔',
     desc:'普攻命中 20% 概率触发治愈光环（回 5 HP，周围敌人受 5 伤）',
-    apply: p => { p.mods.pureAuraChance = true; } },
+    upgradeDesc:'光环触发概率提升至 35%',
+    apply:   p => { p.mods.pureAuraChance = true; },
+    upgrade: p => { p.mods.pureAuraRate = Math.min(0.5, (p.mods.pureAuraRate||0.2) + 0.15); } },
   { id:'zaqiel_dash',  angel:'zaqiel', name:'圣洁冲',  theme:'#80ffc0', tag:'扎奇尔',
     desc:'冲刺后 5秒内受伤的 15% 转为 HP 回复',
-    apply: p => { p.mods.dashLifeConvert = true; } },
+    upgradeDesc:'伤害转化率提升至 25%',
+    apply:   p => { p.mods.dashLifeConvert = true; },
+    upgrade: p => { p.mods.dashLifeConvertRate = Math.min(0.4, (p.mods.dashLifeConvertRate||0.15) + 0.1); } },
   { id:'zaqiel_thrust',angel:'zaqiel', name:'净化突刺',theme:'#80ffc0', tag:'扎奇尔',
     desc:'突刺伤害的 30% 转为 HP',
-    apply: p => { p.mods.thrustLifePct = (p.mods.thrustLifePct||0) + 0.3; } },
+    upgradeDesc:'突刺吸血率再 +20%',
+    apply:   p => { p.mods.thrustLifePct = (p.mods.thrustLifePct||0) + 0.3; },
+    upgrade: p => { p.mods.thrustLifePct = (p.mods.thrustLifePct||0) + 0.2; } },
   { id:'zaqiel_spin',  angel:'zaqiel', name:'纯洁旋',  theme:'#80ffc0', tag:'扎奇尔',
     desc:'旋转斩命中后对敌人施加灼烧（每 0.5秒 8 伤，持续 1秒）',
-    apply: p => { p.mods.spinBurn = true; } },
+    upgradeDesc:'灼烧持续时间延长至 2秒',
+    apply:   p => { p.mods.spinBurn = true; },
+    upgrade: p => { p.mods.spinBurnDur = Math.max((p.mods.spinBurnDur||60) + 60, 120); } },
   { id:'zaqiel_p1',    angel:'zaqiel', name:'生命涌泉',theme:'#80ffc0', tag:'扎奇尔',
     desc:'每次击杀回复 5 HP',
-    apply: p => { p.mods.lifeOnKill += 5; } },
+    upgradeDesc:'击杀回血再 +3 HP',
+    apply:   p => { p.mods.lifeOnKill += 5; },
+    upgrade: p => { p.mods.lifeOnKill += 3; } },
   { id:'zaqiel_p2',    angel:'zaqiel', name:'圣光之体',theme:'#80ffc0', tag:'扎奇尔',
     desc:'最大 HP +30，受伤 15% 概率完全抵消',
-    apply: p => { p.maxHp += 30; p.hp = Math.min(p.hp+30, p.maxHp); p.mods.blockChance = (p.mods.blockChance||0)+0.15; } },
+    upgradeDesc:'最大 HP 再 +20，格挡率再 +10%',
+    apply:   p => { p.maxHp += 30; p.hp = Math.min(p.hp+30, p.maxHp); p.mods.blockChance = (p.mods.blockChance||0)+0.15; },
+    upgrade: p => { p.maxHp += 20; p.hp = Math.min(p.hp+20, p.maxHp); p.mods.blockChance = (p.mods.blockChance||0)+0.1; } },
+
+  // ── 路西法专属（§3f，ELITE房，黑暗契约风格）#ff9040 ──────────
+  { id:'lucifer_deal1', angel:'lucifer', name:'堕落契约', theme:'#ff9040', tag:'路西法',
+    desc:'最大 HP -40，但所有伤害永久 ×1.8',
+    upgradeDesc:'再次献祭：HP -20，伤害再 ×1.3',
+    apply:   p => { p.maxHp = Math.max(10, p.maxHp - 40); p.hp = Math.min(p.hp, p.maxHp); p.mods.atkDmgMul = (p.mods.atkDmgMul || 1) * 1.8; },
+    upgrade: p => { p.maxHp = Math.max(10, p.maxHp - 20); p.hp = Math.min(p.hp, p.maxHp); p.mods.atkDmgMul = (p.mods.atkDmgMul||1) * 1.3; } },
+  { id:'lucifer_deal2', angel:'lucifer', name:'烈焰之刃', theme:'#ff9040', tag:'路西法',
+    desc:'获得时伤害×1.8，每次进入新战斗房间-15%，降至×1停止',
+    upgradeDesc:'重新点燃：烈焰之刃倍率重置为 ×1.8',
+    apply:   p => { p.mods.luciferDeal2Active = true; p.mods.luciferDeal2Mul = 1.8; },
+    upgrade: p => { p.mods.luciferDeal2Active = true; p.mods.luciferDeal2Mul = 1.8; } },
+  { id:'lucifer_deal3', angel:'lucifer', name:'晨星协议', theme:'#ff9040', tag:'路西法',
+    desc:'每次击杀 30% 概率：下次攻击3倍伤害，同时扣10 HP',
+    upgradeDesc:'触发概率提升至 50%',
+    apply:   p => { p.mods.luciferDeal3 = true; },
+    upgrade: p => { p.mods.luciferDeal3Rate = Math.min(0.6, (p.mods.luciferDeal3Rate||0.3) + 0.2); } },
+  { id:'lucifer_deal4', angel:'lucifer', name:'无冕之规', theme:'#ff9040', tag:'路西法',
+    desc:'E技CD归零，但普攻不再造成伤害',
+    upgradeDesc:'E技伤害 +50%',
+    apply:   p => { p.mods.luciferDeal4 = true; p.spinCd = 0; },
+    upgrade: p => { p.mods.spinDmgBonus = (p.mods.spinDmgBonus||0) + 28; } },
+  { id:'lucifer_deal5', angel:'lucifer', name:'黑翼庇护', theme:'#ff9040', tag:'路西法',
+    desc:'受伤改为无敌3秒+扣5 HP代替，冷却3秒（期间正常受伤）',
+    upgradeDesc:'无敌期间扣血从5降为2',
+    apply:   p => { p.mods.luciferDeal5Active = true; p.mods.luciferDeal5Cd = 0; },
+    upgrade: p => { p.mods.luciferDeal5HpCost = Math.max(1, (p.mods.luciferDeal5HpCost||5) - 3); } },
+
+  // ── 乌列尔专属（§3g，ANGEL房zone1，智慧/洞察风格）#ffe880 ─────
+  { id:'uriel_1', angel:'uriel', name:'先知之眼', theme:'#ffe880', tag:'乌列尔',
+    desc:'拥有的祝福每多1个，所有伤害额外+5%（上限+60%）',
+    upgradeDesc:'伤害加成上限提升至 +80%',
+    apply:   p => { p.mods.urielEye = true; },
+    upgrade: p => { p.mods.urielEyeCap = Math.min(1.0, (p.mods.urielEyeCap||0.6) + 0.2); } },
+  { id:'uriel_2', angel:'uriel', name:'完美时刻', theme:'#ffe880', tag:'乌列尔',
+    desc:'连续3秒未受伤后，下次攻击5倍伤害（触发后重新计时）',
+    upgradeDesc:'立即激活完美时刻',
+    apply:   p => { p.mods.urielPerfect = true; p.mods.urielPerfectTimer = 0; },
+    upgrade: p => { p.mods.urielPerfectReady = true; } },
+  { id:'uriel_3', angel:'uriel', name:'智慧共鸣', theme:'#ffe880', tag:'乌列尔',
+    desc:'每次使用E技能，随机激发一次已拥有祝福的即时共鸣效果',
+    upgradeDesc:'每次E技改为激发2次共鸣效果',
+    apply:   p => { p.mods.urielResonance = true; },
+    upgrade: p => { p.mods.urielResonanceCount = (p.mods.urielResonanceCount||1) + 1; } },
+  { id:'uriel_4', angel:'uriel', name:'洞察弱点', theme:'#ffe880', tag:'乌列尔',
+    desc:'攻击HP高于自身的敌人时，伤害+50%',
+    upgradeDesc:'额外伤害提升至 +80%',
+    apply:   p => { p.mods.urielInsight = true; },
+    upgrade: p => { p.mods.urielInsightBonus = Math.min(1.5, (p.mods.urielInsightBonus||0.5) + 0.3); } },
+  { id:'uriel_5', angel:'uriel', name:'火焰印记', theme:'#ffe880', tag:'乌列尔',
+    desc:'命中同一敌人叠加1层（最多10层），每层+8%伤害，换目标清零',
+    upgradeDesc:'最大层数提升至 15层',
+    apply:   p => { p.mods.urielFlame = true; p.mods.urielFlameStacks = {}; },
+    upgrade: p => { p.mods.urielFlameMaxStacks = Math.min(20, (p.mods.urielFlameMaxStacks||10) + 5); } },
+
+  // ── 拉古尔专属（§3h，ANGEL房zone2，正义/积累风格）#80ffc0 ─────
+  { id:'raguel_1', angel:'raguel', name:'审判积累', theme:'#80ffc0', tag:'拉古尔',
+    desc:'每击杀1个敌人永久+2伤害，上限+60',
+    upgradeDesc:'上限提升至 +90，立即 +10 伤害',
+    apply:   p => { p.mods.raguelAccum = true; },
+    upgrade: p => { p.mods.raguelKillBonusCap = Math.min(120, (p.mods.raguelKillBonusCap||60) + 30); p.mods.raguelKillBonus = Math.min(p.mods.raguelKillBonusCap||90, (p.mods.raguelKillBonus||0) + 10); } },
+  { id:'raguel_2', angel:'raguel', name:'试炼之焰', theme:'#80ffc0', tag:'拉古尔',
+    desc:'进入每个房间时HP自动降至60%，但攻击速度×1.8（立即生效）',
+    upgradeDesc:'攻击速度再 ×1.2',
+    apply:   p => { p.mods.raguelTrial = true; p.mods.atkSpeedMul = (p.mods.atkSpeedMul || 1) * 1.8; },
+    upgrade: p => { p.mods.atkSpeedMul = (p.mods.atkSpeedMul||1) * 1.2; } },
+  { id:'raguel_3', angel:'raguel', name:'正义反击', theme:'#80ffc0', tag:'拉古尔',
+    desc:'受到伤害后3秒内，下次攻击+100%伤害',
+    upgradeDesc:'+100%提升至+180%，立即激活',
+    apply:   p => { p.mods.raguelRevenge = true; },
+    upgrade: p => { p.mods.raguelRevengeBonus = Math.min(3.0, (p.mods.raguelRevengeBonus||2.0) + 0.8); p.mods.raguelRevengeReady = true; p.mods.raguelRevengeTimer = 180; } },
+  { id:'raguel_4', angel:'raguel', name:'天平法则', theme:'#80ffc0', tag:'拉古尔',
+    desc:'HP越低伤害越高（HP 100%=+0%，HP 1%=+100%，线性插值）',
+    upgradeDesc:'HP 1% 时加成上限提升至 +160%',
+    apply:   p => { p.mods.raguelBalance = true; },
+    upgrade: p => { p.mods.raguelBalanceCap = Math.min(3.0, (p.mods.raguelBalanceCap||2.0) + 0.6); } },
+  { id:'raguel_5', angel:'raguel', name:'连锁审判', theme:'#80ffc0', tag:'拉古尔',
+    desc:'击杀敌人后2秒内再次击杀，爆发伤害翻倍，可叠加（上限×8）',
+    upgradeDesc:'叠加上限提升至 ×12',
+    apply:   p => { p.mods.raguelChain = true; },
+    upgrade: p => { p.mods.raguelChainCap = Math.min(16, (p.mods.raguelChainCap||8) + 4); } },
 ];
 
 // 更新Buff图标行
@@ -6422,6 +8068,158 @@ function renderExits() {
     }
     ctx.restore();
   }
+}
+
+// §26 以西结尔的门（zone1背景装饰，永远打不开）
+// 位置：北墙（row=0）正中央，宽2格，门框+门板+金色光纹+脉动光晕
+function renderEzequeelDoor() {
+  if (run.zone !== 1) return;
+
+  const ts      = TILE;
+  const midCol  = Math.floor(ROOM_COLS / 2);  // 中央列
+  const doorWx  = midCol * ts;                // 门左边缘世界X
+  const doorWy  = 0;                          // 北墙行 row=0
+
+  // 门占北墙2格宽，视觉高度用WALL_H
+  const tl = toScreen(doorWx,        doorWy + ts);  // 门顶左（墙面底边）
+  const tr = toScreen(doorWx + ts*2, doorWy + ts);  // 门顶右
+  // 门板底部（向下延伸 WALL_H 高度）
+  const bl = { x: tl.x, y: tl.y + WALL_H * 1.6 };
+  const br = { x: tr.x, y: tr.y + WALL_H * 1.6 };
+  const doorW  = tr.x - tl.x;
+  const doorH  = bl.y - tl.y;
+  const midX   = (tl.x + tr.x) / 2;
+  const midY   = (tl.y + bl.y) / 2;
+
+  const t = now * 0.001;
+  const pulse = 0.6 + 0.4 * Math.sin(t * 1.1);
+
+  ctx.save();
+
+  // ── 门后背光（深黄色光晕，被门框遮住） ────────────────
+  const glow = ctx.createRadialGradient(midX, midY, 0, midX, midY, doorW * 0.9);
+  glow.addColorStop(0,   `rgba(255,220,60,${0.22 * pulse})`);
+  glow.addColorStop(0.5, `rgba(200,150,20,${0.10 * pulse})`);
+  glow.addColorStop(1,   'rgba(0,0,0,0)');
+  ctx.fillStyle = glow;
+  ctx.fillRect(tl.x - doorW * 0.5, tl.y - doorH * 0.3, doorW * 2, doorH * 1.6);
+
+  // ── 门板（深色，暗金底色） ─────────────────────────────
+  ctx.beginPath();
+  ctx.moveTo(tl.x, tl.y); ctx.lineTo(tr.x, tr.y);
+  ctx.lineTo(br.x, br.y); ctx.lineTo(bl.x, bl.y);
+  ctx.closePath();
+  const doorGrad = ctx.createLinearGradient(tl.x, tl.y, bl.x, bl.y);
+  doorGrad.addColorStop(0,   '#2a2408');
+  doorGrad.addColorStop(0.4, '#1e1a06');
+  doorGrad.addColorStop(1,   '#0a0800');
+  ctx.fillStyle = doorGrad;
+  ctx.fill();
+
+  // ── 门板内侧金色纹路（以西结尔风格：风暴旋涡 + 辐射线） ──
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(tl.x, tl.y); ctx.lineTo(tr.x, tr.y);
+  ctx.lineTo(br.x, br.y); ctx.lineTo(bl.x, bl.y);
+  ctx.closePath();
+  ctx.clip();
+
+  ctx.strokeStyle = `rgba(255,220,60,${0.45 + 0.2 * pulse})`;
+  ctx.lineWidth   = 1.2;
+  ctx.shadowColor = '#ffe060';
+  ctx.shadowBlur  = 8;
+
+  // 辐射线（8条从中心向外）
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2 + t * 0.15;
+    const r = doorH * 0.45;
+    ctx.beginPath();
+    ctx.moveTo(midX + Math.cos(a) * doorW * 0.08, midY + Math.sin(a) * doorH * 0.08);
+    ctx.lineTo(midX + Math.cos(a) * r,             midY + Math.sin(a) * r * 0.6);
+    ctx.stroke();
+  }
+
+  // 同心椭圆（2个，模拟风暴涡旋）
+  for (let ring = 0; ring < 2; ring++) {
+    const rx = doorW * (0.22 + ring * 0.18);
+    const ry = doorH * (0.20 + ring * 0.14);
+    ctx.globalAlpha = 0.6 - ring * 0.15;
+    ctx.beginPath();
+    ctx.ellipse(midX, midY, rx, ry, t * 0.08, 0, Math.PI * 2);
+    ctx.stroke();
+  }
+  ctx.globalAlpha = 1;
+
+  // 中央圆形符文（脉动）
+  const runeR = doorW * 0.12 * (0.9 + 0.1 * pulse);
+  ctx.beginPath();
+  ctx.arc(midX, midY, runeR, 0, Math.PI * 2);
+  ctx.globalAlpha = 0.7 * pulse;
+  ctx.fillStyle = `rgba(255,220,60,0.3)`;
+  ctx.fill();
+  ctx.globalAlpha = 1;
+  ctx.strokeStyle = `rgba(255,240,120,${0.8 * pulse})`;
+  ctx.lineWidth = 1.5;
+  ctx.shadowBlur = 14;
+  ctx.beginPath();
+  ctx.arc(midX, midY, runeR, 0, Math.PI * 2);
+  ctx.stroke();
+
+  ctx.restore();  // 结束clip
+
+  // ── 门框（两侧竖线 + 顶弧） ───────────────────────────
+  ctx.strokeStyle = `rgba(200,160,40,${0.75 + 0.2 * pulse})`;
+  ctx.lineWidth   = 2.5;
+  ctx.shadowColor = '#ffc000';
+  ctx.shadowBlur  = 16;
+
+  // 左框线
+  ctx.beginPath();
+  ctx.moveTo(tl.x, tl.y - 4); ctx.lineTo(bl.x, bl.y);
+  ctx.stroke();
+  // 右框线
+  ctx.beginPath();
+  ctx.moveTo(tr.x, tr.y - 4); ctx.lineTo(br.x, br.y);
+  ctx.stroke();
+  // 顶横线（等距下是斜线）
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(tl.x, tl.y - 4); ctx.lineTo(tr.x, tr.y - 4);
+  ctx.stroke();
+  // 底线（门槛）
+  ctx.strokeStyle = `rgba(160,120,20,0.5)`;
+  ctx.lineWidth   = 1.5;
+  ctx.shadowBlur  = 4;
+  ctx.beginPath();
+  ctx.moveTo(bl.x, bl.y); ctx.lineTo(br.x, br.y);
+  ctx.stroke();
+
+  // ── 顶部拱形浮雕（以西结尔符号：闪电三角） ───────────
+  const archY  = tl.y - WALL_H * 0.5;
+  const archX  = midX;
+  const archW  = doorW * 0.5;
+  const archH  = WALL_H * 0.4;
+  ctx.strokeStyle = `rgba(255,220,60,${0.6 * pulse})`;
+  ctx.lineWidth   = 1.8;
+  ctx.shadowBlur  = 10;
+  // 三角形闪电
+  ctx.beginPath();
+  ctx.moveTo(archX,          archY - archH * 0.9);
+  ctx.lineTo(archX + archW,  archY + archH * 0.5);
+  ctx.lineTo(archX - archW,  archY + archH * 0.5);
+  ctx.closePath();
+  ctx.stroke();
+  // 内倒三角
+  ctx.globalAlpha = 0.45;
+  ctx.beginPath();
+  ctx.moveTo(archX,          archY + archH * 0.1);
+  ctx.lineTo(archX + archW * 0.5, archY - archH * 0.4);
+  ctx.lineTo(archX - archW * 0.5, archY - archH * 0.4);
+  ctx.closePath();
+  ctx.stroke();
+  ctx.globalAlpha = 1;
+
+  ctx.restore();
 }
 
 function tileAt(wx, wy) {
@@ -6818,6 +8616,516 @@ function renderTitleFx(timestamp) {
 }
 
 // ═══════════════════════════════════════════════════════════
+// ═══ ENDING SEQUENCE ════════════════════════════════════════
+// ═══════════════════════════════════════════════════════════
+
+// 结局演出阶段定义：
+//   0 白光急速扩散（40帧）
+//   1 白光保持（30帧）
+//   2 剑碎裂+震屏（60帧）
+//   3 加德列尔剪影滑入滑出（50帧）
+//   4 独白逐行淡入（4行×36帧=144帧）
+//   5 整体淡出黑色→切WIN（40帧）
+const ENDING_MONO = [
+  '「……你回来了。」',
+  '「你知道代价。」',
+  '「你还是选择了。」',
+  '「这就够了。」',
+];
+const ENDING_DUR = [40, 30, 60, 100, 50, ENDING_MONO.length * 36, 40];
+
+let ending = {
+  phase: 0, timer: 0,
+  flashAlpha: 0,       // 白光全屏强度
+  shards: [],          // 剑碎片 [{x,y,vx,vy,angle,spin,alpha,w,h}]
+  memAlpha: 0,         // §32 记忆碎片当前整体alpha
+  memIdx: 0,           // 当前显示第几张记忆（0/1/2）
+  memScanX: -W,        // 水平扫描线X位置（切换时刷过）
+  silhouetteY: 0,      // 加德列尔剪影Y
+  silhouetteAlpha: 0,
+  monoLineAlpha: [],   // 每行独白的当前alpha
+  fadeOut: 0,          // 最终淡出黑幕
+};
+
+function initEnding() {
+  ending.phase = 0; ending.timer = 0;
+  ending.flashAlpha = 0;
+  ending.memAlpha = 0; ending.memIdx = 0; ending.memScanX = -W;
+  ending.silhouetteY = H + 120; ending.silhouetteAlpha = 0;
+  ending.monoLineAlpha = ENDING_MONO.map(() => 0);
+  ending.fadeOut = 0;
+  // 初始化剑碎片（6片，从屏幕中心扇形飞出）
+  ending.shards = [];
+  for (let i = 0; i < 6; i++) {
+    const a = (i / 6) * Math.PI * 2 + Math.PI * 0.1;
+    ending.shards.push({
+      x: W * 0.5, y: H * 0.45,
+      vx: Math.cos(a) * (3 + Math.random() * 4),
+      vy: Math.sin(a) * (3 + Math.random() * 4) - 1,
+      angle: a, spin: (Math.random() - 0.5) * 0.18,
+      alpha: 1,
+      w: 6 + Math.random() * 10,
+      h: 18 + Math.random() * 24,
+    });
+  }
+}
+
+function updateEnding(fd) {
+  ending.timer += fd;
+  const dur = ENDING_DUR[ending.phase];
+
+  if (ending.phase === 0) {
+    // 白光急速扩散：前半强，后半稍收
+    const t = ending.timer / dur;
+    ending.flashAlpha = t < 0.5 ? t * 2 : 1 - (t - 0.5) * 0.4;
+    if (ending.timer >= dur) { ending.phase = 1; ending.timer = 0; }
+
+  } else if (ending.phase === 1) {
+    // 白光保持，略微脉动
+    ending.flashAlpha = 0.8 + Math.sin(ending.timer * 0.15) * 0.1;
+    if (ending.timer >= dur) { ending.phase = 2; ending.timer = 0; ending.flashAlpha = 0; }
+
+  } else if (ending.phase === 2) {
+    // 剑碎裂：碎片物理+震屏前15帧
+    if (ending.timer < 15) screenShake = Math.max(screenShake, 10 - ending.timer * 0.6);
+    for (const s of ending.shards) {
+      s.x += s.vx * fd; s.y += s.vy * fd;
+      s.vy += 0.18 * fd;  // 重力
+      s.angle += s.spin * fd;
+      s.alpha = Math.max(0, 1 - ending.timer / dur * 1.2);
+    }
+    if (ending.timer >= dur) { ending.phase = 3; ending.timer = 0; }
+
+  } else if (ending.phase === 3) {
+    // §32 记忆碎片倒放：3张场景快速闪现（审判庭→圣光廊道→净罪塔牢房）
+    // 每张节奏：8帧淡入 + 12帧停留 + 8帧淡出 = 28帧，3张 = 84帧，首尾各8帧黑场
+    // 总100帧，对应 ENDING_DUR[3] = 100
+    const MEM_COUNT   = 3;
+    const MEM_DUR     = 28;   // 每张总帧
+    const MEM_FADE_IN = 8;
+    const MEM_HOLD    = 12;
+    const MEM_FADE_OUT= 8;
+    const MEM_START   = 8;    // 前8帧黑场缓冲
+
+    const localT = ending.timer - MEM_START;
+    if (localT >= 0) {
+      const slot    = Math.floor(localT / MEM_DUR);         // 当前是第几张
+      const slotT   = localT - slot * MEM_DUR;              // 在本张内经过的帧
+      ending.memIdx = Math.min(slot, MEM_COUNT - 1);
+
+      if (slot < MEM_COUNT) {
+        if (slotT < MEM_FADE_IN) {
+          ending.memAlpha = slotT / MEM_FADE_IN;
+        } else if (slotT < MEM_FADE_IN + MEM_HOLD) {
+          ending.memAlpha = 1;
+        } else {
+          ending.memAlpha = Math.max(0, 1 - (slotT - MEM_FADE_IN - MEM_HOLD) / MEM_FADE_OUT);
+        }
+        // 切换帧：scanX 重置，快速扫过
+        if (slotT < 2) {
+          ending.memScanX = -W * 0.5 + (slotT / 2) * W * 2;
+        } else {
+          ending.memScanX = W + 100; // 移出屏幕
+        }
+      } else {
+        ending.memAlpha = 0;
+      }
+    } else {
+      ending.memAlpha  = 0;
+      ending.memScanX  = W + 100;
+    }
+    if (ending.timer >= dur) { ending.phase = 4; ending.timer = 0; ending.memAlpha = 0; }
+
+  } else if (ending.phase === 4) {
+    // 加德列尔剪影滑入（前半）→ 停顿 → 淡出（后半）
+    const t = ending.timer / dur;
+    const targetY = H * 0.22;
+    if (t < 0.4) {
+      const st = t / 0.4;
+      ending.silhouetteY = (H + 120) + (targetY - H - 120) * (1 - Math.pow(1 - st, 3));
+      ending.silhouetteAlpha = st * 0.9;
+    } else if (t < 0.65) {
+      ending.silhouetteY = targetY;
+      ending.silhouetteAlpha = 0.9;
+    } else {
+      ending.silhouetteAlpha = 0.9 * (1 - (t - 0.65) / 0.35);
+    }
+    if (ending.timer >= dur) { ending.phase = 5; ending.timer = 0; ending.silhouetteAlpha = 0; }
+
+  } else if (ending.phase === 5) {
+    // 独白逐行淡入：每行36帧内完成alpha 0→1
+    const lineT = 36;
+    for (let i = 0; i < ENDING_MONO.length; i++) {
+      const start  = i * lineT;
+      const localT = ending.timer - start;
+      if (localT <= 0) { ending.monoLineAlpha[i] = 0; }
+      else if (localT < lineT * 0.6) { ending.monoLineAlpha[i] = Math.min(1, localT / (lineT * 0.6)); }
+      else { ending.monoLineAlpha[i] = 1; }
+    }
+    if (ending.timer >= dur) { ending.phase = 6; ending.timer = 0; }
+
+  } else if (ending.phase === 6) {
+    // 淡出黑幕
+    ending.fadeOut = ending.timer / ENDING_DUR[6];
+    if (ending.timer >= ENDING_DUR[6]) {
+      setGameState(S.WIN);
+    }
+  }
+}
+
+function renderEnding() {
+  // 背景：深黑
+  ctx.fillStyle = '#04020a';
+  ctx.fillRect(0, 0, W, H);
+
+  // 阶段2：剑碎片
+  if (ending.phase >= 2 && ending.phase <= 4) {
+    ctx.save();
+    for (const s of ending.shards) {
+      if (s.alpha <= 0) continue;
+      ctx.save();
+      ctx.globalAlpha = s.alpha;
+      ctx.translate(s.x, s.y);
+      ctx.rotate(s.angle);
+      ctx.shadowColor = '#c0d0ff'; ctx.shadowBlur = 12;
+      const sg = ctx.createLinearGradient(0, -s.h/2, 0, s.h/2);
+      sg.addColorStop(0, '#ffffff'); sg.addColorStop(0.5, '#a0c0ff'); sg.addColorStop(1, '#4060c0');
+      ctx.fillStyle = sg;
+      ctx.fillRect(-s.w/2, -s.h/2, s.w, s.h);
+      ctx.restore();
+    }
+    ctx.restore();
+  }
+
+  // 阶段3：§32 记忆碎片倒放
+  if (ending.phase === 3 && ending.memAlpha > 0) {
+    renderMemoryFlash(ending.memIdx, ending.memAlpha);
+    // 水平扫描线（切换时刷过）
+    if (ending.memScanX < W) {
+      ctx.save();
+      ctx.globalAlpha = 0.55;
+      ctx.fillStyle = '#e0eeff';
+      ctx.fillRect(ending.memScanX, 0, 6, H);
+      ctx.restore();
+    }
+  }
+
+  // 阶段4：加德列尔剪影（纯黑轮廓+红色描边）
+  if (ending.phase === 4 && ending.silhouetteAlpha > 0) {
+    const cx = W * 0.5;
+    const sy = ending.silhouetteY;
+    ctx.save();
+    ctx.globalAlpha = ending.silhouetteAlpha;
+    ctx.shadowColor = '#ff2020'; ctx.shadowBlur = 30;
+    // 翅膀（低垂，简化轮廓）
+    for (const s of [-1, 1]) {
+      ctx.fillStyle = '#080004';
+      ctx.beginPath();
+      ctx.moveTo(cx + s*10, sy + 80);
+      ctx.bezierCurveTo(cx+s*30, sy+70, cx+s*90, sy+100, cx+s*80, sy+140);
+      ctx.bezierCurveTo(cx+s*60, sy+155, cx+s*22, sy+145, cx+s*10, sy+80);
+      ctx.fill();
+    }
+    // 身体
+    ctx.fillStyle = '#0a0005';
+    ctx.beginPath(); ctx.ellipse(cx, sy+90, 22, 45, 0, 0, Math.PI*2); ctx.fill();
+    // 头
+    ctx.beginPath(); ctx.arc(cx, sy+52, 22, 0, Math.PI*2); ctx.fill();
+    // 双手枷锁轮廓
+    ctx.strokeStyle = '#300010'; ctx.lineWidth = 3;
+    ctx.beginPath(); ctx.arc(cx-44, sy+138, 9, 0, Math.PI*2); ctx.stroke();
+    ctx.beginPath(); ctx.arc(cx+44, sy+138, 9, 0, Math.PI*2); ctx.stroke();
+    // 锁链
+    ctx.strokeStyle = '#280010'; ctx.lineWidth = 1.5;
+    ctx.beginPath(); ctx.moveTo(cx-35, sy+138); ctx.bezierCurveTo(cx-10, sy+158, cx+10, sy+158, cx+35, sy+138); ctx.stroke();
+    // 红色描边光晕已由 shadowBlur 提供
+    ctx.restore();
+  }
+
+  // 阶段5：独白文字（canvas绘制）
+  if (ending.phase === 5) {
+    ctx.save();
+    ctx.font = '14px "Noto Serif SC", serif';
+    ctx.letterSpacing = '3px';
+    ctx.textAlign = 'center';
+    const baseY = H * 0.38;
+    for (let i = 0; i < ENDING_MONO.length; i++) {
+      if (ending.monoLineAlpha[i] <= 0) continue;
+      ctx.globalAlpha = ending.monoLineAlpha[i];
+      ctx.fillStyle   = '#d0c8d8';
+      ctx.shadowColor = '#8040c0'; ctx.shadowBlur = 16;
+      ctx.fillText(ENDING_MONO[i], W * 0.5, baseY + i * 38);
+    }
+    ctx.restore();
+  }
+
+  // 白光叠加（阶段0-1）
+  if (ending.flashAlpha > 0) {
+    ctx.save();
+    const fg = ctx.createRadialGradient(W*0.5, H*0.42, 0, W*0.5, H*0.42, H*0.8);
+    fg.addColorStop(0, `rgba(255,255,255,${ending.flashAlpha})`);
+    fg.addColorStop(0.5, `rgba(220,210,255,${ending.flashAlpha * 0.6})`);
+    fg.addColorStop(1, `rgba(0,0,0,0)`);
+    ctx.fillStyle = fg;
+    ctx.fillRect(0, 0, W, H);
+    ctx.restore();
+  }
+
+  // 最终淡出黑幕（阶段6）
+  if (ending.phase === 6 && ending.fadeOut > 0) {
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, ending.fadeOut);
+    ctx.fillStyle = '#000000';
+    ctx.fillRect(0, 0, W, H);
+    ctx.restore();
+  }
+}
+
+// §32 记忆碎片渲染（3张场景简笔轮廓，反向：审判庭→圣光廊道→净罪塔牢房）
+// 全部在深黑背景上用线条+色块模拟场景剪影，不依赖游戏地图逻辑
+function renderMemoryFlash(idx, alpha) {
+  ctx.save();
+  ctx.globalAlpha = alpha;
+
+  if (idx === 0) {
+    // ── 记忆0：审判庭 ──────────────────────────────────────
+    // 冷蓝调，俯视角等距地板格 + 米迦勒正面剪影 + 远处圆柱
+    ctx.fillStyle = '#06080e';
+    ctx.fillRect(0, 0, W, H);
+
+    // 地板菱形网格（等距风）
+    ctx.save();
+    ctx.strokeStyle = 'rgba(80,120,200,0.25)';
+    ctx.lineWidth = 1;
+    const gs = 44; // 格大小（屏幕像素）
+    for (let gx = -gs; gx < W + gs; gx += gs) {
+      ctx.beginPath();
+      ctx.moveTo(gx + H * 0.5, H * 0.3);
+      ctx.lineTo(gx + H * 0.5 + gs * 6, H * 0.3 + gs * 3);
+      ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(gx + H * 0.5, H * 0.3);
+      ctx.lineTo(gx + H * 0.5 - gs * 6, H * 0.3 + gs * 3);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // 远处两根立柱轮廓（左右各一）
+    ctx.save();
+    ctx.shadowColor = '#4060c0'; ctx.shadowBlur = 18;
+    for (const sx of [W * 0.28, W * 0.72]) {
+      ctx.fillStyle = '#0e1428';
+      ctx.fillRect(sx - 14, H * 0.25, 28, H * 0.38);
+      ctx.strokeStyle = 'rgba(100,140,240,0.35)';
+      ctx.lineWidth = 1.5;
+      ctx.strokeRect(sx - 14, H * 0.25, 28, H * 0.38);
+    }
+    ctx.restore();
+
+    // 米迦勒剪影（正面，居中偏上，高大感）
+    const mx = W * 0.5, my = H * 0.18;
+    ctx.save();
+    ctx.shadowColor = '#a0c0ff'; ctx.shadowBlur = 25;
+    ctx.fillStyle = '#0a1020';
+    // 双翼（上翘的大翼）
+    for (const s of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(mx + s * 18, my + 60);
+      ctx.bezierCurveTo(mx + s * 55, my + 20, mx + s * 130, my - 10, mx + s * 110, my + 80);
+      ctx.bezierCurveTo(mx + s * 90, my + 130, mx + s * 36, my + 120, mx + s * 18, my + 60);
+      ctx.fill();
+    }
+    // 身体
+    ctx.beginPath(); ctx.ellipse(mx, my + 100, 20, 50, 0, 0, Math.PI * 2); ctx.fill();
+    // 头（带光环）
+    ctx.beginPath(); ctx.arc(mx, my + 42, 20, 0, Math.PI * 2); ctx.fill();
+    ctx.strokeStyle = 'rgba(160,200,255,0.5)';
+    ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.ellipse(mx, my + 42, 30, 6, 0, 0, Math.PI * 2); ctx.stroke();
+    // 剑（竖握，居中）
+    ctx.fillStyle = '#1a2848';
+    ctx.fillRect(mx - 3, my + 120, 6, 55);
+    ctx.fillRect(mx - 16, my + 138, 32, 5);
+    ctx.restore();
+
+    // 顶部蓝色文字标签（淡，像记忆里的地名）
+    ctx.save();
+    ctx.globalAlpha = 0.4;
+    ctx.font = '11px "Courier New", monospace';
+    ctx.letterSpacing = '4px';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#8090c0';
+    ctx.fillText('ZONA II — 审判庭', W * 0.5, H * 0.88);
+    ctx.restore();
+
+  } else if (idx === 1) {
+    // ── 记忆1：圣光廊道 ───────────────────────────────────
+    // 暖金调，长廊透视感 + 拉斐尔剪影在远端 + 光柱从侧面打入
+    ctx.fillStyle = '#0a0800';
+    ctx.fillRect(0, 0, W, H);
+
+    // 廊道透视线（收束向远处中心点）
+    const vx = W * 0.5, vy = H * 0.38;
+    ctx.save();
+    ctx.strokeStyle = 'rgba(180,140,30,0.2)';
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 8; i++) {
+      const startX = (i / 8) * W;
+      ctx.beginPath();
+      ctx.moveTo(startX, H);
+      ctx.lineTo(vx, vy);
+      ctx.stroke();
+    }
+    // 横线（透视感）
+    for (let i = 0; i < 5; i++) {
+      const t = i / 5;
+      const ly = vy + (H - vy) * (t * t * 0.9 + 0.05);
+      const lw = (W * 0.05) + (W * 0.45) * (1 - t * 0.8);
+      ctx.beginPath();
+      ctx.moveTo(W * 0.5 - lw, ly);
+      ctx.lineTo(W * 0.5 + lw, ly);
+      ctx.stroke();
+    }
+    ctx.restore();
+
+    // 侧面光柱（从左侧打入，金色）
+    ctx.save();
+    const lg = ctx.createLinearGradient(0, H * 0.3, W * 0.55, H * 0.6);
+    lg.addColorStop(0, 'rgba(220,180,50,0.22)');
+    lg.addColorStop(1, 'rgba(220,180,50,0)');
+    ctx.fillStyle = lg;
+    ctx.beginPath();
+    ctx.moveTo(0, H * 0.2);
+    ctx.lineTo(W * 0.55, H * 0.42);
+    ctx.lineTo(W * 0.45, H * 0.68);
+    ctx.lineTo(0, H * 0.55);
+    ctx.closePath();
+    ctx.fill();
+    ctx.restore();
+
+    // 拉斐尔剪影（远端，小而模糊）
+    const rx = W * 0.5, ry = H * 0.3;
+    ctx.save();
+    ctx.shadowColor = '#ffe0a0'; ctx.shadowBlur = 22;
+    ctx.globalAlpha = 0.65;
+    ctx.fillStyle = '#1a1400';
+    // 翅膀（折叠，修长）
+    for (const s of [-1, 1]) {
+      ctx.beginPath();
+      ctx.moveTo(rx + s * 8, ry + 26);
+      ctx.bezierCurveTo(rx + s * 26, ry + 10, rx + s * 52, ry + 18, rx + s * 46, ry + 60);
+      ctx.bezierCurveTo(rx + s * 32, ry + 72, rx + s * 14, ry + 68, rx + s * 8, ry + 26);
+      ctx.fill();
+    }
+    ctx.beginPath(); ctx.ellipse(rx, ry + 46, 10, 22, 0, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(rx, ry + 18, 10, 0, Math.PI * 2); ctx.fill();
+    ctx.restore();
+
+    // 标签
+    ctx.save();
+    ctx.globalAlpha = 0.38;
+    ctx.font = '11px "Courier New", monospace';
+    ctx.letterSpacing = '4px';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#a09040';
+    ctx.fillText('ZONA I — 圣光廊道', W * 0.5, H * 0.88);
+    ctx.restore();
+
+  } else if (idx === 2) {
+    // ── 记忆2：净罪塔牢房 ─────────────────────────────────
+    // 冷白调，铁格栅窗、角落里蜷缩的天使剪影（玩家自己）
+    ctx.fillStyle = '#080810';
+    ctx.fillRect(0, 0, W, H);
+
+    // 铁格栅（占右上角，透光）
+    const gW = W * 0.28, gH = H * 0.32;
+    const gX = W * 0.6, gY = H * 0.08;
+    // 窗外冷光
+    ctx.save();
+    const wg = ctx.createRadialGradient(gX + gW * 0.5, gY + gH * 0.5, 0, gX + gW * 0.5, gY + gH * 0.5, gW * 0.8);
+    wg.addColorStop(0, 'rgba(180,200,255,0.18)');
+    wg.addColorStop(1, 'rgba(0,0,0,0)');
+    ctx.fillStyle = wg;
+    ctx.fillRect(0, 0, W, H);
+    // 格栅横竖线
+    ctx.strokeStyle = 'rgba(140,150,180,0.6)';
+    ctx.lineWidth = 2.5;
+    const bars = 4, crossbars = 5;
+    for (let i = 0; i <= bars; i++) {
+      const x = gX + (i / bars) * gW;
+      ctx.beginPath(); ctx.moveTo(x, gY); ctx.lineTo(x, gY + gH); ctx.stroke();
+    }
+    for (let i = 0; i <= crossbars; i++) {
+      const y = gY + (i / crossbars) * gH;
+      ctx.beginPath(); ctx.moveTo(gX, y); ctx.lineTo(gX + gW, y); ctx.stroke();
+    }
+    // 窗框
+    ctx.strokeStyle = 'rgba(100,110,140,0.8)';
+    ctx.lineWidth = 4;
+    ctx.strokeRect(gX, gY, gW, gH);
+    ctx.restore();
+
+    // 窗投影（光从格栅投射到地面）
+    ctx.save();
+    ctx.globalAlpha = 0.12;
+    for (let i = 0; i <= bars; i++) {
+      const sx = gX + (i / bars) * gW;
+      ctx.fillStyle = 'rgba(160,180,255,1)';
+      ctx.fillRect(sx + H * 0.15 - 1, H * 0.55, 2, H * 0.35);
+    }
+    ctx.restore();
+
+    // 角落的天使剪影（蜷缩，左下角）
+    const px = W * 0.22, py = H * 0.62;
+    ctx.save();
+    ctx.shadowColor = '#8090c0'; ctx.shadowBlur = 14;
+    ctx.fillStyle = '#080810';
+    // 蜷缩的翅膀（折叠包裹身体）
+    ctx.beginPath();
+    ctx.moveTo(px, py);
+    ctx.bezierCurveTo(px - 40, py - 30, px - 65, py + 10, px - 55, py + 60);
+    ctx.bezierCurveTo(px - 40, py + 80, px - 10, py + 75, px, py);
+    ctx.fill();
+    ctx.beginPath();
+    ctx.moveTo(px, py);
+    ctx.bezierCurveTo(px + 30, py - 20, px + 50, py + 15, px + 38, py + 58);
+    ctx.bezierCurveTo(px + 22, py + 76, px + 6, py + 72, px, py);
+    ctx.fill();
+    // 身体（蜷缩球）
+    ctx.beginPath(); ctx.ellipse(px - 8, py + 40, 18, 22, -0.3, 0, Math.PI * 2); ctx.fill();
+    // 翅膀一左黑一右白的暗示（右边略亮）
+    ctx.strokeStyle = 'rgba(200,210,230,0.18)';
+    ctx.lineWidth = 1.5;
+    ctx.beginPath();
+    ctx.moveTo(px, py);
+    ctx.bezierCurveTo(px + 30, py - 18, px + 48, py + 16, px + 38, py + 56);
+    ctx.stroke();
+    ctx.restore();
+
+    // 牢房地面阴影
+    ctx.save();
+    const fg2 = ctx.createLinearGradient(0, H * 0.7, 0, H);
+    fg2.addColorStop(0, 'rgba(0,0,0,0)');
+    fg2.addColorStop(1, 'rgba(0,0,8,0.7)');
+    ctx.fillStyle = fg2;
+    ctx.fillRect(0, H * 0.7, W, H * 0.3);
+    ctx.restore();
+
+    // 标签
+    ctx.save();
+    ctx.globalAlpha = 0.36;
+    ctx.font = '11px "Courier New", monospace';
+    ctx.letterSpacing = '4px';
+    ctx.textAlign = 'center';
+    ctx.fillStyle = '#7880a0';
+    ctx.fillText('ZONA 0 — 净罪塔', W * 0.5, H * 0.88);
+    ctx.restore();
+  }
+
+  ctx.restore();
+}
+
+// ═══════════════════════════════════════════════════════════
 // ═══ GAME LOOP ══════════════════════════════════════════════
 // ═══════════════════════════════════════════════════════════
 function loop(timestamp) {
@@ -6828,6 +9136,15 @@ function loop(timestamp) {
   if (gameState === S.TITLE || gameState === S.DEAD || gameState === S.WIN) {
     renderTitleFx(timestamp);
     needResetDelta = true;
+    return;
+  }
+  // 结局演出
+  if (gameState === S.ENDING) {
+    const raw = timestamp - lastTime;
+    lastTime = timestamp;
+    const fd = Math.min(raw, 50) / (1000 / 60);
+    updateEnding(fd);
+    renderEnding();
     return;
   }
   if (gameState === S.BUFF || gameState === S.PAUSE || gameState === S.WEAPON) {
@@ -6862,6 +9179,7 @@ function loop(timestamp) {
     ctx.fillRect(0, 0, W, H);
     renderMap();
     renderExits();
+    renderEzequeelDoor();
     renderEnemies();
     renderPlayer();
     // 半透明暗遮罩增强对话框可读性
@@ -6930,6 +9248,7 @@ function loop(timestamp) {
   ctx.fillRect(0, 0, W, H);
   renderMap();
   renderExits();
+  renderEzequeelDoor();
   renderAttacks();
   renderProjectiles();
   renderEnemies();
