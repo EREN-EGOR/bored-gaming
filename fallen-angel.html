@@ -1109,16 +1109,41 @@ function initPlayer() {
       holyDmg: 0,
       dashRange: 1,
       dashThrough: false,
+      dashThroughDmg: 20,       // 冲刺穿透伤害（风暴步）
+      dashFrostTrail: false,    // 冰霜轨迹（法则之壁）
+      dashNextAtkBonus: false,  // 冲刺后下次攻击+30%（闪电冲）
+      dashDefenseWindow: 0,     // 冲刺后减伤窗口（帧数）
+      dashLifeConvert: false,   // 冲刺后伤害转生命（圣洁冲）
+      dashLifeConvertTimer: 0,  // 圣洁冲倒计时
       comboFinisherMul: 1,
       atkSpeedMul: 1,
+      atkArcBonus: 1,           // 普攻弧度倍数（风刃）
       slowOnHit: 1, slowDur: 0,
       lifeOnKill: 0,
+      lifeOnHit: 0,             // 普攻命中回血（月牙斩）
       lastStand: false, lastStandUsed: false,
       dashKillReset: false,
-      dashDefenseWindow: 0,
       spinBurst: false,
+      spinBurn: false,          // 旋转斩灼烧（纯洁旋）
+      spinRangeBonus: 1,        // 旋转斩范围倍数（月圆斩）
+      spinLifePerHit: 0,        // 旋转斩命中回血（月圆斩）
+      spinKnockbackBonus: false,// 击退+100%（大风暴）
+      spinLightningArc: false,  // 旋转斩电弧（闪电环）
+      spinFrostRing: false,     // 旋转斩冰环（霜环）
       dashCdMul: 1,
       spinDmgBonus: 0,
+      thrustDmgMul: 1,          // 突刺伤害倍数（冰矛穿透）
+      thrustFreeze: false,      // 突刺必定减速（冰矛穿透）
+      thrustAOE: false,         // 突刺AOE（旋风突）
+      thrustLifeSteal: 0,       // 突刺命中回血（月盾突）
+      thrustLifePct: 0,         // 突刺伤害转生命（净化突刺）
+      thrustCdMul: 1,           // 突刺CD倍数（雷速突刺）
+      thrustSpdMul: 1,          // 突刺速度倍数（雷速突刺）
+      thunderOnHit: 0,          // 普攻附加闪电伤害（雷击普攻）
+      pureAuraChance: false,    // 净化光环概率（净化之光）
+      blockChance: 0,           // 伤害完全抵消概率（圣光之体）
+      lowHpDmgBonus: false,     // 低血量伤害+25%（殒月）
+      slowedEnemyDmgBonus: false,// 减速敌人额外+20%伤害（绝对零度）
     },
   };
 }
@@ -1141,10 +1166,31 @@ function movePlayer(fd) {
         const thrustDmg = player.weapon === 'spear' ? 38 :
                           player.weapon === 'dagger' ? 25 :
                           player.weapon === 'chain'  ? 30 : 32;
-        hitEnemy(e, thrustDmg, 14, Math.atan2(e.y - player.y, e.x - player.x), player.mods.holyDmg);
+        hitEnemy(e, thrustDmg, 14, Math.atan2(e.y - player.y, e.x - player.x), player.mods.holyDmg,
+          { isThrust: true });
+        // 旋风突（thrustAOE）：命中主目标后对半径100内其他敌人造成60%伤害
+        if (player.mods.thrustAOE) {
+          for (const oe of enemies) {
+            if (oe === e || player.thrustHit.has(oe.id)) continue;
+            if (dist(oe, player) < 100) {
+              player.thrustHit.add(oe.id);
+              hitEnemy(oe, Math.round(thrustDmg * 0.6), 8,
+                Math.atan2(oe.y - player.y, oe.x - player.x), 0, { isThrust: true });
+              spawnParticles(oe.x, oe.y, '#ffe060', 8, {
+                spdMin: 2, spdMax: 7, rMin: 1.5, rMax: 3.5,
+                decayMin: 0.04, decayMax: 0.09,
+              });
+            }
+          }
+          // 旋风粒子环
+          spawnParticles(player.x, player.y, '#ffd040', 14, {
+            spdMin: 3, spdMax: 10, rMin: 1.5, rMax: 4,
+            decayMin: 0.03, decayMax: 0.07,
+          });
+        }
       }
     }
-    // 突刺尾迹
+    // 突刺尾迹（dashFrostTrail由冲刺处理；此处仅普通尾迹）
     if (Math.random() < 0.6) {
       spawnParticles(player.x, player.y, '#ffe0a0', 2, {
         angle: Math.atan2(-player.thrustVy, -player.thrustVx), spread: 0.4,
@@ -1162,6 +1208,20 @@ function movePlayer(fd) {
     const ny = player.y + player.dashVy * fd;
     if (!isWall(nx, player.y)) player.x = nx;
     if (!isWall(player.x, ny)) player.y = ny;
+    // 法则之壁（dashFrostTrail）：冲刺轨迹留下冰霜，减速沿途敌人
+    if (player.mods.dashFrostTrail && Math.random() < 0.5) {
+      spawnParticles(player.x, player.y, '#a0e8ff', 3, {
+        angle: Math.atan2(-player.dashVy, -player.dashVx), spread: 0.9,
+        spdMin: 0.5, spdMax: 2, rMin: 2, rMax: 5,
+        decayMin: 0.02, decayMax: 0.045,
+      });
+      for (const e of enemies) {
+        if (dist(e, player) < e.r + 24) {
+          e.slowMul   = Math.min(e.slowMul, 0.45);
+          e.slowTimer = Math.max(e.slowTimer, 90);
+        }
+      }
+    }
     return;
   }
 
@@ -2017,6 +2077,12 @@ function doSwordAttack() {
   const step = player.comboStep;
   let dmg = COMBO_DMG[step];
   if (step === 2) dmg = Math.round(dmg * player.mods.comboFinisherMul);
+  // 闪电冲：冲刺后下次攻击+30%
+  if (player.mods.dashNextAtkActive) {
+    dmg = Math.round(dmg * 1.3);
+    player.mods.dashNextAtkActive = false;
+    spawnParticles(player.x, player.y, '#ffe040', 8, { spdMin: 2, spdMax: 7, rMin: 1, rMax: 3, decayMin: 0.05, decayMax: 0.10 });
+  }
   const angle = player.angle;
   screenShake = Math.max(screenShake, step === 2 ? 3 : 1.5);
   attacks.push({
@@ -2037,7 +2103,13 @@ function doSpearAttack() {
   if (player.atkCd > 0) return;
   if (player.comboTimer <= 0) player.comboStep = 0;
   const step = player.comboStep;
-  const dmg  = SPEAR_DMG[step];
+  let dmg  = SPEAR_DMG[step];
+  // 闪电冲：冲刺后下次攻击+30%
+  if (player.mods.dashNextAtkActive) {
+    dmg = Math.round(dmg * 1.3);
+    player.mods.dashNextAtkActive = false;
+    spawnParticles(player.x, player.y, '#ffe040', 8, { spdMin: 2, spdMax: 7, rMin: 1, rMax: 3, decayMin: 0.05, decayMax: 0.10 });
+  }
   const angle = player.angle;
   screenShake = Math.max(screenShake, 2);
   attacks.push({
@@ -2060,7 +2132,13 @@ function doDaggerAttack() {
   if (player.atkCd > 0) return;
   if (player.comboTimer <= 0) player.comboStep = 0;
   const step = player.comboStep;
-  const dmg  = DAGGER_DMG[step];
+  let dmg  = DAGGER_DMG[step];
+  // 闪电冲：冲刺后下次攻击+30%
+  if (player.mods.dashNextAtkActive) {
+    dmg = Math.round(dmg * 1.3);
+    player.mods.dashNextAtkActive = false;
+    spawnParticles(player.x, player.y, '#ffe040', 8, { spdMin: 2, spdMax: 7, rMin: 1, rMax: 3, decayMin: 0.05, decayMax: 0.10 });
+  }
   const angle = player.angle;
   // 交替双匕：每次攻击偏移角度±0.25弧度
   const sideOff = (player.comboStep % 2 === 0) ? -0.22 : 0.22;
@@ -2082,7 +2160,13 @@ function doChainAttack() {
   if (player.atkCd > 0) return;
   if (player.comboTimer <= 0) player.comboStep = 0;
   const step = player.comboStep;
-  const dmg  = CHAIN_DMG[step];
+  let dmg  = CHAIN_DMG[step];
+  // 闪电冲：冲刺后下次攻击+30%
+  if (player.mods.dashNextAtkActive) {
+    dmg = Math.round(dmg * 1.3);
+    player.mods.dashNextAtkActive = false;
+    spawnParticles(player.x, player.y, '#ffe040', 8, { spdMin: 2, spdMax: 7, rMin: 1, rMax: 3, decayMin: 0.05, decayMax: 0.10 });
+  }
   const angle = player.angle;
   screenShake = Math.max(screenShake, step === 2 ? 4 : 2);
   attacks.push({
@@ -2105,7 +2189,13 @@ function doGreatswordRelease() {
   const charge = player.gsChargeTimer;
   player.gsChargeTimer = 0;
   const chargePct = clamp(charge / 90, 0, 1);
-  const dmg  = Math.round(30 + chargePct * 82);   // 30~112
+  let dmg  = Math.round(30 + chargePct * 82);   // 30~112
+  // 闪电冲：冲刺后下次攻击+30%
+  if (player.mods.dashNextAtkActive) {
+    dmg = Math.round(dmg * 1.3);
+    player.mods.dashNextAtkActive = false;
+    spawnParticles(player.x, player.y, '#ffe040', 8, { spdMin: 2, spdMax: 7, rMin: 1, rMax: 3, decayMin: 0.05, decayMax: 0.10 });
+  }
   const arc  = lerp(1.1, 2.3, chargePct);         // 窄→宽
   const range = lerp(65, 90, chargePct);
   const angle = player.angle;
@@ -2154,7 +2244,7 @@ function doGreatswordRightRelease() {
     holyDmg: player.mods.holyDmg, isSpin: false, step: 2,
     isGreatsword: true, chargePct,
   });
-  player.thrustCd = THRUST_CD_MAX;
+  player.thrustCd = Math.round(THRUST_CD_MAX * player.mods.thrustCdMul);
 }
 
 // ─── 旋转斩/E技 主派发 ────────────────────────────────
@@ -2173,9 +2263,10 @@ function doSpin() {
 function doSwordSpin() {
   if (player.spinCd > 0) return;
   player.spinCd = SPIN_CD_MAX;
+  const spinRange = Math.round(SPIN_RANGE * player.mods.spinRangeBonus);
   const atk = {
     id: Math.random(), cx: player.x, cy: player.y,
-    angle: 0, arc: Math.PI * 2, range: SPIN_RANGE,
+    angle: 0, arc: Math.PI * 2, range: spinRange,
     dmg: 55 + player.mods.spinDmgBonus, knockback: 20,
     life: 18, maxLife: 18, hit: new Set(),
     holyDmg: player.mods.holyDmg, isSpin: true, step: -1,
@@ -2184,6 +2275,18 @@ function doSwordSpin() {
   spawnParticles(player.x, player.y, '#ffe080', 40, { spdMin: 2, spdMax: 10, rMin: 2.5, rMax: 6, decayMin: 0.02, decayMax: 0.05 });
   spawnParticles(player.x, player.y, '#ffffff', 20, { spdMin: 6, spdMax: 18, rMin: 1, rMax: 3, decayMin: 0.06, decayMax: 0.12 });
   spawnParticles(player.x, player.y, '#ffa040', 16, { spdMin: 1, spdMax: 5, rMin: 3, rMax: 7, decayMin: 0.025, decayMax: 0.05 });
+  // 霜环（spinFrostRing）：旋转斩后生成冰环，对范围内敌人施加减速
+  if (player.mods.spinFrostRing) {
+    spawnParticles(player.x, player.y, '#80d8ff', 28, { spdMin: 3, spdMax: spinRange * 0.065, rMin: 2, rMax: 5, decayMin: 0.025, decayMax: 0.05 });
+    spawnParticles(player.x, player.y, '#c0f4ff', 14, { spdMin: spinRange * 0.06, spdMax: spinRange * 0.1, rMin: 1, rMax: 3, decayMin: 0.04, decayMax: 0.07 });
+    for (const e of enemies) {
+      if (dist(e, player) < spinRange + 30) {
+        e.slowMul   = Math.min(e.slowMul, 0.4);
+        e.slowTimer = Math.max(e.slowTimer, 150);   // 2.5秒
+        spawnParticles(e.x, e.y, '#80d8ff', 5, { spdMin: 1, spdMax: 4, rMin: 1.5, rMax: 3, decayMin: 0.05, decayMax: 0.10 });
+      }
+    }
+  }
   screenShake = Math.max(screenShake, 10);
 }
 
@@ -2301,12 +2404,12 @@ function doThrust() {
   const mdx  = mouse.worldX - player.x;
   const mdy  = mouse.worldY - player.y;
   const mlen = Math.hypot(mdx, mdy) || 1;
-  const spd  = 13;
+  const spd  = 13 * player.mods.thrustSpdMul;
   player.thrustVx    = (mdx / mlen) * spd;
   player.thrustVy    = (mdy / mlen) * spd;
   player.thrustTimer = 10;
   player.thrustHit   = new Set();
-  player.thrustCd    = THRUST_CD_MAX;
+  player.thrustCd    = Math.round(THRUST_CD_MAX * player.mods.thrustCdMul);
   player.invincible  = Math.max(player.invincible, 8);
   const thrustAngle = Math.atan2(mdy, mdx);
   spawnParticles(player.x, player.y, '#ffffff', 8, { angle: thrustAngle, spread: 0.35, spdMin: 5, spdMax: 12, rMin: 1, rMax: 2.5, decayMin: 0.05, decayMax: 0.10 });
@@ -2320,12 +2423,12 @@ function doSpearThrust() {
   const mdx  = mouse.worldX - player.x;
   const mdy  = mouse.worldY - player.y;
   const mlen = Math.hypot(mdx, mdy) || 1;
-  const spd  = 15;
+  const spd  = 15 * player.mods.thrustSpdMul;
   player.thrustVx    = (mdx / mlen) * spd;
   player.thrustVy    = (mdy / mlen) * spd;
   player.thrustTimer = 14;   // 更长
   player.thrustHit   = new Set();
-  player.thrustCd    = THRUST_CD_MAX;
+  player.thrustCd    = Math.round(THRUST_CD_MAX * player.mods.thrustCdMul);
   player.invincible  = Math.max(player.invincible, 10);
   const thrustAngle = Math.atan2(mdy, mdx);
   spawnParticles(player.x, player.y, '#d0a060', 10, { angle: thrustAngle, spread: 0.3, spdMin: 5, spdMax: 14, rMin: 1.5, rMax: 3, decayMin: 0.04, decayMax: 0.09 });
@@ -2338,12 +2441,12 @@ function doDaggerFlash() {
   const mdx  = mouse.worldX - player.x;
   const mdy  = mouse.worldY - player.y;
   const mlen = Math.hypot(mdx, mdy) || 1;
-  const spd  = 18;
+  const spd  = 18 * player.mods.thrustSpdMul;
   player.thrustVx    = (mdx / mlen) * spd;
   player.thrustVy    = (mdy / mlen) * spd;
   player.thrustTimer = 6;    // 短促
   player.thrustHit   = new Set();
-  player.thrustCd    = DAGGER_THRUST_CD;   // 短CD
+  player.thrustCd    = Math.round(DAGGER_THRUST_CD * player.mods.thrustCdMul);   // 短CD
   player.invincible  = Math.max(player.invincible, 6);
   const thrustAngle = Math.atan2(mdy, mdx);
   spawnParticles(player.x, player.y, '#80ffff', 10, { angle: thrustAngle, spread: 0.4, spdMin: 6, spdMax: 14, rMin: 1, rMax: 2.5, decayMin: 0.05, decayMax: 0.11 });
@@ -2356,12 +2459,12 @@ function doChainLaunch() {
   const mdx  = mouse.worldX - player.x;
   const mdy  = mouse.worldY - player.y;
   const mlen = Math.hypot(mdx, mdy) || 1;
-  const spd  = 20;
+  const spd  = 20 * player.mods.thrustSpdMul;
   player.thrustVx    = (mdx / mlen) * spd;
   player.thrustVy    = (mdy / mlen) * spd;
   player.thrustTimer = 10;
   player.thrustHit   = new Set();  // 弹射也穿越伤害敌人
-  player.thrustCd    = CHAIN_LAUNCH_CD;
+  player.thrustCd    = Math.round(CHAIN_LAUNCH_CD * player.mods.thrustCdMul);
   player.invincible  = Math.max(player.invincible, 8);
   const thrustAngle = Math.atan2(mdy, mdx);
   spawnParticles(player.x, player.y, '#c060ff', 14, { angle: Math.atan2(-mdy, -mdx), spread: 0.6, spdMin: 3, spdMax: 9, rMin: 1.5, rMax: 3.5, decayMin: 0.04, decayMax: 0.09 });
@@ -2369,29 +2472,95 @@ function doChainLaunch() {
   screenShake = Math.max(screenShake, 3);
 }
 
-function hitEnemy(e, dmg, knockback, angle, holyDmg) {
+function hitEnemy(e, dmg, knockback, angle, holyDmg, opts) {
   // archangel护盾减伤
-  let realDmg = dmg + holyDmg;
+  let realDmg = dmg + (holyDmg || 0);
+
+  // 殒月：低血量额外伤害
+  if (player.mods.lowHpDmgBonus && player.hp / player.maxHp < 0.3) realDmg = Math.round(realDmg * 1.25);
+  // 绝对零度：减速中敌人额外伤害
+  if (player.mods.slowedEnemyDmgBonus && e.slowTimer > 0) realDmg = Math.round(realDmg * 1.2);
+  // 突刺伤害倍数（冰矛穿透）
+  if (opts && opts.isThrust && player.mods.thrustDmgMul > 1) realDmg = Math.round(realDmg * player.mods.thrustDmgMul);
+
   if (e.type === 'archangel') realDmg = applyArchangelShield(e, realDmg);
 
-  // fallen_curse buff：命中减速
+  // fallen_curse / danel_atk buff：命中减速
   if (player.mods.slowDur > 0 && player.mods.slowOnHit !== 1) {
     e.slowMul   = player.mods.slowOnHit;
     e.slowTimer = player.mods.slowDur;
   }
+  // 突刺必定减速（冰矛穿透）
+  if (opts && opts.isThrust && player.mods.thrustFreeze) {
+    e.slowMul   = 0.5;
+    e.slowTimer = Math.max(e.slowTimer, 120);
+  }
+
+  // 雷击普攻：附加闪电伤害+连锁
+  if (player.mods.thunderOnHit > 0 && !opts?.noThunder) {
+    realDmg += player.mods.thunderOnHit;
+    // 连锁到最近的另一个敌人
+    let nearest = null, nearDist = 9999;
+    for (const other of enemies) {
+      if (other === e) continue;
+      const d2 = dist(other, e);
+      if (d2 < nearDist) { nearDist = d2; nearest = other; }
+    }
+    if (nearest && nearDist < 200) {
+      nearest.hp -= 8;
+      nearest.flashTimer = 6;
+      // 电弧粒子
+      spawnParticles(nearest.x, nearest.y, '#c0f0ff', 5, { spdMin:2, spdMax:6, rMin:1, rMax:2, decayMin:0.07, decayMax:0.13 });
+      if (nearest.hp <= 0) killEnemy(nearest);
+    }
+  }
 
   e.hp -= realDmg;
   e.flashTimer = 10;
+
+  // 月牙斩：普攻命中回血
+  if (player.mods.lifeOnHit > 0 && !opts?.isSpin) {
+    player.hp = Math.min(player.maxHp, player.hp + player.mods.lifeOnHit);
+  }
+  // 月盾突：突刺命中回血
+  if (player.mods.thrustLifeSteal > 0 && opts && opts.isThrust) {
+    player.hp = Math.min(player.maxHp, player.hp + player.mods.thrustLifeSteal);
+  }
+  // 净化突刺：突刺伤害转生命
+  if (player.mods.thrustLifePct > 0 && opts && opts.isThrust) {
+    player.hp = Math.min(player.maxHp, player.hp + Math.round(realDmg * player.mods.thrustLifePct));
+  }
 
   // 命中顿帧（第3击更长）
   hitStopTimer = Math.max(hitStopTimer, knockback > 0 ? 5 : 2);
 
   // 击退
   const kbBase = Math.max(knockback, 5);
+  const kbMul  = (player.mods.spinKnockbackBonus && opts && opts.isSpin) ? 2 : 1;
   const wdx = e.x - player.x, wdy = e.y - player.y;
   const wd  = Math.hypot(wdx, wdy) || 1;
-  e.vx = (e.vx || 0) + (wdx / wd) * kbBase;
-  e.vy = (e.vy || 0) + (wdy / wd) * kbBase;
+  e.vx = (e.vx || 0) + (wdx / wd) * kbBase * kbMul;
+  e.vy = (e.vy || 0) + (wdy / wd) * kbBase * kbMul;
+
+  // 旋转斩灼烧（纯洁旋）
+  if (opts && opts.isSpin && player.mods.spinBurn) {
+    e.burnTimer  = (e.burnTimer || 0) + 60;   // 1秒灼烧
+    e.burnDmgCd  = e.burnDmgCd || 0;
+  }
+
+  // 月圆斩：旋转斩命中每敌回血
+  if (opts && opts.isSpin && player.mods.spinLifePerHit > 0) {
+    player.hp = Math.min(player.maxHp, player.hp + player.mods.spinLifePerHit);
+  }
+
+  // 净化之光：20%概率触发治愈光环
+  if (player.mods.pureAuraChance && Math.random() < 0.2) {
+    player.hp = Math.min(player.maxHp, player.hp + 5);
+    spawnParticles(player.x, player.y, '#80ffc0', 12, { spdMin:2, spdMax:6, rMin:1.5, rMax:3.5, decayMin:0.03, decayMax:0.07 });
+    for (const oe of enemies) {
+      if (dist(oe, player) < 80) { oe.hp -= 5; oe.flashTimer = 6; if (oe.hp <= 0) killEnemy(oe); }
+    }
+  }
 
   // 命中粒子
   spawnParticles(e.x, e.y, '#ffe0a0', 10, {
@@ -2467,8 +2636,12 @@ function doDash() {
   player.dashTimer  = DASH_DUR;
   player.invincible = INVINCIBLE_DUR;
   player.dashCd     = Math.round(DASH_CD_MAX * player.mods.dashCdMul);
-  // divine_ward buff：冲刺后30帧防御窗口
-  if (player.mods.dashDefenseWindow > 0) player.dashDefWindow = 30;
+  // divine_ward buff：冲刺后防御窗口
+  if (player.mods.dashDefenseWindow > 0) player.dashDefWindow = player.mods.dashDefenseWindow;
+  // 圣洁冲：冲刺后5秒（300帧）转化受伤为HP
+  if (player.mods.dashLifeConvert) player.mods.dashLifeConvertTimer = 300;
+  // 闪电冲：冲刺后下次攻击+30%
+  if (player.mods.dashNextAtkBonus) player.mods.dashNextAtkActive = true;
 
   // 冲刺尾迹粒子（方向反向喷出）
   spawnParticles(player.x, player.y, '#a060ff', 12, {
@@ -2559,7 +2732,8 @@ function updateAttacks(fd) {
           esc.x, esc.y, e.r
         )) continue;
         hitSet.add(e.id);
-        hitEnemy(e, a.dmg, a.knockback, a.angle, a.holyDmg);
+        hitEnemy(e, a.dmg, a.knockback, a.angle, a.holyDmg,
+          { isSpin: a.isSpin, isThrust: false, noThunder: a.isSpin });
 
         // 双匕命中计数，触发雷爆
         if (a.isDagger && player.weapon === 'dagger') {
@@ -2571,10 +2745,19 @@ function updateAttacks(fd) {
         }
       }
 
-      // spinBurst buff：旋转斩命中≥2敌人时触发圣光冲击波
+      // spinBurst/风眼 buff：旋转斩命中≥2敌人时触发圣光冲击波
       if (a.isSpin && player.mods.spinBurst && a.hit.size >= 2 && !a.burstFired) {
         a.burstFired = true;
         spawnHolyBurst(a.cx, a.cy);
+      }
+      // 闪电环：旋转斩命中后在敌人间生成电弧
+      if (a.isSpin && player.mods.spinLightningArc && a.hit.size >= 2 && !a.arcFired) {
+        a.arcFired = true;
+        const hitEnemies = enemies.filter(e => a.hit.has(e.id));
+        for (let i = 0; i < hitEnemies.length - 1; i++) {
+          hitEnemy(hitEnemies[i+1], 15, 0, 0, 0, { noThunder: true });
+          spawnParticles(hitEnemies[i].x, hitEnemies[i].y, '#c0f0ff', 6, { spdMin:2, spdMax:6, rMin:1, rMax:2.5, decayMin:0.05, decayMax:0.11 });
+        }
       }
     }
   }
@@ -2583,7 +2766,7 @@ function updateAttacks(fd) {
   if (player.dashTimer > 0 && player.mods.dashThrough) {
     for (const e of enemies) {
       if (dist(e, player) < e.r + player.r) {
-        hitEnemy(e, 20, 0, Math.atan2(e.y - player.y, e.x - player.x), 0);
+        hitEnemy(e, player.mods.dashThroughDmg || 20, 0, Math.atan2(e.y - player.y, e.x - player.x), 0, { noThunder: true });
       }
     }
   }
@@ -2596,6 +2779,8 @@ function updateAttacks(fd) {
 
   // 冲刺后防御窗口倒计时
   if (player.dashDefWindow > 0) player.dashDefWindow -= fd;
+  // 圣洁冲倒计时
+  if (player.mods.dashLifeConvertTimer > 0) player.mods.dashLifeConvertTimer -= fd;
 }
 
 // 双匕第10连击雷爆
@@ -2869,6 +3054,19 @@ function updateEnemies(fd) {
     if (e.type === 'archangel')   updateArchangel(e, fd);
     if (e.type === 'michael_boss') updateMichaelBoss(e, fd);
     if (e.flashTimer > 0) e.flashTimer -= fd;
+
+    // 灼烧tick（纯洁旋 buff）
+    if (e.burnTimer > 0) {
+      e.burnTimer -= fd;
+      e.burnDmgCd = (e.burnDmgCd || 0) - fd;
+      if (e.burnDmgCd <= 0) {
+        e.burnDmgCd = 30;  // 每0.5秒8伤
+        e.hp -= 8;
+        e.flashTimer = 4;
+        spawnParticles(e.x, e.y, '#80ffc0', 4, { spdMin:1, spdMax:4, rMin:1, rMax:2.5, decayMin:0.05, decayMax:0.10 });
+        if (e.hp <= 0) { killEnemy(e); continue; }
+      }
+    }
   }
   updateBossBeams(fd);
 
@@ -2891,9 +3089,22 @@ function updateEnemies(fd) {
 // ── 玩家受伤（供敌人调用） ────────────────────────────
 function damagePlayer(dmg, fromAngle) {
   if (player.invincible > 0) return;
+  // 圣光之体：15%概率完全抵消
+  if (player.mods.blockChance > 0 && Math.random() < player.mods.blockChance) {
+    showFloatingText('格挡！', '#80ffc0');
+    spawnParticles(player.x, player.y, '#80ffc0', 10, { spdMin:2, spdMax:6, rMin:1, rMax:3, decayMin:0.06, decayMax:0.12 });
+    player.invincible = 10;
+    return;
+  }
   // divine_ward buff：冲刺后防御窗口减伤60%
   let finalDmg = dmg;
   if (player.dashDefWindow > 0) finalDmg = Math.round(dmg * 0.4);
+  // 圣洁冲：冲刺后受伤15%转HP
+  if (player.mods.dashLifeConvert && player.mods.dashLifeConvertTimer > 0) {
+    const lifeGet = Math.round(finalDmg * 0.15);
+    player.hp = Math.min(player.maxHp, player.hp + lifeGet);
+    finalDmg = Math.round(finalDmg * 0.85);
+  }
   player.hp       -= finalDmg;
   player.flashTimer = 8;
   player.invincible = 8;
@@ -3960,7 +4171,7 @@ function updateHUD() {
   cdCtx.clearRect(0, 0, cw, ch);
 
   drawCdArc(cdCtx, 20, ch/2, 16, player.dashCd,   DASH_CD_MAX,   '#40c0ff', '#1a4060', '冲');
-  drawCdArc(cdCtx, 55, ch/2, 16, player.thrustCd, THRUST_CD_MAX, '#ffe8a0', '#403820', '刺');
+  drawCdArc(cdCtx, 55, ch/2, 16, player.thrustCd, Math.round(THRUST_CD_MAX * player.mods.thrustCdMul), '#ffe8a0', '#403820', '刺');
   drawCdArc(cdCtx, 90, ch/2, 16, player.spinCd,   SPIN_CD_MAX,   '#ffe080', '#403010', '旋');
 }
 
@@ -4622,6 +4833,352 @@ function drawPortraitSemyaza(c, x, y) {
   c.restore();
 }
 
+// ─── 科卡比尔（#6080ff，仰头看星，学者气质） ───────────
+function drawPortraitKokabiel(c, x, y) {
+  c.save();
+  const cx = x + 90;
+  // 背景光晕（星蓝）
+  c.shadowColor='#6080ff'; c.shadowBlur=40;
+  const g = c.createRadialGradient(cx,y+80,0,cx,y+80,100);
+  g.addColorStop(0,'rgba(60,80,180,0.35)'); g.addColorStop(1,'rgba(0,0,0,0)');
+  c.fillStyle=g; c.fillRect(x,y,180,220);
+
+  // 翅膀（蓝紫，细长学者型）
+  for (let s = -1; s <= 1; s += 2) {
+    c.save();
+    c.shadowColor='#8090ff'; c.shadowBlur=18;
+    c.fillStyle=s<0?'#2030a0':'#3040c0';
+    c.beginPath();
+    c.moveTo(cx+s*10,y+68);
+    c.bezierCurveTo(cx+s*50,y+30,cx+s*70,y+55,cx+s*65,y+90);
+    c.bezierCurveTo(cx+s*50,y+100,cx+s*20,y+95,cx+s*10,y+68);
+    c.fill();
+    // 星点纹（翅膀上的星图）
+    c.fillStyle='rgba(180,200,255,0.55)'; c.shadowBlur=4;
+    for (let i=0;i<5;i++) {
+      const sx=cx+s*(25+i*6), sy=y+50+i*7;
+      c.beginPath(); c.arc(sx,sy,1.2,0,Math.PI*2); c.fill();
+    }
+    c.restore();
+  }
+  // 身体（深蓝袍）
+  c.fillStyle='#1a2060'; c.shadowColor='#4060d0'; c.shadowBlur=14;
+  c.beginPath(); c.moveTo(cx-18,y+70); c.lineTo(cx+18,y+70); c.lineTo(cx+22,y+145); c.lineTo(cx-22,y+145); c.closePath(); c.fill();
+  // 领口
+  c.strokeStyle='rgba(120,160,255,0.6)'; c.lineWidth=1.5;
+  c.beginPath(); c.moveTo(cx-8,y+70); c.lineTo(cx,y+78); c.lineTo(cx+8,y+70); c.stroke();
+  // 头部（偏右仰，看星）
+  c.fillStyle='#c8c0e8'; c.shadowColor='#8090ff'; c.shadowBlur=12;
+  c.beginPath(); c.arc(cx+4,y+54,18,0,Math.PI*2); c.fill();
+  // 头发（乱发，有书卷气）
+  c.fillStyle='#202060'; c.shadowBlur=0;
+  c.beginPath(); c.moveTo(cx-10,y+38); c.bezierCurveTo(cx-14,y+30,cx+2,y+28,cx+12,y+36); c.bezierCurveTo(cx+20,y+32,cx+22,y+40,cx+18,y+46); c.closePath(); c.fill();
+  // 眼睛（仰视，星空感）
+  c.fillStyle='#6080ff'; c.shadowColor='#a0c0ff'; c.shadowBlur=10;
+  c.beginPath(); c.ellipse(cx-4,y+54,4,2.5,-0.3,0,Math.PI*2); c.fill();
+  c.beginPath(); c.ellipse(cx+12,y+52,4,2.5,-0.3,0,Math.PI*2); c.fill();
+  // 眼中星点
+  c.fillStyle='#ffffff'; c.shadowBlur=5;
+  c.beginPath(); c.arc(cx-3,y+53,1.2,0,Math.PI*2); c.fill();
+  c.beginPath(); c.arc(cx+13,y+51,1.2,0,Math.PI*2); c.fill();
+  // 星盘（手持，斜放）
+  c.save(); c.translate(cx-30,y+105); c.rotate(-0.5);
+  c.strokeStyle='rgba(120,160,255,0.7)'; c.lineWidth=1.5; c.shadowColor='#6080ff'; c.shadowBlur=10;
+  c.beginPath(); c.arc(0,0,14,0,Math.PI*2); c.stroke();
+  c.beginPath(); c.arc(0,0,8,0,Math.PI*2); c.stroke();
+  for (let i=0;i<8;i++) { const a=i/8*Math.PI*2; c.beginPath(); c.moveTo(0,0); c.lineTo(Math.cos(a)*14,Math.sin(a)*14); c.stroke(); }
+  c.restore();
+  // 飘浮星点（背景装饰）
+  c.fillStyle='rgba(180,200,255,0.8)'; c.shadowColor='#c0d0ff'; c.shadowBlur=6;
+  for (let i=0;i<8;i++) {
+    const sx=x+20+i*18, sy=y+10+((i*37)%50);
+    c.beginPath(); c.arc(sx,sy,1+i%2*0.8,0,Math.PI*2); c.fill();
+  }
+  c.restore();
+}
+
+// ─── 萨利尔（#ff8080，月牙光环，温柔悲伤） ─────────────
+function drawPortraitSariel(c, x, y) {
+  c.save();
+  const cx = x + 90;
+  // 月光背景晕
+  c.shadowColor='#ff8080'; c.shadowBlur=38;
+  const g = c.createRadialGradient(cx,y+80,0,cx,y+80,100);
+  g.addColorStop(0,'rgba(200,80,80,0.3)'); g.addColorStop(1,'rgba(0,0,0,0)');
+  c.fillStyle=g; c.fillRect(x,y,180,220);
+
+  // 月牙光环（头顶）
+  c.strokeStyle='rgba(255,200,200,0.6)'; c.lineWidth=2.5; c.shadowColor='#ffb0b0'; c.shadowBlur=18;
+  c.beginPath(); c.arc(cx,y+36,22,Math.PI*1.1,Math.PI*0.1,true); c.stroke();
+
+  // 翅膀（圆润，银粉）
+  for (let s = -1; s <= 1; s += 2) {
+    c.save();
+    c.shadowColor='#ffb0b0'; c.shadowBlur=14;
+    c.fillStyle=s<0?'#c06080':'#d07090';
+    c.globalAlpha=0.8;
+    c.beginPath();
+    c.moveTo(cx+s*10,y+72);
+    c.bezierCurveTo(cx+s*45,y+42,cx+s*68,y+62,cx+s*62,y+92);
+    c.bezierCurveTo(cx+s*46,y+104,cx+s*18,y+97,cx+s*10,y+72);
+    c.fill();
+    c.globalAlpha=1; c.restore();
+  }
+  // 身体（长裙，银白）
+  c.fillStyle='#e0d0d8'; c.shadowColor='#ff9090'; c.shadowBlur=10;
+  c.beginPath(); c.moveTo(cx-16,y+72); c.lineTo(cx+16,y+72); c.lineTo(cx+24,y+148); c.lineTo(cx-24,y+148); c.closePath(); c.fill();
+  // 领口月纹
+  c.strokeStyle='rgba(255,160,160,0.5)'; c.lineWidth=1.2;
+  c.beginPath(); c.arc(cx,y+76,7,Math.PI,0); c.stroke();
+  // 头部
+  c.fillStyle='#f0e0e8'; c.shadowColor='#ff8080'; c.shadowBlur=12;
+  c.beginPath(); c.arc(cx,y+56,17,0,Math.PI*2); c.fill();
+  // 头发（圆润，粉红）
+  c.fillStyle='#e080a0'; c.shadowBlur=0;
+  c.beginPath(); c.moveTo(cx-14,y+44); c.bezierCurveTo(cx-10,y+30,cx+10,y+30,cx+14,y+44); c.bezierCurveTo(cx+20,y+40,cx+22,y+52,cx+16,y+56); c.bezierCurveTo(cx+22,y+60,cx+18,y+72,cx,y+72); c.bezierCurveTo(cx-18,y+72,cx-22,y+60,cx-16,y+56); c.bezierCurveTo(cx-22,y+52,cx-20,y+40,cx-14,y+44); c.closePath(); c.fill();
+  // 眼睛（略带悲伤，下垂）
+  c.fillStyle='#c06080'; c.shadowColor='#ff9090'; c.shadowBlur=8;
+  c.beginPath(); c.ellipse(cx-6,y+57,4,3,0.2,0,Math.PI*2); c.fill();
+  c.beginPath(); c.ellipse(cx+6,y+57,4,3,0.2,0,Math.PI*2); c.fill();
+  c.fillStyle='#ffffff'; c.shadowBlur=0;
+  c.beginPath(); c.arc(cx-5,y+56,1.2,0,Math.PI*2); c.fill();
+  c.beginPath(); c.arc(cx+7,y+56,1.2,0,Math.PI*2); c.fill();
+  // 手持半月形
+  c.strokeStyle='rgba(255,160,160,0.65)'; c.lineWidth=2; c.shadowColor='#ff8080'; c.shadowBlur=12;
+  c.beginPath(); c.arc(cx+30,y+110,12,Math.PI*1.2,Math.PI*0.2,true); c.stroke();
+  c.restore();
+}
+
+// ─── 达内尔（#a0d0ff，冰晶面具，冷峻法典感） ────────────
+function drawPortraitDanel(c, x, y) {
+  c.save();
+  const cx = x + 90;
+  // 冰蓝背景
+  c.shadowColor='#a0d0ff'; c.shadowBlur=35;
+  const g = c.createRadialGradient(cx,y+80,0,cx,y+80,95);
+  g.addColorStop(0,'rgba(80,140,200,0.3)'); g.addColorStop(1,'rgba(0,0,0,0)');
+  c.fillStyle=g; c.fillRect(x,y,180,220);
+
+  // 翅膀（冰蓝，尖锐结晶感）
+  for (let s = -1; s <= 1; s += 2) {
+    c.save(); c.shadowColor='#c0e8ff'; c.shadowBlur=12; c.globalAlpha=0.85;
+    c.fillStyle=s<0?'#1060a0':'#1878b8';
+    c.beginPath();
+    c.moveTo(cx+s*10,y+70);
+    c.lineTo(cx+s*30,y+38); c.lineTo(cx+s*52,y+26); c.lineTo(cx+s*58,y+50);
+    c.lineTo(cx+s*42,y+72); c.lineTo(cx+s*18,y+82);
+    c.closePath(); c.fill();
+    // 冰晶棱线
+    c.strokeStyle='rgba(200,240,255,0.45)'; c.lineWidth=1;
+    c.beginPath(); c.moveTo(cx+s*10,y+70); c.lineTo(cx+s*52,y+26); c.stroke();
+    c.beginPath(); c.moveTo(cx+s*30,y+38); c.lineTo(cx+s*42,y+72); c.stroke();
+    c.globalAlpha=1; c.restore();
+  }
+  // 身体（深蓝长袍，笔直）
+  c.fillStyle='#0c2848'; c.shadowColor='#80c0ff'; c.shadowBlur=10;
+  c.beginPath(); c.moveTo(cx-16,y+72); c.lineTo(cx+16,y+72); c.lineTo(cx+18,y+148); c.lineTo(cx-18,y+148); c.closePath(); c.fill();
+  // 法典纹（竖线装饰）
+  c.strokeStyle='rgba(140,200,255,0.3)'; c.lineWidth=1;
+  for (let i=-1;i<=1;i++) { c.beginPath(); c.moveTo(cx+i*6,y+78); c.lineTo(cx+i*6,y+145); c.stroke(); }
+  // 头部
+  c.fillStyle='#b8d8f0'; c.shadowColor='#a0d0ff'; c.shadowBlur=12;
+  c.beginPath(); c.arc(cx,y+56,17,0,Math.PI*2); c.fill();
+  // 头发（深蓝，整齐）
+  c.fillStyle='#0c1c40'; c.shadowBlur=0;
+  c.beginPath(); c.moveTo(cx-14,y+42); c.bezierCurveTo(cx-12,y+30,cx+12,y+30,cx+14,y+42); c.lineTo(cx+14,y+50); c.lineTo(cx-14,y+50); c.closePath(); c.fill();
+  // 冰晶面具（遮下半脸）
+  c.fillStyle='rgba(160,220,255,0.35)'; c.strokeStyle='rgba(180,230,255,0.6)'; c.lineWidth=1.2; c.shadowColor='#c0e8ff'; c.shadowBlur=12;
+  c.beginPath(); c.moveTo(cx-14,y+57); c.lineTo(cx+14,y+57); c.lineTo(cx+12,y+70); c.lineTo(cx-12,y+70); c.closePath(); c.fill(); c.stroke();
+  // 眼睛（露出，冷淡蓝）
+  c.fillStyle='#80c8ff'; c.shadowColor='#c0e8ff'; c.shadowBlur=10;
+  c.beginPath(); c.ellipse(cx-6,y+54,4,2.8,0,0,Math.PI*2); c.fill();
+  c.beginPath(); c.ellipse(cx+6,y+54,4,2.8,0,0,Math.PI*2); c.fill();
+  c.fillStyle='#ffffff'; c.shadowBlur=0;
+  c.beginPath(); c.arc(cx-5,y+53,1.2,0,Math.PI*2); c.fill();
+  c.beginPath(); c.arc(cx+7,y+53,1.2,0,Math.PI*2); c.fill();
+  // 法典（手持）
+  c.fillStyle='#0a1828'; c.strokeStyle='rgba(120,180,255,0.5)'; c.lineWidth=1.5; c.shadowColor='#80c0ff'; c.shadowBlur=8;
+  c.fillRect(cx+20,y+88,20,28); c.strokeRect(cx+20,y+88,20,28);
+  c.strokeStyle='rgba(120,180,255,0.35)'; c.lineWidth=1;
+  for(let i=1;i<4;i++){c.beginPath();c.moveTo(cx+22,y+88+i*7);c.lineTo(cx+38,y+88+i*7);c.stroke();}
+  c.restore();
+}
+
+// ─── 以西结尔（#ffe060，双翼大张旋风纹，风暴感） ────────
+function drawPortraitEzequeel(c, x, y) {
+  c.save();
+  const cx = x + 90;
+  // 金黄背景
+  c.shadowColor='#ffe060'; c.shadowBlur=40;
+  const g = c.createRadialGradient(cx,y+80,0,cx,y+80,105);
+  g.addColorStop(0,'rgba(200,160,30,0.32)'); g.addColorStop(1,'rgba(0,0,0,0)');
+  c.fillStyle=g; c.fillRect(x,y,180,220);
+
+  // 翅膀（大张，旋风纹，金黄）
+  for (let s = -1; s <= 1; s += 2) {
+    c.save(); c.shadowColor='#ffd020'; c.shadowBlur=16; c.globalAlpha=0.9;
+    c.fillStyle=s<0?'#b07010':'#c88018';
+    c.beginPath();
+    c.moveTo(cx+s*8,y+68);
+    c.bezierCurveTo(cx+s*40,y+20,cx+s*85,y+30,cx+s*80,y+75);
+    c.bezierCurveTo(cx+s*70,y+105,cx+s*32,y+105,cx+s*8,y+68);
+    c.fill();
+    // 旋风纹（弧线装饰）
+    c.strokeStyle='rgba(255,240,120,0.4)'; c.lineWidth=1.5; c.shadowBlur=8;
+    for (let a=0;a<3;a++) {
+      const aOff=a*0.28;
+      c.beginPath();
+      c.moveTo(cx+s*20,y+75-a*8);
+      c.bezierCurveTo(cx+s*45,y+50-a*5,cx+s*65,y+55-a*5,cx+s*72,y+72-a*4);
+      c.stroke();
+    }
+    c.globalAlpha=1; c.restore();
+  }
+  // 身体
+  c.fillStyle='#604010'; c.shadowColor='#ffe060'; c.shadowBlur=10;
+  c.beginPath(); c.moveTo(cx-16,y+70); c.lineTo(cx+16,y+70); c.lineTo(cx+20,y+148); c.lineTo(cx-20,y+148); c.closePath(); c.fill();
+  // 风纹腰带
+  c.strokeStyle='rgba(255,220,80,0.5)'; c.lineWidth=2;
+  c.beginPath(); c.moveTo(cx-18,y+96); c.bezierCurveTo(cx-8,y+90,cx+8,y+90,cx+18,y+96); c.stroke();
+  // 头部
+  c.fillStyle='#e0c878'; c.shadowColor='#ffe060'; c.shadowBlur=14;
+  c.beginPath(); c.arc(cx,y+55,18,0,Math.PI*2); c.fill();
+  // 头发（乱发，金黄飘逸）
+  c.fillStyle='#b07020'; c.shadowBlur=0;
+  c.beginPath();
+  c.moveTo(cx-16,y+42); c.bezierCurveTo(cx-20,y+26,cx-4,y+24,cx+2,y+34);
+  c.bezierCurveTo(cx+10,y+24,cx+22,y+28,cx+18,y+42);
+  c.bezierCurveTo(cx+24,y+40,cx+28,y+50,cx+20,y+55);
+  c.lineTo(cx-20,y+55); c.closePath(); c.fill();
+  // 飘散发丝
+  c.strokeStyle='rgba(200,160,40,0.5)'; c.lineWidth=1.5;
+  c.beginPath(); c.moveTo(cx-14,y+42); c.bezierCurveTo(cx-30,y+30,cx-38,y+22,cx-42,y+10); c.stroke();
+  c.beginPath(); c.moveTo(cx+14,y+42); c.bezierCurveTo(cx+32,y+28,cx+40,y+18,cx+46,y+6); c.stroke();
+  // 眼睛（明亮有力）
+  c.fillStyle='#d08020'; c.shadowColor='#ffe080'; c.shadowBlur=8;
+  c.beginPath(); c.ellipse(cx-6,y+55,4.5,3,-0.15,0,Math.PI*2); c.fill();
+  c.beginPath(); c.ellipse(cx+6,y+55,4.5,3,-0.15,0,Math.PI*2); c.fill();
+  c.fillStyle='#ffffff'; c.shadowBlur=0;
+  c.beginPath(); c.arc(cx-5,y+54,1.3,0,Math.PI*2); c.fill();
+  c.beginPath(); c.arc(cx+7,y+54,1.3,0,Math.PI*2); c.fill();
+  // 气流涡旋（身后，装饰）
+  c.strokeStyle='rgba(255,230,80,0.25)'; c.lineWidth=2; c.shadowColor='#ffe060'; c.shadowBlur=14;
+  for (let i=1;i<=3;i++) {
+    c.beginPath(); c.arc(cx,y+68,i*14+4,0,Math.PI*2); c.stroke();
+  }
+  c.restore();
+}
+
+// ─── 巴拉奇尔（#ff60a0，锯齿翼边，闪电形光环） ──────────
+function drawPortraitBaraqiel(c, x, y) {
+  c.save();
+  const cx = x + 90;
+  // 玫红背景
+  c.shadowColor='#ff60a0'; c.shadowBlur=36;
+  const g = c.createRadialGradient(cx,y+80,0,cx,y+80,100);
+  g.addColorStop(0,'rgba(180,40,80,0.32)'); g.addColorStop(1,'rgba(0,0,0,0)');
+  c.fillStyle=g; c.fillRect(x,y,180,220);
+
+  // 翅膀（锯齿边，玫红）
+  for (let s = -1; s <= 1; s += 2) {
+    c.save(); c.shadowColor='#ff80c0'; c.shadowBlur=14; c.globalAlpha=0.9;
+    c.fillStyle=s<0?'#b02060':'#c02870';
+    // 锯齿翼
+    c.beginPath(); c.moveTo(cx+s*10,y+70);
+    for (let i=0;i<5;i++) {
+      const t=i/5; const bx=lerp(cx+s*10,cx+s*70,t); const by=lerp(y+70,y+38,t);
+      const jx=lerp(cx+s*10,cx+s*70,(i+0.5)/5); const jy=by-18*(1-Math.abs(t-0.5)*2);
+      c.lineTo(jx+s*8,jy); c.lineTo(bx+s*(i<4?0:0),by);
+    }
+    c.lineTo(cx+s*72,y+40); c.lineTo(cx+s*62,y+80); c.lineTo(cx+s*42,y+98); c.closePath(); c.fill();
+    // 翼脉
+    c.strokeStyle='rgba(255,180,220,0.4)'; c.lineWidth=1.2; c.shadowBlur=6;
+    c.beginPath(); c.moveTo(cx+s*10,y+70); c.lineTo(cx+s*62,y+80); c.stroke();
+    c.globalAlpha=1; c.restore();
+  }
+  // 身体（深玫红）
+  c.fillStyle='#500030'; c.shadowColor='#ff60a0'; c.shadowBlur=10;
+  c.beginPath(); c.moveTo(cx-16,y+70); c.lineTo(cx+16,y+70); c.lineTo(cx+20,y+148); c.lineTo(cx-20,y+148); c.closePath(); c.fill();
+  // 头部
+  c.fillStyle='#e8b0c8'; c.shadowColor='#ff60a0'; c.shadowBlur=14;
+  c.beginPath(); c.arc(cx,y+55,17,0,Math.PI*2); c.fill();
+  // 头发（参差，玫红）
+  c.fillStyle='#a01050'; c.shadowBlur=0;
+  c.beginPath(); c.moveTo(cx-14,y+40); c.bezierCurveTo(cx-16,y+26,cx-2,y+25,cx+2,y+34); c.bezierCurveTo(cx+6,y+26,cx+16,y+28,cx+14,y+40); c.lineTo(cx+14,y+48); c.lineTo(cx-14,y+48); c.closePath(); c.fill();
+  // 闪电形光环（头顶）
+  c.strokeStyle='rgba(255,180,60,0.7)'; c.lineWidth=2.5; c.shadowColor='#ffcc40'; c.shadowBlur=18;
+  c.beginPath();
+  c.moveTo(cx-22,y+34); c.lineTo(cx-8,y+22); c.lineTo(cx-16,y+29); c.lineTo(cx,y+16); c.lineTo(cx+16,y+29); c.lineTo(cx+8,y+22); c.lineTo(cx+22,y+34);
+  c.stroke();
+  // 眼睛（高亮）
+  c.fillStyle='#ff50a0'; c.shadowColor='#ff80c0'; c.shadowBlur=12;
+  c.beginPath(); c.ellipse(cx-6,y+55,4.5,3,0,0,Math.PI*2); c.fill();
+  c.beginPath(); c.ellipse(cx+6,y+55,4.5,3,0,0,Math.PI*2); c.fill();
+  c.fillStyle='#ffffff'; c.shadowBlur=0;
+  c.beginPath(); c.arc(cx-5,y+54,1.5,0,Math.PI*2); c.fill();
+  c.beginPath(); c.arc(cx+7,y+54,1.5,0,Math.PI*2); c.fill();
+  // 眼部高亮线（闪电感）
+  c.strokeStyle='rgba(255,220,100,0.5)'; c.lineWidth=1.2;
+  c.beginPath(); c.moveTo(cx-12,y+51); c.lineTo(cx-8,y+53); c.stroke();
+  c.beginPath(); c.moveTo(cx+12,y+51); c.lineTo(cx+8,y+53); c.stroke();
+  c.restore();
+}
+
+// ─── 扎奇尔（#80ffc0，纯白衣，双手摊开，圣光柱） ────────
+function drawPortraitZaqiel(c, x, y) {
+  c.save();
+  const cx = x + 90;
+  // 翠绿背景
+  c.shadowColor='#80ffc0'; c.shadowBlur=36;
+  const g = c.createRadialGradient(cx,y+80,0,cx,y+80,100);
+  g.addColorStop(0,'rgba(40,160,80,0.3)'); g.addColorStop(1,'rgba(0,0,0,0)');
+  c.fillStyle=g; c.fillRect(x,y,180,220);
+
+  // 圣光柱（从下而上，背景）
+  const pillar = c.createLinearGradient(cx,y+160,cx,y+30);
+  pillar.addColorStop(0,'rgba(120,255,180,0.28)'); pillar.addColorStop(1,'rgba(120,255,180,0)');
+  c.fillStyle=pillar; c.fillRect(cx-12,y+30,24,130);
+
+  // 翅膀（洁白，展开摊手）
+  for (let s = -1; s <= 1; s += 2) {
+    c.save(); c.shadowColor='#c0ffd8'; c.shadowBlur=12; c.globalAlpha=0.88;
+    c.fillStyle=s<0?'#c0f8d0':'#d0fce0';
+    c.beginPath();
+    c.moveTo(cx+s*8,y+70);
+    c.bezierCurveTo(cx+s*35,y+50,cx+s*66,y+52,cx+s*68,y+80);
+    c.bezierCurveTo(cx+s*58,y+102,cx+s*26,y+102,cx+s*8,y+70);
+    c.fill();
+    c.strokeStyle='rgba(140,255,190,0.4)'; c.lineWidth=1;
+    for(let f=1;f<=3;f++){const ft=f/4;c.beginPath();c.moveTo(cx+s*8,y+70);c.lineTo(cx+s*(8+(60*ft)),y+70+15*ft-8);c.stroke();}
+    c.globalAlpha=1; c.restore();
+  }
+  // 身体（纯白长袍）
+  c.fillStyle='#f0fff8'; c.shadowColor='#80ffc0'; c.shadowBlur=10;
+  c.beginPath(); c.moveTo(cx-16,y+70); c.lineTo(cx+16,y+70); c.lineTo(cx+22,y+148); c.lineTo(cx-22,y+148); c.closePath(); c.fill();
+  // 双手摊开（手臂）
+  c.strokeStyle='#e0f8f0'; c.lineWidth=7; c.lineCap='round'; c.shadowColor='#80ffc0'; c.shadowBlur=8;
+  c.beginPath(); c.moveTo(cx-10,y+86); c.lineTo(cx-38,y+100); c.stroke();
+  c.beginPath(); c.moveTo(cx+10,y+86); c.lineTo(cx+38,y+100); c.stroke();
+  // 手心圣光
+  c.fillStyle='rgba(120,255,180,0.6)'; c.shadowColor='#80ffc0'; c.shadowBlur=16;
+  c.beginPath(); c.arc(cx-40,y+100,6,0,Math.PI*2); c.fill();
+  c.beginPath(); c.arc(cx+40,y+100,6,0,Math.PI*2); c.fill();
+  // 头部
+  c.fillStyle='#e0f8ec'; c.shadowColor='#80ffc0'; c.shadowBlur=14;
+  c.beginPath(); c.arc(cx,y+55,17,0,Math.PI*2); c.fill();
+  // 头发（浅绿白）
+  c.fillStyle='#60d898'; c.shadowBlur=0;
+  c.beginPath(); c.moveTo(cx-13,y+42); c.bezierCurveTo(cx-10,y+28,cx+10,y+28,cx+13,y+42); c.bezierCurveTo(cx+18,y+38,cx+20,y+50,cx+14,y+55); c.lineTo(cx-14,y+55); c.bezierCurveTo(cx-20,y+50,cx-18,y+38,cx-13,y+42); c.closePath(); c.fill();
+  // 眼睛（温柔，翠绿）
+  c.fillStyle='#40c878'; c.shadowColor='#80ffc0'; c.shadowBlur=8;
+  c.beginPath(); c.ellipse(cx-6,y+57,4,3,0.1,0,Math.PI*2); c.fill();
+  c.beginPath(); c.ellipse(cx+6,y+57,4,3,0.1,0,Math.PI*2); c.fill();
+  c.fillStyle='#ffffff'; c.shadowBlur=0;
+  c.beginPath(); c.arc(cx-5,y+56,1.2,0,Math.PI*2); c.fill();
+  c.beginPath(); c.arc(cx+7,y+56,1.2,0,Math.PI*2); c.fill();
+  c.restore();
+}
+
 // 立绘调度（对话框渲染时调用）
 function renderPortrait(line) {
   if (!line || !line.portrait) return;
@@ -4630,14 +5187,20 @@ function renderPortrait(line) {
   const portraitY = H - dialogH - ph + 10; // 贴对话框上沿，略微重叠
   const portraitX = (line.side === 'right') ? W - pw - 40 : 40;
   switch (line.portrait) {
-    case 'lucifer':  drawPortraitLucifer (ctx, portraitX, portraitY); break;
-    case 'player':   drawPortraitPlayer  (ctx, portraitX, portraitY); break;
-    case 'raphael':  drawPortraitRaphael (ctx, portraitX, portraitY); break;
-    case 'michael':  drawPortraitMichael (ctx, portraitX, portraitY); break;
-    case 'azazel':   drawPortraitAzazel  (ctx, portraitX, portraitY); break;
-    case 'ramiel':   drawPortraitRamiel  (ctx, portraitX, portraitY); break;
-    case 'shamsiel': drawPortraitShamsiel(ctx, portraitX, portraitY); break;
-    case 'semyaza':  drawPortraitSemyaza (ctx, portraitX, portraitY); break;
+    case 'lucifer':   drawPortraitLucifer (ctx, portraitX, portraitY); break;
+    case 'player':    drawPortraitPlayer  (ctx, portraitX, portraitY); break;
+    case 'raphael':   drawPortraitRaphael (ctx, portraitX, portraitY); break;
+    case 'michael':   drawPortraitMichael (ctx, portraitX, portraitY); break;
+    case 'azazel':    drawPortraitAzazel  (ctx, portraitX, portraitY); break;
+    case 'ramiel':    drawPortraitRamiel  (ctx, portraitX, portraitY); break;
+    case 'shamsiel':  drawPortraitShamsiel(ctx, portraitX, portraitY); break;
+    case 'semyaza':   drawPortraitSemyaza (ctx, portraitX, portraitY); break;
+    case 'kokabiel':  drawPortraitKokabiel(ctx, portraitX, portraitY); break;
+    case 'sariel':    drawPortraitSariel  (ctx, portraitX, portraitY); break;
+    case 'danel':     drawPortraitDanel   (ctx, portraitX, portraitY); break;
+    case 'ezequeel':  drawPortraitEzequeel(ctx, portraitX, portraitY); break;
+    case 'baraqiel':  drawPortraitBaraqiel(ctx, portraitX, portraitY); break;
+    case 'zaqiel':    drawPortraitZaqiel  (ctx, portraitX, portraitY); break;
   }
 }
 
@@ -4649,7 +5212,8 @@ let dlg = {
   lineIdx: 0,
   typeTimer: 0,    // 已经"打"出多少字符（小数累积）
   waitingChoice: false,
-  pendingAngelId: null,   // 当前天使对话对应的天使id（给完对话后发buff）
+  pendingAngelId: null,        // 当前天使对话对应的天使id（给完对话后发buff）
+  pendingBlessingAngel: null,  // 当前祝福天使对象（对话后弹3选1）
 };
 
 const dlgSpeaker = document.getElementById('dialog-speaker');
@@ -4771,13 +5335,24 @@ function endDialog() {
   const data = DIALOGS[dlg.id];
   const endAction = data && data.onEnd;
   const angelId   = dlg.pendingAngelId || null;
+  const blessingAngel = dlg.pendingBlessingAngel || null;
   dlg.id = null;
   dlg.pendingAngelId = null;
+  dlg.pendingBlessingAngel = null;
   dlgBox.classList.add('hidden');
   setGameState(S.PLAYING);
 
   // 执行 onEnd 回调
-  if (endAction === 'offerBuff') offerBuff();
+  if (endAction === 'offerBuff') offerBuff(null);  // 全池3选1（路西法对话后）
+  else if (endAction === 'offerBlessingBuffCombat') {
+    // COMBAT房祝福天使对话后：给该天使自己的6个buff里3选1
+    const aid = blessingAngel ? blessingAngel.id : null;
+    offerBuff(aid);
+  }
+  else if (endAction === 'offerBlessingBuffAngelRoom') {
+    // ANGEL房：全池3选1
+    offerBuff(null);
+  }
   else if (endAction === 'grantAngelBuff' && angelId) grantAngelBuffImmediate(angelId);
 }
 
@@ -4793,20 +5368,19 @@ function pickRandomAngel() {
 }
 
 function startAngelDialog(angel) {
-  // 动态注入对话到DIALOGS临时key
+  // ANGEL房间：堕落天使对话结束后给全池3选1（不再是单个即时buff）
   const key = '__angel__';
   DIALOGS[key] = {
-    onEnd: 'grantAngelBuff',
+    onEnd: 'offerBlessingBuffAngelRoom',   // 全池3选1
     lines: angel.lines.map(l => ({
       speaker: angel.name,
       speakerColor: angel.color,
-      portrait: null,   // 堕落天使无立绘（在对话框旁边显示文字描述）
+      portrait: null,   // 堕落天使暂无立绘（使用文字）
       text: l.text,
       isEnd: l.isEnd || false,
     })),
   };
   usedAngelIds.push(angel.id);
-  dlg.pendingAngelId = angel.id;
   startDialog(key);
 }
 
@@ -4975,7 +5549,9 @@ function resetAll() {
 let room = { tiles: [], exits: [], type: 'COMBAT' };
 
 // run 对象：当前局的进度
-let run = { zone: 0, roomIdx: 0, roomSequence: [], activeBuffs: [], gold: 0, nextChoices: [], pendingEliteReward: false };
+let run = { zone: 0, roomIdx: 0, roomSequence: [], activeBuffs: [], gold: 0, nextChoices: [],
+  pendingEliteReward: false, pendingCombatReward: false, pendingCombatAngel: null,
+  blessingAngelQueue: [], blessingAngelIdx: 0, buffSourceAngel: null };
 
 // 房间类型序列生成
 // 每区5间：ENTRY, COMBAT, COMBAT/ANGEL, ELITE, BOSS
@@ -5058,8 +5634,11 @@ function initRun() {
   run.gold      = 0;
   run.nextChoices = [];
   run.pendingEliteReward = false;
+  run.pendingCombatReward = false;   // COMBAT房打完等待天使弹出
+  run.pendingCombatAngel = null;     // COMBAT房对应天使
   run.roomSequence = generateRoomSequence(0);
   usedAngelIds = [];
+  initBlessingQueue();
   updateGoldHUD();
   loadRoom(0, 0);
 }
@@ -5075,6 +5654,11 @@ function loadRoom(zone, roomIdx) {
 
   // 生成敌人
   spawnEnemiesForRoom(type, zone);
+
+  // 每次加载新房间重置COMBAT战斗奖励标志
+  run.pendingCombatReward = false;
+  run.pendingCombatAngel  = null;
+  run.pendingEliteReward  = false;
 
   // ENTRY / ANGEL / SHOP 房间直接解锁出口
   if (type === 'ENTRY' || type === 'ANGEL' || type === 'SHOP') {
@@ -5098,7 +5682,7 @@ function loadRoom(zone, roomIdx) {
   } else if (zone === 2 && type === 'BOSS') {
     setTimeout(() => startDialog('michael_boss_intro'), 300);
   } else if (type === 'ANGEL') {
-    // 天使祝福间：随机一个堕落天使出现，对话结束给祝福
+    // ANGEL房：堕落天使出现，对话后给全池3选1
     const angel = pickRandomAngel();
     setTimeout(() => startAngelDialog(angel), 300);
   }
@@ -5159,19 +5743,28 @@ function spawnEnemiesForRoom(type, zone) {
   }
 }
 
-// 检查出口解锁（每帧调用）——ELITE/BOSS打完后先触发对话再解锁
+// 检查出口解锁（每帧调用）——ELITE/COMBAT/BOSS打完后先触发对话再解锁
 function checkExitUnlock() {
   if (room.type === 'ENTRY' || room.type === 'ANGEL') return;
   if (enemies.length === 0 && !room.exits[0].locked) return; // 已解锁不重复处理
   if (enemies.length === 0) {
-    // 精英间/BOSS间打完：弹路西法对话+Buff选择
+    // COMBAT房打完：弹出祝福天使对话 → 给该天使池3选1 → 解锁出口
+    if (room.type === 'COMBAT' && !run.pendingCombatReward) {
+      run.pendingCombatReward = true;
+      room.exits.forEach(ex => { ex.locked = true; }); // 保持锁定，等Buff选完
+      const angel = run.pendingCombatAngel || nextBlessingAngel();
+      run.pendingCombatAngel = angel;
+      setTimeout(() => {
+        startBlessingAngelDialog(angel, 'combat');
+      }, 400);
+      return;
+    }
+    // 精英间打完：弹路西法对话+全池Buff选择
     if (room.type === 'ELITE' && !run.pendingEliteReward) {
       run.pendingEliteReward = true;
       setTimeout(() => {
         startDialog('lucifer_after_elite');
       }, 400);
-      // 解锁出口在对话结束后（offerBuff后返回PLAYING时由advanceRoom处理）
-      // 先给路西法对话，对话 onEnd='offerBuff'，选完Buff后出口已解锁
       room.exits.forEach(ex => { ex.locked = true; }); // 保持锁定，等Buff选完
       return;
     }
@@ -5248,7 +5841,17 @@ let pendingRouteChoice = null;  // 选中的路线选项（等 fade 结束后加
 function triggerRouteChoice() {
   if (fadeState !== 'none') return;
   if (gameState === S.ROUTE) return;
+  // 生成岔路选项，同时预先绑定下一个祝福天使
   run.nextChoices = generateNextChoices(run.zone, run.roomIdx);
+  // 为选项里的COMBAT绑定预告天使
+  for (const opt of run.nextChoices) {
+    if (opt.type === 'COMBAT') {
+      const angel = nextBlessingAngel();
+      opt.blessingAngel = angel;  // 预告用
+      opt.reward = `✦ ${angel.name}的祝福`;
+      opt.rewardColor = angel.color;
+    }
+  }
   renderRouteScreen();
   setGameState(S.ROUTE);
 }
@@ -5259,9 +5862,9 @@ function renderRouteScreen() {
   for (const opt of run.nextChoices) {
     const card = document.createElement('div');
     card.className = 'route-card';
-    // 奖励类型颜色
-    const rewardCol = opt.reward && opt.reward.startsWith('✦') ? '#ffe080' :
-                      opt.reward && opt.reward.startsWith('◈') ? '#d4a840' : '#a080a0';
+    const rewardCol = opt.rewardColor ||
+      (opt.reward && opt.reward.startsWith('✦') ? '#ffe080' :
+       opt.reward && opt.reward.startsWith('◈') ? '#d4a840' : '#a080a0');
     card.innerHTML = `
       <div class="route-card-icon">${opt.icon}</div>
       <div class="route-card-body">
@@ -5270,6 +5873,10 @@ function renderRouteScreen() {
         <div style="font-size:11px;color:${rewardCol};margin-top:6px;letter-spacing:1px;">${opt.reward || ''}</div>
       </div>`;
     card.addEventListener('click', () => {
+      // 如果选了COMBAT，把预先绑定的天使存到 pendingCombatAngel
+      if (opt.type === 'COMBAT' && opt.blessingAngel) {
+        run.pendingCombatAngel = opt.blessingAngel;
+      }
       pendingRouteChoice = opt;
       setGameState(S.PLAYING);
       triggerRoomTransition();
@@ -5337,18 +5944,56 @@ function advanceRoom() {
   }
 }
 
-// Buff选择（预留接口，2D步骤完整实现）
-function offerBuff() {
+// ─── 祝福天使对话启动（COMBAT房 / ANGEL房用） ───────────
+function startBlessingAngelDialog(angel, source) {
+  // source: 'combat' | 'angel_room'
+  const key = '__blessing__';
+  DIALOGS[key] = {
+    onEnd: source === 'combat' ? 'offerBlessingBuffCombat' : 'offerBlessingBuffAngelRoom',
+    lines: angel.lines.map(l => ({
+      speaker: angel.name,
+      speakerColor: angel.color,
+      portrait: angel.id,   // 使用立绘
+      side: 'left',
+      text: l.text,
+      isEnd: l.isEnd || false,
+    })),
+  };
+  dlg.pendingBlessingAngel = angel;
+  startDialog(key);
+}
+
+// Buff选择界面——可指定天使池（null=全池，否则用该天使的6个buff）
+function offerBuff(angelId) {
+  run.buffSourceAngel = angelId || null;   // 记录来源天使，renderBuffChoices用
   setGameState(S.BUFF);
   renderBuffChoices();
 }
 
-// 临时Buff屏
+// Buff选择渲染（按天使池或全池）
 function renderBuffChoices() {
-  const pool = ALL_BUFFS.filter(b => !run.activeBuffs.includes(b.id));
-  const choices = [];
+  const angelId = run.buffSourceAngel;
+  let pool;
+  let headerAngel = null;
+  if (angelId) {
+    const angel = BLESSING_ANGELS.find(a => a.id === angelId);
+    headerAngel = angel;
+    pool = ALL_BUFFS.filter(b => b.angel === angelId && !run.activeBuffs.includes(b.id));
+    // 若该天使buff全选完，退化到全池
+    if (pool.length === 0) pool = ALL_BUFFS.filter(b => !run.activeBuffs.includes(b.id));
+  } else {
+    pool = ALL_BUFFS.filter(b => !run.activeBuffs.includes(b.id));
+  }
   const shuffled = [...pool].sort(() => Math.random() - 0.5);
-  while (choices.length < 3 && shuffled.length > 0) choices.push(shuffled.splice(0,1)[0]);
+  const choices = shuffled.slice(0, 3);
+
+  // 更新标题（显示天使名）
+  const titleEl = document.getElementById('buff-title');
+  if (headerAngel) {
+    titleEl.innerHTML = `<span style="color:${headerAngel.color}">${headerAngel.name}</span> 的祝福`;
+  } else {
+    titleEl.textContent = '选择恩赐';
+  }
 
   const container = document.getElementById('buff-cards');
   container.innerHTML = '';
@@ -5358,7 +6003,7 @@ function renderBuffChoices() {
     card.innerHTML = `
       <div class="buff-card-theme" style="background:${b.theme}"></div>
       <div class="buff-card-body">
-        <div class="buff-card-tag">${b.tag}</div>
+        <div class="buff-card-tag" style="color:${b.theme}">${b.tag}</div>
         <div class="buff-card-name">${b.name}</div>
         <div class="buff-card-desc">${b.desc}</div>
       </div>`;
@@ -5367,8 +6012,16 @@ function renderBuffChoices() {
         run.activeBuffs.push(b.id);
         b.apply(player);
         updateBuffIcons();
+        showFloatingText(`${b.tag} · ${b.name}`, b.theme);
       }
+      run.buffSourceAngel = null;
       setGameState(S.PLAYING);
+      // COMBAT间：Buff选完后解锁出口
+      if (room.type === 'COMBAT') {
+        room.exits.forEach(ex => { ex.locked = false; });
+        run.pendingCombatReward = false;
+        run.pendingCombatAngel  = null;
+      }
       // 精英间：Buff选完后解锁出口
       if (room.type === 'ELITE') {
         room.exits.forEach(ex => { ex.locked = false; });
@@ -5378,43 +6031,184 @@ function renderBuffChoices() {
     container.appendChild(card);
   }
 }
+// ═══════════════════════════════════════════════════════════
+// ═══ BUFF SYSTEM（30个新buff，5天使×6，定稿2026-08-06）═══
+// ═══════════════════════════════════════════════════════════
+
+// 5个祝福天使定义——每人6个buff，COMBAT房打完出现
+const BLESSING_ANGELS = [
+  {
+    id: 'sariel', name: '萨利尔', color: '#ff8080',
+    title: '月亮之祝福',
+    lines: [
+      { text: '月光不只是照亮。\n它让你在黑暗里记得自己的轮廓。', },
+      { text: '选一样我能给你的东西。', isEnd: true },
+    ],
+    buffIds: ['sariel_atk','sariel_dash','sariel_thrust','sariel_spin','sariel_p1','sariel_p2'],
+  },
+  {
+    id: 'danel', name: '达内尔', color: '#a0d0ff',
+    title: '法则之祝福',
+    lines: [
+      { text: '秩序是冰封的形状。\n你打破它，我帮你留住碎片。', },
+      { text: '选一样。别客气，我已经不相信规矩了。', isEnd: true },
+    ],
+    buffIds: ['danel_atk','danel_dash','danel_thrust','danel_spin','danel_p1','danel_p2'],
+  },
+  {
+    id: 'ezequeel', name: '以西结尔', color: '#ffe060',
+    title: '风暴之祝福',
+    lines: [
+      { text: '风暴在等。\n你走得越快，它就越大。', },
+      { text: '选一样。然后让他们感受那阵风从哪里来。', isEnd: true },
+    ],
+    buffIds: ['ezequeel_atk','ezequeel_dash','ezequeel_thrust','ezequeel_spin','ezequeel_p1','ezequeel_p2'],
+  },
+  {
+    id: 'baraqiel', name: '巴拉奇尔', color: '#ff60a0',
+    title: '闪电之祝福',
+    lines: [
+      { text: '闪电不等人。\n你也不应该等。', },
+      { text: '快，选一个——', isEnd: true },
+    ],
+    buffIds: ['baraqiel_atk','baraqiel_dash','baraqiel_thrust','baraqiel_spin','baraqiel_p1','baraqiel_p2'],
+  },
+  {
+    id: 'zaqiel', name: '扎奇尔', color: '#80ffc0',
+    title: '纯洁之祝福',
+    lines: [
+      { text: '我不知道"纯洁"是不是一个好词。\n但我知道怎么让你活得久一点。', },
+      { text: '选一样吧。我在等你。', isEnd: true },
+    ],
+    buffIds: ['zaqiel_atk','zaqiel_dash','zaqiel_thrust','zaqiel_spin','zaqiel_p1','zaqiel_p2'],
+  },
+];
+
+// run状态里追踪本局祝福天使轮转
+// run.blessingAngelQueue: BLESSING_ANGELS的id轮转队列（打乱，每局不重复直到全用完）
+// run.pendingCombatAngel: COMBAT房打完后等待显示的天使（含天使对象）
+
+// 初始化祝福天使队列
+function initBlessingQueue() {
+  const ids = BLESSING_ANGELS.map(a => a.id);
+  // Fisher-Yates打乱
+  for (let i = ids.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [ids[i], ids[j]] = [ids[j], ids[i]];
+  }
+  run.blessingAngelQueue = ids;
+  run.blessingAngelIdx   = 0;
+}
+
+// 取下一个祝福天使（循环轮转）
+function nextBlessingAngel() {
+  if (!run.blessingAngelQueue || run.blessingAngelQueue.length === 0) initBlessingQueue();
+  const id = run.blessingAngelQueue[run.blessingAngelIdx % run.blessingAngelQueue.length];
+  run.blessingAngelIdx = (run.blessingAngelIdx + 1) % run.blessingAngelQueue.length;
+  return BLESSING_ANGELS.find(a => a.id === id);
+}
+
+// 全部30个buff
 const ALL_BUFFS = [
-  { id:'holy_blade',    name:'圣光之刃',   theme:'#ffe080', tag:'HOLY',
-    desc:'每次击中额外 +10 圣光伤害',
-    apply: p => { p.mods.holyDmg += 10; } },
-  { id:'divine_ward',   name:'神圣庇护',   theme:'#ffe080', tag:'HOLY',
-    desc:'冲刺后 0.5秒内受伤降低 60%',
-    apply: p => { p.mods.dashDefenseWindow = 30; } },
-  { id:'seraphim_burst',name:'炽天使迸发', theme:'#ffe080', tag:'HOLY',
-    desc:'旋转斩命中 2+敌人触发圣光冲击波',
+  // ── 萨利尔（月亮/守护/生命）#ff8080 ──────────────────────
+  { id:'sariel_atk',   angel:'sariel', name:'月牙斩',   theme:'#ff8080', tag:'萨利尔',
+    desc:'每次普攻命中回复 2 HP',
+    apply: p => { p.mods.lifeOnHit = (p.mods.lifeOnHit || 0) + 2; } },
+  { id:'sariel_dash',  angel:'sariel', name:'月影步',   theme:'#ff8080', tag:'萨利尔',
+    desc:'冲刺后 3秒内受伤减少 40%',
+    apply: p => { p.mods.dashDefenseWindow = Math.max(p.mods.dashDefenseWindow || 0, 180); } },
+  { id:'sariel_thrust',angel:'sariel', name:'月盾突',   theme:'#ff8080', tag:'萨利尔',
+    desc:'突刺命中后立即回复 8 HP',
+    apply: p => { p.mods.thrustLifeSteal = (p.mods.thrustLifeSteal || 0) + 8; } },
+  { id:'sariel_spin',  angel:'sariel', name:'月圆斩',   theme:'#ff8080', tag:'萨利尔',
+    desc:'旋转斩范围 +30%，命中每敌回复 1 HP',
+    apply: p => { p.mods.spinRangeBonus = (p.mods.spinRangeBonus || 1) * 1.3; p.mods.spinLifePerHit = (p.mods.spinLifePerHit||0)+1; } },
+  { id:'sariel_p1',    angel:'sariel', name:'月光庇护', theme:'#ff8080', tag:'萨利尔',
+    desc:'最大 HP +50',
+    apply: p => { p.maxHp += 50; p.hp = Math.min(p.hp + 50, p.maxHp); } },
+  { id:'sariel_p2',    angel:'sariel', name:'殒月',     theme:'#ff8080', tag:'萨利尔',
+    desc:'HP 低于 30% 时所有伤害 +25%',
+    apply: p => { p.mods.lowHpDmgBonus = true; } },
+
+  // ── 达内尔（法则/冰/减速）#a0d0ff ────────────────────────
+  { id:'danel_atk',    angel:'danel',  name:'冰封法则', theme:'#a0d0ff', tag:'达内尔',
+    desc:'普攻命中使敌人移速 -40%，持续 2秒',
+    apply: p => { p.mods.slowOnHit = Math.min(p.mods.slowOnHit, 0.6); p.mods.slowDur = Math.max(p.mods.slowDur||0, 120); } },
+  { id:'danel_dash',   angel:'danel',  name:'法则之壁', theme:'#a0d0ff', tag:'达内尔',
+    desc:'冲刺后留下冰霜轨迹，经过敌人减速 -50% 持续 1.5秒',
+    apply: p => { p.mods.dashFrostTrail = true; } },
+  { id:'danel_thrust', angel:'danel',  name:'冰矛穿透', theme:'#a0d0ff', tag:'达内尔',
+    desc:'突刺双倍伤害，命中必定减速 2秒',
+    apply: p => { p.mods.thrustDmgMul = (p.mods.thrustDmgMul || 1) * 2; p.mods.thrustFreeze = true; } },
+  { id:'danel_spin',   angel:'danel',  name:'霜环',     theme:'#a0d0ff', tag:'达内尔',
+    desc:'旋转斩落点留下 3秒霜环，进入减速 -60%',
+    apply: p => { p.mods.spinFrostRing = true; } },
+  { id:'danel_p1',     angel:'danel',  name:'绝对零度', theme:'#a0d0ff', tag:'达内尔',
+    desc:'减速状态的敌人额外受伤 +20%',
+    apply: p => { p.mods.slowedEnemyDmgBonus = true; } },
+  { id:'danel_p2',     angel:'danel',  name:'法则执行者',theme:'#a0d0ff',tag:'达内尔',
+    desc:'冲刺 CD -20%',
+    apply: p => { p.mods.dashCdMul = (p.mods.dashCdMul || 1) * 0.8; } },
+
+  // ── 以西结尔（风暴/AOE/范围）#ffe060 ─────────────────────
+  { id:'ezequeel_atk',   angel:'ezequeel', name:'风刃',   theme:'#ffe060', tag:'以西结尔',
+    desc:'普攻攻击弧度 +40%（扇形更宽）',
+    apply: p => { p.mods.atkArcBonus = (p.mods.atkArcBonus || 1) * 1.4; } },
+  { id:'ezequeel_dash',  angel:'ezequeel', name:'风暴步', theme:'#ffe060', tag:'以西结尔',
+    desc:'冲刺穿过敌人造成 18 伤害',
+    apply: p => { p.mods.dashThrough = true; p.mods.dashThroughDmg = (p.mods.dashThroughDmg||0) + 18; } },
+  { id:'ezequeel_thrust',angel:'ezequeel', name:'旋风突', theme:'#ffe060', tag:'以西结尔',
+    desc:'突刺时同时对周围敌人造成 AOE 伤害（范围80，伤害20）',
+    apply: p => { p.mods.thrustAOE = true; } },
+  { id:'ezequeel_spin',  angel:'ezequeel', name:'大风暴', theme:'#ffe060', tag:'以西结尔',
+    desc:'旋转斩伤害 +50%，击退 +100%',
+    apply: p => { p.mods.spinDmgBonus = (p.mods.spinDmgBonus||0) + 28; p.mods.spinKnockbackBonus = true; } },
+  { id:'ezequeel_p1',    angel:'ezequeel', name:'风眼',   theme:'#ffe060', tag:'以西结尔',
+    desc:'单次命中 3+敌人时额外触发圣光冲击波（伤害 25）',
     apply: p => { p.mods.spinBurst = true; } },
-  { id:'shadow_step',   name:'暗影步',     theme:'#8040c0', tag:'SHADOW',
-    desc:'冲刺距离 +40%，穿过敌人造成 20 伤害',
-    apply: p => { p.mods.dashRange = (p.mods.dashRange || 1) * 1.4; p.mods.dashThrough = true; } },
-  { id:'void_echo',     name:'虚空回响',   theme:'#8040c0', tag:'SHADOW',
-    desc:'第3连击双倍伤害',
-    apply: p => { p.mods.comboFinisherMul = 2; } },
-  { id:'fallen_curse',  name:'堕落诅咒',   theme:'#8040c0', tag:'SHADOW',
-    desc:'命中使敌人移速 -30%，持续 1.5秒',
-    apply: p => { p.mods.slowOnHit = 0.7; p.mods.slowDur = 90; } },
-  { id:'swift_feather', name:'迅捷翎羽',   theme:'#40c0ff', tag:'SPEED',
-    desc:'移动速度 +25%',
-    apply: p => { p.speed *= 1.25; } },
-  { id:'wind_cleave',   name:'风刃连削',   theme:'#40c0ff', tag:'SPEED',
-    desc:'攻击速度 +30%',
-    apply: p => { p.mods.atkSpeedMul = (p.mods.atkSpeedMul || 1) * 0.77; } },
-  { id:'dash_reset',    name:'凌波微步',   theme:'#40c0ff', tag:'SPEED',
-    desc:'击杀重置冲刺CD',
+  { id:'ezequeel_p2',    angel:'ezequeel', name:'暴风之翼',theme:'#ffe060',tag:'以西结尔',
+    desc:'移动速度 +20%',
+    apply: p => { p.speed *= 1.2; } },
+
+  // ── 巴拉奇尔（闪电/速度/冲刺）#ff60a0 ───────────────────
+  { id:'baraqiel_atk',   angel:'baraqiel', name:'雷击普攻',theme:'#ff60a0',tag:'巴拉奇尔',
+    desc:'每次攻击附加 12 闪电伤害，连锁最近敌人（伤害 8）',
+    apply: p => { p.mods.thunderOnHit = (p.mods.thunderOnHit||0) + 12; } },
+  { id:'baraqiel_dash',  angel:'baraqiel', name:'闪电冲',  theme:'#ff60a0', tag:'巴拉奇尔',
+    desc:'冲刺距离 +50%，冲刺后下次攻击 +30%',
+    apply: p => { p.mods.dashRange = (p.mods.dashRange||1)*1.5; p.mods.dashNextAtkBonus = true; } },
+  { id:'baraqiel_thrust',angel:'baraqiel', name:'雷速突刺',theme:'#ff60a0',tag:'巴拉奇尔',
+    desc:'突刺 CD -40%，突刺速度 +50%',
+    apply: p => { p.mods.thrustCdMul = (p.mods.thrustCdMul||1)*0.6; p.mods.thrustSpdMul = (p.mods.thrustSpdMul||1)*1.5; } },
+  { id:'baraqiel_spin',  angel:'baraqiel', name:'闪电环',  theme:'#ff60a0', tag:'巴拉奇尔',
+    desc:'旋转斩命中时敌人间产生电弧（伤害 15/条）',
+    apply: p => { p.mods.spinLightningArc = true; } },
+  { id:'baraqiel_p1',    angel:'baraqiel', name:'超导',    theme:'#ff60a0', tag:'巴拉奇尔',
+    desc:'击杀敌人重置冲刺 CD',
     apply: p => { p.mods.dashKillReset = true; } },
-  { id:'iron_faith',    name:'铁志信念',   theme:'#ff6060', tag:'LIFE',
-    desc:'最大HP +40',
-    apply: p => { p.maxHp += 40; p.hp = Math.min(p.hp + 40, p.maxHp); } },
-  { id:'martyrs_will',  name:'殉道者意志', theme:'#ff6060', tag:'LIFE',
-    desc:'受致命伤时以1HP存活（每局限1次）',
-    apply: p => { p.mods.lastStand = true; } },
-  { id:'purging_flame', name:'净化圣焰',   theme:'#ff6060', tag:'LIFE',
-    desc:'击杀回复 5 HP',
+  { id:'baraqiel_p2',    angel:'baraqiel', name:'雷速',    theme:'#ff60a0', tag:'巴拉奇尔',
+    desc:'攻击速度 +35%',
+    apply: p => { p.mods.atkSpeedMul = (p.mods.atkSpeedMul||1)*0.74; } },
+
+  // ── 扎奇尔（纯洁/治疗/持续）#80ffc0 ─────────────────────
+  { id:'zaqiel_atk',   angel:'zaqiel', name:'净化之光',theme:'#80ffc0', tag:'扎奇尔',
+    desc:'普攻命中 20% 概率触发治愈光环（回 5 HP，周围敌人受 5 伤）',
+    apply: p => { p.mods.pureAuraChance = true; } },
+  { id:'zaqiel_dash',  angel:'zaqiel', name:'圣洁冲',  theme:'#80ffc0', tag:'扎奇尔',
+    desc:'冲刺后 5秒内受伤的 15% 转为 HP 回复',
+    apply: p => { p.mods.dashLifeConvert = true; } },
+  { id:'zaqiel_thrust',angel:'zaqiel', name:'净化突刺',theme:'#80ffc0', tag:'扎奇尔',
+    desc:'突刺伤害的 30% 转为 HP',
+    apply: p => { p.mods.thrustLifePct = (p.mods.thrustLifePct||0) + 0.3; } },
+  { id:'zaqiel_spin',  angel:'zaqiel', name:'纯洁旋',  theme:'#80ffc0', tag:'扎奇尔',
+    desc:'旋转斩命中后对敌人施加灼烧（每 0.5秒 8 伤，持续 1秒）',
+    apply: p => { p.mods.spinBurn = true; } },
+  { id:'zaqiel_p1',    angel:'zaqiel', name:'生命涌泉',theme:'#80ffc0', tag:'扎奇尔',
+    desc:'每次击杀回复 5 HP',
     apply: p => { p.mods.lifeOnKill += 5; } },
+  { id:'zaqiel_p2',    angel:'zaqiel', name:'圣光之体',theme:'#80ffc0', tag:'扎奇尔',
+    desc:'最大 HP +30，受伤 15% 概率完全抵消',
+    apply: p => { p.maxHp += 30; p.hp = Math.min(p.hp+30, p.maxHp); p.mods.blockChance = (p.mods.blockChance||0)+0.15; } },
 ];
 
 // 更新Buff图标行
